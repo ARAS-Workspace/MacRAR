@@ -1,0 +1,37 @@
+SevenZipKit — 7-Zip licence and attribution
+
+The static library in this directory is a build of 7-Zip, linked into
+MacRAR. It carries 7-Zip's archive formats, codecs and the extract and
+update logic of its 7zz command-line program, behind a C interface added
+by the fork it is built from.
+
+    Project     7-Zip
+    Author      Igor Pavlov
+    Upstream    https://www.7-zip.org, https://github.com/ip7z/7zip
+    Copyright   (C) 1999-2026 Igor Pavlov
+    Licence     GNU LGPL 2.1 or later; the RAR decoder files under the GNU
+                LGPL with the unRAR licence restriction; some files under
+                BSD 3-clause, BSD 2-clause or in the public domain
+
+The full licence text is in LICENSE, in this directory, reproduced
+unchanged from the 7-Zip source distribution (DOC/License.txt). It is kept
+here because the library in this directory is a binary distribution of
+LGPL-covered code.
+
+The unRAR licence restriction means the RAR decoding code may not be used
+to develop a RAR (WinRAR) compatible archiver. This library only decodes
+RAR archives; creating them is left to RARLAB's own rar program, which the
+user installs.
+
+The library is linked statically. Its complete source, including the C
+interface, is published at the release and branch recorded in SOURCE, and
+MacRAR's own source is public, so the application can be rebuilt and
+relinked against a modified build of this library, as the LGPL asks.
+
+This build comes from a fork that adds the C interface and its build and
+release scripts in a directory of its own and leaves 7-Zip's sources
+unmodified. The fork adds no copyright line of its own to 7-Zip's files.
+
+MacRAR is not affiliated with the 7-Zip project. Its name appears here only
+to identify the software this library was built from, not to endorse or
+promote MacRAR.
