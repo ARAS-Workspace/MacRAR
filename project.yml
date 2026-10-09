@@ -28,7 +28,11 @@ targets:
       - path: MacRAR/AppIcon.icon
         type: file
         buildPhase: resources
-    scheme: {}
+    scheme:
+      testTargets:
+        - MacRARTests
+      environmentVariables:
+        MACRAR_NO_UPDATE_CHECK: "1"
     dependencies:
       - framework: Libraries/SevenZipKit/lib7zip_apple.a
         embed: false
@@ -168,3 +172,28 @@ targets:
         # RAR creation runs the user's own RARLAB `rar`, neither of
         # which the sandbox permits.
         com.apple.security.app-sandbox: false
+
+  # ── Tests ─────────────────────────────────────────────────
+
+  MacRARTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: MacRARTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: MacRAR
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MacRAR.app/Contents/MacOS/MacRAR"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.arasworkspace.MacRARTests
+        # @testable import MacRAR reads the app's bridging header
+        HEADER_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Libraries/SevenZipKit/include"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: GZUHTM7439
+        SWIFT_VERSION: "5.0"
