@@ -64,7 +64,10 @@ targets:
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: GZUHTM7439
         SWIFT_VERSION: "5.0"
+        # The original developer's release this build is based on, and the
+        # ARAS patch round on top of it: 1.4.2+ARAS.Patch.<n>.
         MARKETING_VERSION: "1.4.2"
+        DISTRIBUTION_PATCH: 0
         CURRENT_PROJECT_VERSION: 7
       configs:
         Debug:
@@ -78,6 +81,7 @@ targets:
         CFBundleDisplayName: MacRAR
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ARASDistributionVersion: "$(MARKETING_VERSION)+ARAS.Patch.$(DISTRIBUTION_PATCH)"
         CFBundleLocalizations:
           - en
           - tr
