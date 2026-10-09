@@ -3,50 +3,41 @@ import AppKit
 /// All archive operations: used both from the window and from the Finder Quick Actions.
 enum Ops {
 
-    // MARK: Shared job runner (with progress window)
+    // MARK: Shared job runners (with progress window)
 
-    static func runJob(title: String, stages: [Stage], cwd: String? = nil,
-                       host: NSWindow?, totalFiles: Int?, stripPrefix: String? = nil,
+    /// An operation of the 7-Zip library.
+    static func runJob(title: String, operation: SevenZipBridge.Operation, host: NSWindow?,
                        completion: @escaping (RarResult) -> Void) {
         let panel = ProgressPanel(title: title)
-        panel.stripPrefix = stripPrefix
+        let job = SevenZipBridge.Job()
+        job.onItem = { panel.setFile($0) }
+        job.onProgress = { panel.setFraction($0) }
+        panel.onCancel = { job.cancel() }
+        panel.show(on: host)
+        job.start(operation) { outcome in
+            panel.dismiss()
+            completion(RarResult(outcome))
+        }
+    }
+
+    /// The user's RAR tool.
+    static func runRar(title: String, args: [String], cwd: String? = nil, host: NSWindow?,
+                       completion: @escaping (RarResult) -> Void) {
+        let panel = ProgressPanel(title: title)
         let job = RarJob()
-        var sawPercent = false
-        var fileIndex = 0
-        var lastName = ""
-        job.onEvent = { ev in
-            switch ev {
-            case .file(let name):
-                panel.setFile(name)
-                if name != lastName {
-                    lastName = name
-                    fileIndex += 1
-                    // For pipeline jobs that report no percentage, advance by file count
-                    if !sawPercent, let total = totalFiles, total > 0 {
-                        panel.setFraction(Double(min(fileIndex, total)) / Double(total))
-                    }
-                }
-            case .progress(let pct):
-                // The rar/unrar/7zz percentage is the overall progress of the archive
-                sawPercent = true
-                panel.setFraction(Double(pct) / 100.0)
+        job.onEvent = { event in
+            switch event {
+            case .file(let name): panel.setFile(name)
+            // rar's percentage is the overall progress of the archive
+            case .progress(let pct): panel.setFraction(Double(pct) / 100.0)
             }
         }
         panel.onCancel = { job.cancel() }
         panel.show(on: host)
-        job.start(stages: stages, cwd: cwd) { result in
+        job.start(args, cwd: cwd) { result in
             panel.dismiss()
             completion(result)
         }
-    }
-
-    // swiftlint:disable:next function_parameter_count
-    static func runJob(title: String, tool: RarTool, args: [String], cwd: String? = nil,
-                       host: NSWindow?, totalFiles: Int?, stripPrefix: String? = nil,
-                       completion: @escaping (RarResult) -> Void) {
-        runJob(
-            title: title, stages: [(tool, args)], cwd: cwd, host: host, totalFiles: totalFiles, stripPrefix: stripPrefix,
-            completion: completion)
     }
 
     private static func name(_ path: String) -> String { (path as NSString).lastPathComponent }
@@ -61,9 +52,8 @@ enum Ops {
         }
         var wrong = false
         while true {
-            switch RarRunner.list(archive, password: password) {
-            case .ok(var info):
-                if wrong { info.headersEncrypted = true }   // could not be listed without a password
+            switch ArchiveReader.list(archive, password: password) {
+            case .ok(let info):
                 return info
             case .wrongPassword:
                 guard let pw = Dialogs.askPassword(archiveName: name(archive), wrong: wrong) else { return nil }
@@ -91,21 +81,6 @@ enum Ops {
         }
     }
 
-    enum OverwriteArg { case overwrite, rename, skip }
-
-    static func extractStages(info: ArchiveInfo, names: [String]?, dest: String, password: String?, mode: OverwriteArg) -> [Stage] {
-        let ow = mode == .overwrite ? "-aoa" : (mode == .rename ? "-aou" : "-aos")
-        if info.tarCompressed {
-            var inner = ["x", "-si", "-ttar", "-y", "-bb1", ow, "-o" + dest]
-            if let names { inner += ["--"] + names }
-            return [(.sevenZip, ["x", "-so", RarRunner.passwordArg7z(password), "--", info.path]),
-                    (.sevenZip, inner)]
-        }
-        var args = ["x", "-y", "-bsp1", "-bb1", ow, RarRunner.passwordArg7z(password), "-o" + dest, "--", info.path]
-        if let names { args += names }
-        return [(.sevenZip, args)]
-    }
-
     // swiftlint:disable function_parameter_count
     /// names: nil means the whole archive. completion(success, password used)
     static func extract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
@@ -119,7 +94,7 @@ enum Ops {
         // Overwrite check
         let tops = topLevelNames(info: info, names: names)
         let existing = tops.filter { FileManager.default.fileExists(atPath: (dest as NSString).appendingPathComponent($0)) }
-        var mode: OverwriteArg = .overwrite
+        var mode: SevenZipBridge.Overwrite = .overwrite
         if !existing.isEmpty {
             switch Dialogs.askOverwrite(existing: existing, dest: dest) {
             case .overwrite: mode = .overwrite
@@ -128,25 +103,23 @@ enum Ops {
             case .cancel: completion(false, pw); return
             }
         }
-        let count = names == nil ? info.entries.count : nil
-        runExtract(
-            info: info, names: names, dest: dest, password: pw, mode: mode, host: host, count: count, quiet: quiet, completion: completion)
+        runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, quiet: quiet, completion: completion)
     }
     // swiftlint:enable function_parameter_count
 
     // swiftlint:disable:next function_parameter_count
-    private static func runExtract(info: ArchiveInfo, names: [String]?, dest: String, password: String?, mode: OverwriteArg,
-                                   host: NSWindow?, count: Int?, quiet: Bool, completion: @escaping (Bool, String?) -> Void) {
-        let stages = extractStages(info: info, names: names, dest: dest, password: password, mode: mode)
+    private static func runExtract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
+                                   mode: SevenZipBridge.Overwrite,
+                                   host: NSWindow?, quiet: Bool, completion: @escaping (Bool, String?) -> Void) {
+        let operation = SevenZipBridge.Operation.extract(archive: info.path, destination: dest, items: names, overwrite: mode,
+                                                         password: password)
         let quarantine = Quarantine.value(of: info.path)
         let started = Date()
         func finish(_ result: RarResult) {
             if result.cancelled { completion(false, password); return }
             if result.wrongPassword {
                 guard let pw = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, password); return }
-                runExtract(
-                    info: info, names: names, dest: dest, password: pw, mode: mode, host: host, count: count, quiet: quiet,
-                    completion: completion)
+                runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, quiet: quiet, completion: completion)
                 return
             }
             if !result.ok {
@@ -159,9 +132,7 @@ enum Ops {
             }
             completion(true, password)
         }
-        runJob(
-            title: loc.t("progress_extracting", name(info.path)), stages: stages, host: host, totalFiles: count, stripPrefix: dest
-        ) { result in
+        runJob(title: loc.t("progress_extracting", name(info.path)), operation: operation, host: host) { result in
             // Every item written, including by an interrupted extraction, gets the archive's quarantine (before the result is handled or anything is opened)
             guard let quarantine else { finish(result); return }
             let tops = topLevelNames(info: info, names: names)
@@ -184,14 +155,8 @@ enum Ops {
     }
 
     private static func runTest(info: ArchiveInfo, password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void) {
-        let stages: [Stage]
-        if info.tarCompressed {
-            stages = [(.sevenZip, ["x", "-so", RarRunner.passwordArg7z(password), "--", info.path]),
-                      (.sevenZip, ["t", "-si", "-ttar", "-bb1"])]
-        } else {
-            stages = [(.sevenZip, ["t", "-bsp1", "-bb1", RarRunner.passwordArg7z(password), "--", info.path])]
-        }
-        runJob(title: loc.t("progress_testing", name(info.path)), stages: stages, host: host, totalFiles: info.entries.count) { result in
+        let operation = SevenZipBridge.Operation.test(archive: info.path, password: password)
+        runJob(title: loc.t("progress_testing", name(info.path)), operation: operation, host: host) { result in
             if result.cancelled { completion(false, password); return }
             if result.wrongPassword {
                 guard let pw = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, password); return }
@@ -213,6 +178,10 @@ enum Ops {
     static func compress(items: [String], options: CompressOptions, host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
         var options = options
         if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
+        if !options.format.isRar, options.format.supportsVolumes, options.volumeBytes == nil {
+            Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_invalid_volume_size", options.volumeSize ?? ""))
+            completion(false, options.archivePath); return
+        }
         guard FolderAccess.ensure((options.archivePath as NSString).deletingLastPathComponent, write: true) else {
             completion(false, options.archivePath); return
         }
@@ -222,7 +191,7 @@ enum Ops {
             if options.format.supportsAppend {
                 // Is the existing archive encrypted? (try listing without a password)
                 var existingEncrypted = false
-                switch RarRunner.list(options.archivePath, password: nil) {
+                switch ArchiveReader.list(options.archivePath, password: nil) {
                 case .ok(let ex): existingEncrypted = ex.hasEncryptedFiles
                 case .wrongPassword: existingEncrypted = true
                 case .error: break
@@ -281,7 +250,8 @@ enum Ops {
         guard index < steps.count else { completion(true, archive); return }
         let step = steps[index]
         let suffix = steps.count > 1 ? " (\(index + 1)/\(steps.count))" : ""
-        runJob(title: "\(step.title): \(name(archive))\(suffix)", tool: step.tool, args: step.args, cwd: cwd, host: host, totalFiles: nil) { result in
+        let title = "\(step.title): \(name(archive))\(suffix)"
+        let next: (RarResult) -> Void = { result in
             step.cleanup?()
             if result.cancelled {
                 steps[(index + 1)...].forEach { $0.cleanup?() }
@@ -294,6 +264,10 @@ enum Ops {
                 return
             }
             runSteps(steps, index: index + 1, archive: archive, cwd: cwd, host: host, completion: completion)
+        }
+        switch step.work {
+        case .rar(let args): runRar(title: title, args: args, cwd: cwd, host: host, completion: next)
+        case .sevenZip(let operation): runJob(title: title, operation: operation, host: host, completion: next)
         }
     }
 
@@ -313,22 +287,8 @@ enum Ops {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
             pw = entered
         }
-        let stages: [Stage]
-        switch info.kind {
-        case .rar:
-            stages = [
-                (
-                    .rar,
-                    ["a", "-ep1", "-r", "-y"] + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted) + ["--", info.path]
-                        + items
-                )
-            ]
-        case .other:
-            var args = ["a", "-y", "-bsp1", "-bb1", RarRunner.passwordArg7z(pw)]
-            if info.headersEncrypted { args.append("-mhe=on") }
-            stages = [(.sevenZip, args + ["--", info.path] + items)]
-        }
-        runJob(title: loc.t("progress_adding", name(info.path)), stages: stages, host: host, totalFiles: nil) { result in
+        let title = loc.t("progress_adding", name(info.path))
+        let finish: (RarResult) -> Void = { result in
             if result.cancelled { completion(false, pw); return }
             if result.wrongPassword {
                 guard let entered = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
@@ -337,6 +297,16 @@ enum Ops {
             }
             if !result.ok { Dialogs.error(loc.t("add_failed_title"), result.errorSummary, details: result.output) }
             completion(result.ok, pw)
+        }
+        switch info.kind {
+        case .rar:
+            let args = ["a", "-ep1", "-r", "-y"] + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted)
+                + ["--", info.path] + items
+            runRar(title: title, args: args, host: host, completion: finish)
+        case .other:
+            var options = SevenZipBridge.UpdateOptions(format: info.type, password: pw)
+            options.encryptHeaders = pw != nil && info.headersEncrypted
+            runJob(title: title, operation: .update(archive: info.path, sources: items, options: options), host: host, completion: finish)
         }
     }
 
@@ -356,14 +326,8 @@ enum Ops {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
             pw = entered
         }
-        let stages: [Stage]
-        switch info.kind {
-        case .rar:
-            stages = [(.rar, ["d", "-y"] + RarRunner.rarPasswordArgs(pw) + ["--", info.path] + names)]
-        case .other:
-            stages = [(.sevenZip, ["d", "-y", "-bsp1", "-bb1", RarRunner.passwordArg7z(pw), "--", info.path] + names)]
-        }
-        runJob(title: loc.t("progress_deleting", name(info.path)), stages: stages, host: host, totalFiles: nil) { result in
+        let title = loc.t("progress_deleting", name(info.path))
+        let finish: (RarResult) -> Void = { result in
             if result.cancelled { completion(false, pw); return }
             if result.wrongPassword {
                 guard let entered = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
@@ -372,6 +336,15 @@ enum Ops {
             }
             if !result.ok { Dialogs.error(loc.t("delete_failed_title"), result.errorSummary, details: result.output) }
             completion(result.ok, pw)
+        }
+        switch info.kind {
+        case .rar:
+            let args = ["d", "-y"] + RarRunner.rarPasswordArgs(pw) + ["--", info.path] + names
+            runRar(title: title, args: args, host: host, completion: finish)
+        case .other:
+            let operation = SevenZipBridge.Operation.delete(archive: info.path, items: names, password: pw,
+                                                            encryptHeaders: info.headersEncrypted)
+            runJob(title: title, operation: operation, host: host, completion: finish)
         }
     }
 

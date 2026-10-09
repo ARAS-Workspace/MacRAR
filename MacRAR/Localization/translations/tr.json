@@ -182,6 +182,7 @@
   "compress_add_to_existing": "Mevcut Arşive Ekle",
   "compress_add_to_encrypted": "Şifreli Arşive Ekle…",
   "compress_failed_title": "Sıkıştırma başarısız",
+  "compress_invalid_volume_size": "“%@” geçerli bir parça boyutu değil. 100M gibi, isteğe bağlı K, M veya G ile bir sayı girin.",
   "not_supported_title": "Desteklenmiyor",
   "add_tar_compressed_unsupported": "tar.gz / tar.xz türü arşivlere dosya eklenemez. Yeni bir arşiv oluşturun.",
   "add_failed_title": "Ekleme başarısız",

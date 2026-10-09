@@ -29,10 +29,29 @@ targets:
         type: file
         buildPhase: resources
     scheme: {}
+    dependencies:
+      - framework: Libraries/SevenZipKit/lib7zip_apple.a
+        embed: false
+    postCompileScripts:
+      # The LGPL asks a binary distribution of 7-Zip to carry its licence;
+      # it is copied into the resources as 7zip-license.txt, as in 1.4.
+      - name: Copy 7-Zip licence
+        script: cp "${SRCROOT}/Libraries/SevenZipKit/LICENSE" "${SCRIPT_OUTPUT_FILE_0}"
+        inputFiles:
+          - $(SRCROOT)/Libraries/SevenZipKit/LICENSE
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/7zip-license.txt
     settings:
       base:
         ARCHS: "$(ARCHS_STANDARD)"
         ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_OBJC_BRIDGING_HEADER: MacRAR/BridgingHeader.h
+        HEADER_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Libraries/SevenZipKit/include"
+        LIBRARY_SEARCH_PATHS:
+          - "$(PROJECT_DIR)/Libraries/SevenZipKit"
+        OTHER_LDFLAGS:
+          - "-lc++"
         PRODUCT_NAME: MacRAR
         PRODUCT_BUNDLE_IDENTIFIER: com.arasworkspace.MacRAR
         INFOPLIST_FILE: MacRAR/Info.plist

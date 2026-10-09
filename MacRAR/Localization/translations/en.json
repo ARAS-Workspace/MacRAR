@@ -182,6 +182,7 @@
   "compress_add_to_existing": "Add to Existing Archive",
   "compress_add_to_encrypted": "Add to Encrypted Archive…",
   "compress_failed_title": "Compression failed",
+  "compress_invalid_volume_size": "“%@” is not a valid split size. Use a number with an optional K, M or G, such as 100M.",
   "not_supported_title": "Not supported",
   "add_tar_compressed_unsupported": "Files cannot be added to tar.gz / tar.xz archives. Create a new archive instead.",
   "add_failed_title": "Adding failed",

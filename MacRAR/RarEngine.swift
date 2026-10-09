@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Model
 
 enum ArchiveKind {
-    case rar        // read with 7zz, write (optional) with the user's RAR tool
-    case other      // 7zz (zip, 7z, tar, gz, xz, bz2, zst, iso, cab, ...)
+    case rar        // read with 7-Zip, written (optionally) with the user's RAR tool
+    case other      // 7-Zip (zip, 7z, tar, gz, xz, bz2, zst, iso, cab, ...)
 }
 
 struct ArchiveEntry {
@@ -29,8 +29,10 @@ struct ArchiveInfo {
     var details: String
     var entries: [ArchiveEntry]
     var headersEncrypted: Bool = false
-    /// Like tar.gz / tar.xz: the outer layer is opened with 7zz and piped into the inner tar
-    var tarCompressed: Bool { Formats.isTarCompressed(path) }
+    /// 7-Zip's name for the format ("7z", "zip", "tar", "Rar5", …); the type passed back when adding files
+    var type: String = ""
+    /// A tar inside a compression stream (tar.gz, tar.xz, …)
+    var tarCompressed: Bool = false
 
     var hasEncryptedFiles: Bool { headersEncrypted || entries.contains { $0.encrypted } }
     var isSolid: Bool { details.contains("solid") }
@@ -57,13 +59,17 @@ struct RarResult {
     let code: Int32
     let output: String
     var cancelled: Bool = false
+    var passwordProblem: Bool = false
+    var notAnArchive: Bool = false
 
     var ok: Bool { code == 0 || code == 1 }
     var wrongPassword: Bool {
-        code == 11 || output.contains("Incorrect password") || output.contains("Wrong password")
+        passwordProblem || code == 11 || output.contains("Incorrect password") || output.contains("Wrong password")
             || output.contains("Cannot open encrypted archive")
     }
-    var notArchive: Bool { output.contains("is not RAR archive") || output.contains("Cannot open the file as archive") }
+    var notArchive: Bool {
+        notAnArchive || output.contains("is not RAR archive") || output.contains("Cannot open the file as archive")
+    }
 
     /// Short error text to show the user
     var errorSummary: String {
@@ -72,7 +78,6 @@ struct RarResult {
             .filter { !$0.isEmpty }
             .filter {
                 !$0.hasPrefix("UNRAR ") && !$0.hasPrefix("RAR ") && !$0.hasPrefix("Trial version") && !$0.hasPrefix("Evaluation copy")
-                    && !$0.hasPrefix("7-Zip") && !$0.hasPrefix("64-bit")
             }
         let interesting = lines.filter { line in
             line.contains("error") || line.contains("Error") || line.contains("ERROR") || line.contains("Incorrect")
@@ -88,9 +93,25 @@ struct RarResult {
     }
 }
 
-enum RarTool { case rar, sevenZip }
-
-typealias Stage = (tool: RarTool, args: [String])
+extension RarResult {
+    /// The 7-Zip library's outcome in the shape the operations already handle.
+    init(_ outcome: SevenZipBridge.Outcome) {
+        var lines = outcome.messages
+        if !outcome.error.isEmpty, !lines.contains(where: { $0.contains(outcome.error) }) {
+            lines.append("ERROR: " + outcome.error)
+        }
+        let code: Int32
+        switch outcome.code {
+        case .ok: code = 0
+        case .warning: code = 1
+        default: code = 2
+        }
+        self.init(code: code, output: lines.joined(separator: "\n"),
+                  cancelled: outcome.code == .cancelled,
+                  passwordProblem: outcome.code.isPasswordProblem,
+                  notAnArchive: outcome.code == .notArchive)
+    }
+}
 
 // MARK: - Format info
 
@@ -134,30 +155,73 @@ enum Formats {
     }
 }
 
-// MARK: - Runner
+// MARK: - Listing
 
-enum RarRunner {
-    static let resourceDir: URL = {
-        if let resources = Bundle.main.resourceURL,
-           FileManager.default.fileExists(atPath: resources.appendingPathComponent("7zz").path) {
-            return resources
+enum ArchiveReader {
+    enum ListOutcome {
+        case ok(ArchiveInfo)
+        case wrongPassword
+        case error(RarResult)
+    }
+
+    static func list(_ path: String, password: String?) -> ListOutcome {
+        switch SevenZipBridge.list(path, password: password) {
+        case .failure(let failure):
+            if failure.code.isPasswordProblem { return .wrongPassword }
+            return .error(RarResult(code: 2, output: "ERROR: " + failure.message, notAnArchive: failure.code == .notArchive))
+        case .success(let listing):
+            return .ok(info(from: listing, path: path))
         }
-        return URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+    }
+
+    private static let modifiedFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f
     }()
 
-    static func url(_ tool: RarTool) -> URL {
-        switch tool {
-        case .rar: return RarTools.rarURL ?? URL(fileURLWithPath: "/nonexistent/rar")
-        case .sevenZip: return resourceDir.appendingPathComponent("7zz")
+    private static func info(from listing: SevenZipBridge.Listing, path: String) -> ArchiveInfo {
+        let entries = listing.items.map { item -> ArchiveEntry in
+            let name = item.path.hasSuffix("/") ? String(item.path.dropLast()) : item.path
+            var entry = ArchiveEntry(name: name, isDirectory: item.isDirectory)
+            entry.size = Int64(clamping: item.size)
+            entry.packedSize = Int64(clamping: item.packedSize)
+            if entry.size > 0, entry.packedSize > 0 { entry.ratio = "\(Int(Double(entry.packedSize) * 100 / Double(entry.size)))%" }
+            entry.mtime = item.modified.map { modifiedFormat.string(from: $0) } ?? ""
+            entry.crc = item.crc.map { String(format: "%08X", $0) } ?? ""
+            entry.encrypted = item.encrypted
+            entry.compression = item.method
+            return entry
         }
-    }
 
-    /// (legacy) unrar password argument: "-p-" = do not ask for a password
-    static func passwordArg(_ pw: String?, encryptHeaders: Bool = false) -> String {
-        guard let pw, !pw.isEmpty else { return "-p-" }
-        return (encryptHeaders ? "-hp" : "-p") + pw
-    }
+        let tarCompressed = !listing.container.isEmpty && listing.type.lowercased() == "tar"
+        var parts: [String]
+        if tarCompressed {
+            parts = ["tar + \(listing.container.lowercased())"]
+        } else {
+            switch listing.type.lowercased() {
+            case "": parts = [loc.t("archive_format_generic")]
+            case "rar5": parts = ["RAR 5"]
+            case "rar": parts = ["RAR 4"]
+            case "7z": parts = ["7z"]
+            default: parts = [listing.type.uppercased()]
+            }
+        }
+        if listing.solid { parts.append("solid") }
+        if listing.volumes > 1 { parts.append("\(listing.volumes) volume") }
 
+        var info = ArchiveInfo(path: path, kind: Formats.kind(of: path), details: parts.joined(separator: ", "), entries: entries)
+        info.headersEncrypted = listing.headersEncrypted
+        info.type = listing.type
+        info.tarCompressed = tarCompressed
+        return info
+    }
+}
+
+// MARK: - RAR tool runner
+
+enum RarRunner {
     /// Password arguments for rar (a / d). CAUTION: given "-p-", rar uses the "-" character as the password;
     /// so no switch at all is passed when there is no password.
     static func rarPasswordArgs(_ pw: String?, encryptHeaders: Bool = false) -> [String] {
@@ -165,15 +229,9 @@ enum RarRunner {
         return [(encryptHeaders ? "-hp" : "-p") + pw]
     }
 
-    /// Password argument for 7zz ("-p" alone: empty password, no interactive prompt)
-    static func passwordArg7z(_ pw: String?) -> String {
-        guard let pw, !pw.isEmpty else { return "-p" }
-        return "-p" + pw
-    }
-
-    static func makeProcess(_ tool: RarTool, _ args: [String], cwd: String?) -> Process {
+    static func makeProcess(_ args: [String], cwd: String?) -> Process {
         let process = Process()
-        process.executableURL = url(tool)
+        process.executableURL = RarTools.rarURL ?? URL(fileURLWithPath: "/nonexistent/rar")
         process.arguments = args
         var env = ProcessInfo.processInfo.environment
         env["LANG"] = "en_US.UTF-8"
@@ -183,148 +241,9 @@ enum RarRunner {
         process.standardInput = FileHandle.nullDevice
         return process
     }
-
-    /// Runs synchronously, collects all output.
-    static func run(_ tool: RarTool, _ args: [String], cwd: String? = nil) -> RarResult {
-        runStages([(tool, args)], cwd: cwd)
-    }
-
-    /// Runs the piped stages synchronously; returns the last stage's output and exit code.
-    static func runStages(_ stages: [Stage], cwd: String? = nil) -> RarResult {
-        var processes: [Process] = []
-        var prevOut: Pipe?
-        for (i, st) in stages.enumerated() {
-            let process = makeProcess(st.tool, st.args, cwd: cwd)
-            if let prev = prevOut { process.standardInput = prev.fileHandleForReading }
-            if i < stages.count - 1 {
-                let out = Pipe()
-                process.standardOutput = out
-                process.standardError = FileHandle.nullDevice
-                prevOut = out
-            }
-            processes.append(process)
-        }
-        guard let last = processes.last else { return RarResult(code: -1, output: "") }
-        let pipe = Pipe()
-        last.standardOutput = pipe
-        last.standardError = pipe
-        for process in processes {
-            do { try process.run() } catch {
-                return RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription))
-            }
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        processes.forEach { $0.waitUntilExit() }
-        // swiftlint:disable:next optional_data_string_conversion
-        return RarResult(code: last.terminationStatus, output: String(decoding: data, as: UTF8.self))
-    }
-
-    enum ListOutcome {
-        case ok(ArchiveInfo)
-        case wrongPassword
-        case error(RarResult)
-    }
-
-    /// All formats (RAR included) are read with 7zz
-    static func listStages(_ path: String, password: String?) -> [Stage] {
-        if Formats.isTarCompressed(path) {
-            return [(.sevenZip, ["x", "-so", passwordArg7z(password), "--", path]),
-                    (.sevenZip, ["l", "-si", "-ttar", "-slt"])]
-        }
-        return [(.sevenZip, ["l", "-slt", passwordArg7z(password), "--", path])]
-    }
-
-    static func list(_ path: String, password: String?) -> ListOutcome {
-        let result = runStages(listStages(path, password: password))
-        if result.wrongPassword { return .wrongPassword }
-        if result.notArchive || (!result.ok && !result.output.contains("----------")) { return .error(result) }
-        guard result.output.contains("----------") || result.output.contains("Type = ") else { return .error(result) }
-        return .ok(parse7zListing(result.output, path: path, kind: Formats.kind(of: path)))
-    }
-
-    // MARK: Parsing 7zz l -slt
-
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    static func parse7zListing(_ out: String, path: String, kind: ArchiveKind = .other) -> ArchiveInfo {
-        let lines = out.components(separatedBy: "\n")
-        // Lines after the last "----------" are the entries; before it are the archive header blocks
-        let sepIndex = lines.lastIndex { $0.trimmingCharacters(in: .whitespaces) == "----------" }
-        let headerLines = sepIndex.map { Array(lines[..<$0]) } ?? lines
-        let entryLines = sepIndex.map { Array(lines[($0 + 1)...]) } ?? []
-
-        // Header: the last "Type =" value is the actual archive type (outer layers such as split/gzip come first)
-        var type = ""
-        var solid = false
-        var volumes = 0
-        var outerTypes: [String] = []
-        for raw in headerLines {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            guard let separator = line.range(of: " = ") else { continue }
-            let key = String(line[..<separator.lowerBound])
-            let value = String(line[separator.upperBound...])
-            switch key {
-            case "Type": if !type.isEmpty { outerTypes.append(type) }; type = value
-            case "Solid": solid = (value == "+")
-            case "Volumes": volumes = Int(value) ?? 0
-            default: break
-            }
-        }
-        if Formats.isTarCompressed(path), type.isEmpty { type = "tar" }
-
-        var entries: [ArchiveEntry] = []
-        var block: [String: String] = [:]
-        func flush() {
-            defer { block = [:] }
-            guard let name = block["Path"], !name.isEmpty else { return }
-            let attrs = block["Attributes"] ?? ""
-            let isDir = block["Folder"] == "+" || attrs.hasPrefix("D")
-            var entry = ArchiveEntry(name: name.hasSuffix("/") ? String(name.dropLast()) : name, isDirectory: isDir)
-            entry.size = Int64(block["Size"] ?? "") ?? 0
-            entry.packedSize = Int64(block["Packed Size"] ?? "") ?? 0
-            if entry.size > 0, entry.packedSize > 0 { entry.ratio = "\(Int(Double(entry.packedSize) * 100 / Double(entry.size)))%" }
-            if let m = block["Modified"] { entry.mtime = String(m.prefix(19)) }
-            entry.crc = block["CRC"] ?? ""
-            entry.encrypted = block["Encrypted"] == "+"
-            entry.attributes = attrs
-            entry.compression = block["Method"] ?? ""
-            entries.append(entry)
-        }
-        for raw in entryLines {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { flush(); continue }
-            guard let separator = line.range(of: " = ") else {
-                if line.hasSuffix(" =") { block[String(line.dropLast(2))] = "" }
-                continue
-            }
-            let key = String(line[..<separator.lowerBound])
-            let value = String(line[separator.upperBound...])
-            if key == "Path", block["Path"] != nil { flush() }
-            block[key] = value
-        }
-        flush()
-
-        let pretty: String
-        switch type.lowercased() {
-        case "": pretty = loc.t("archive_format_generic")
-        case "rar5": pretty = "RAR 5"
-        case "rar": pretty = "RAR 4"
-        case "7z": pretty = "7z"
-        default: pretty = type.uppercased()
-        }
-        var parts: [String] = [pretty]
-        if Formats.isTarCompressed(path) {
-            let outerExt = (path as NSString).pathExtension.lowercased()
-            parts = ["tar + \(outerExt)"]
-        }
-        if solid { parts.append("solid") }
-        if volumes > 1 { parts.append("\(volumes) volume") }
-        var info = ArchiveInfo(path: path, kind: kind, details: parts.joined(separator: ", "), entries: entries)
-        info.headersEncrypted = false
-        return info
-    }
 }
 
-// MARK: - Streaming job (progress tracking)
+// MARK: - RAR tool job (progress tracking)
 
 final class RarJob {
     enum Event {
@@ -332,8 +251,7 @@ final class RarJob {
         case progress(Int)      // percentage (overall)
     }
 
-    private var processes: [Process] = []
-    private var monitoredTool: RarTool = .sevenZip
+    private var process: Process?
     private let queue = DispatchQueue(label: "macrar.job")
     private var buffer = Data()
     private var output = ""
@@ -345,68 +263,42 @@ final class RarJob {
     ]
     // swiftlint:disable force_try
     private static let percentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})%"#)
-    private static let percentHeadRegex = try! NSRegularExpression(pattern: #"^\s*(\d{1,3})%"#)
     private static let tailRegex = try! NSRegularExpression(pattern: #"\s*(\d{1,3}%|OK|Failed|CRC failed)\s*$"#)
-    private static let sevenNameRegex = try! NSRegularExpression(pattern: #"(?:^|\s)([-+TU])\s(\S.*)$"#)
     // swiftlint:enable force_try
 
-    func start(_ tool: RarTool, _ args: [String], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
-        start(stages: [(tool, args)], cwd: cwd, completion: completion)
-    }
-
-    /// The stages are piped together; only the last stage's output is monitored.
-    func start(stages: [Stage], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
-        guard let lastStage = stages.last else { return }
-        monitoredTool = lastStage.tool
-        var procs: [Process] = []
-        var prevOut: Pipe?
-        for (i, st) in stages.enumerated() {
-            let process = RarRunner.makeProcess(st.tool, st.args, cwd: cwd)
-            if let prev = prevOut { process.standardInput = prev.fileHandleForReading }
-            if i < stages.count - 1 {
-                let out = Pipe()
-                process.standardOutput = out
-                process.standardError = FileHandle.nullDevice
-                prevOut = out
-            }
-            procs.append(process)
-        }
-        let last = procs[procs.count - 1]
+    func start(_ args: [String], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
+        let process = RarRunner.makeProcess(args, cwd: cwd)
         let pipe = Pipe()
-        last.standardOutput = pipe
-        last.standardError = pipe
+        process.standardOutput = pipe
+        process.standardError = pipe
         let handle = pipe.fileHandleForReading
         handle.readabilityHandler = { [weak self] h in
             let data = h.availableData
             guard !data.isEmpty, let self else { return }
             self.queue.async { self.consume(data) }
         }
-        last.terminationHandler = { [weak self] proc in
+        process.terminationHandler = { [weak self] proc in
             handle.readabilityHandler = nil
             let rest = handle.readDataToEndOfFile()
             guard let self else { return }
             self.queue.async {
                 self.consume(rest)
                 self.flushPartial()
-                for process in self.processes where process !== proc && process.isRunning { process.terminate() }
                 let result = RarResult(code: proc.terminationStatus, output: self.output, cancelled: self.cancelled)
                 DispatchQueue.main.async { completion(result) }
             }
         }
-        processes = procs
-        for process in procs {
-            do { try process.run() } catch {
-                DispatchQueue.main.async {
-                    completion(RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription)))
-                }
-                return
+        self.process = process
+        do { try process.run() } catch {
+            DispatchQueue.main.async {
+                completion(RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription)))
             }
         }
     }
 
     func cancel() {
         cancelled = true
-        processes.forEach { if $0.isRunning { $0.terminate() } }
+        if let process, process.isRunning { process.terminate() }
     }
 
     private func consume(_ data: Data) {
@@ -452,50 +344,34 @@ final class RarJob {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     private func parse(_ raw: String) {
         let line = raw.replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespaces)
         guard !line.isEmpty else { return }
         var pct: Int?
         var fileName: String?
 
-        if monitoredTool == .sevenZip {
-            let ns = line as NSString
-            let full = NSRange(location: 0, length: ns.length)
-            if let m = Self.percentHeadRegex.firstMatch(in: line, range: full) {
-                pct = Int(ns.substring(with: m.range(at: 1)))
-            }
-            if line.contains("ERROR") || line.hasSuffix("--") || line.contains(" Open ") {
-                // error lines and info lines such as "Open --" are not files
-            } else if let m = Self.sevenNameRegex.firstMatch(in: line, range: full) {
-                var name = ns.substring(with: m.range(at: 2)).trimmingCharacters(in: .whitespaces)
-                if name.hasSuffix("/") { name.removeLast() }
-                if !name.isEmpty, !name.hasPrefix("Everything") { fileName = name }
-            }
+        let ns = line as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        if let m = Self.percentRegex.matches(in: line, range: full).last {
+            pct = Int(ns.substring(with: m.range(at: 1)))
+        }
+        var candidate: String?
+        if line.hasPrefix("... ") {
+            candidate = String(line.dropFirst(4))        // file continued after a volume change
         } else {
-            let ns = line as NSString
-            let full = NSRange(location: 0, length: ns.length)
-            if let m = Self.percentRegex.matches(in: line, range: full).last {
-                pct = Int(ns.substring(with: m.range(at: 1)))
+            for verb in Self.verbs where line.hasPrefix(verb + " ") {
+                let rest = String(line.dropFirst(verb.count)).trimmingCharacters(in: .whitespaces)
+                if rest.hasPrefix("from ") || rest.hasPrefix("archive ") { break }
+                candidate = rest
+                break
             }
-            var candidate: String?
-            if line.hasPrefix("... ") {
-                candidate = String(line.dropFirst(4))        // file continued after a volume change
-            } else {
-                for verb in Self.verbs where line.hasPrefix(verb + " ") {
-                    let rest = String(line.dropFirst(verb.count)).trimmingCharacters(in: .whitespaces)
-                    if rest.hasPrefix("from ") || rest.hasPrefix("archive ") { break }
-                    candidate = rest
-                    break
-                }
+        }
+        if let candidate {
+            var name = candidate.trimmingCharacters(in: .whitespaces)
+            while let m = Self.tailRegex.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
+                name = (name as NSString).substring(to: m.range.location)
             }
-            if let candidate {
-                var name = candidate.trimmingCharacters(in: .whitespaces)
-                while let m = Self.tailRegex.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
-                    name = (name as NSString).substring(to: m.range.location)
-                }
-                fileName = name.trimmingCharacters(in: .whitespaces)
-            }
+            fileName = name.trimmingCharacters(in: .whitespaces)
         }
 
         guard fileName != nil || pct != nil, let onEvent else { return }

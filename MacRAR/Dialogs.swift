@@ -326,8 +326,20 @@ final class ProgressPanel: NSWindowController {
         window.setFrame(frame, display: true, animate: animate)
     }
 
+    /// The panel appears only once the operation has run for `showDelay`: a panel ordered in and out
+    /// within a few milliseconds left the next NSAlert.runModal returning at once.
+    static let showDelay: TimeInterval = 0.3
+    private var pendingShow: DispatchWorkItem?
+
     func show(on host: NSWindow?) {
         self.host = host
+        let present = DispatchWorkItem { [weak self] in self?.present() }
+        pendingShow = present
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDelay, execute: present)
+    }
+
+    private func present() {
+        pendingShow = nil
         guard let window else { return }
         resizeToFit(animate: false)
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_DETAILS"] != nil { toggleDetails() }
@@ -343,6 +355,12 @@ final class ProgressPanel: NSWindowController {
     }
 
     func dismiss() {
+        if let pendingShow {
+            pendingShow.cancel()
+            self.pendingShow = nil
+            close()
+            return
+        }
         guard let window else { return }
         if let host, host.isVisible, host.attachedSheet == window {
             host.endSheet(window)
@@ -481,24 +499,41 @@ struct CompressOptions {
     var sfx: Bool = false
     var deleteAfter: Bool = false
 
+    enum StepWork {
+        case rar([String])
+        case sevenZip(SevenZipBridge.Operation)
+    }
+
     struct Step {
         let title: String
-        let tool: RarTool
-        let args: [String]
+        let work: StepWork
         var cleanup: (() -> Void)?
     }
 
-    /// Maps the 0-5 level to the 7zz -mx value
-    private var mx: Int { [0, 1, 3, 5, 7, 9][max(0, min(5, level))] }
+    /// Maps the 0-5 level to the 7-Zip -mx value
+    private var mx: Int32 { [0, 1, 3, 5, 7, 9][max(0, min(5, level))] }
 
-    private var sevenZipCommon: [String] {
-        var args = ["a", "-y", "-bsp1", "-bb1"]
-        if let v = volumeSize, !v.isEmpty, format.supportsVolumes { args.append("-v\(v)") }
-        if deleteAfter { args.append("-sdel") }
-        return args
+    /// The split size in bytes, read the way 7-Zip reads -v: a number with an optional
+    /// b, k, m or g suffix in powers of 1024. 0 for no split, nil when the text is not a size.
+    var volumeBytes: UInt64? {
+        guard let text = volumeSize?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return 0 }
+        guard let match = text.range(of: #"^\d+\s*[bBkKmMgG]?$"#, options: .regularExpression), match == text.startIndex..<text.endIndex
+        else { return nil }
+        let digits = text.prefix { $0.isNumber }
+        let suffix = text.last.map { $0.isNumber ? "b" : String($0).lowercased() } ?? "b"
+        let shift: UInt64 = ["b": 0, "k": 10, "m": 20, "g": 30][suffix] ?? 0
+        guard let value = UInt64(digits), value > 0, value <= (UInt64.max >> shift) else { return nil }
+        return value << shift
     }
 
     func buildSteps(items: [String]) -> [Step] {
+        let password = self.password.flatMap { $0.isEmpty ? nil : $0 }
+        let split = format.supportsVolumes ? (volumeBytes ?? 0) : 0
+
+        func update(_ archive: String, _ sources: [String], _ options: SevenZipBridge.UpdateOptions) -> StepWork {
+            .sevenZip(.update(archive: archive, sources: sources, options: options))
+        }
+
         switch format {
         case .rar5:
             var args = ["a", "-ep1", "-r", "-y", "-m\(level)", "-ma5"]
@@ -508,35 +543,37 @@ struct CompressOptions {
             if sfx { args.append("-sfx") }
             if deleteAfter { args.append("-df") }
             args += RarRunner.rarPasswordArgs(password, encryptHeaders: encryptNames)
-            return [Step(title: loc.t("progress_compressing"), tool: .rar, args: args + ["--", archivePath] + items)]
+            return [Step(title: loc.t("progress_compressing"), work: .rar(args + ["--", archivePath] + items))]
 
         case .sevenZip:
-            var args = sevenZipCommon + ["-t7z", "-mx=\(mx)", solid ? "-ms=on" : "-ms=off"]
-            if let pw = password, !pw.isEmpty {
-                args.append("-p" + pw)
-                if encryptNames { args.append("-mhe=on") }
-            }
-            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: args + ["--", archivePath] + items)]
+            var sevenZip = SevenZipBridge.UpdateOptions(format: "7z", level: mx, solid: solid ? 1 : 0, password: password)
+            sevenZip.encryptHeaders = password != nil && encryptNames
+            sevenZip.volumeSize = split
+            sevenZip.deleteSources = deleteAfter
+            return [Step(title: loc.t("progress_compressing"), work: update(archivePath, items, sevenZip))]
 
         case .zip:
-            var args = sevenZipCommon + ["-tzip", "-mx=\(mx)"]
-            if let pw = password, !pw.isEmpty { args += ["-p" + pw, "-mem=AES256"] }
-            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: args + ["--", archivePath] + items)]
+            var zip = SevenZipBridge.UpdateOptions(format: "zip", level: mx, password: password)
+            zip.zipAES256 = password != nil
+            zip.volumeSize = split
+            zip.deleteSources = deleteAfter
+            return [Step(title: loc.t("progress_compressing"), work: update(archivePath, items, zip))]
 
         case .tar:
-            let args = sevenZipCommon + ["-ttar"]
-            return [Step(title: loc.t("progress_packing"), tool: .sevenZip, args: args + ["--", archivePath] + items)]
+            var tar = SevenZipBridge.UpdateOptions(format: "tar")
+            tar.deleteSources = deleteAfter
+            return [Step(title: loc.t("progress_packing"), work: update(archivePath, items, tar))]
 
         case .tgz, .txz, .tbz2:
             let outer: String = format == .tgz ? "gzip" : (format == .txz ? "xz" : "bzip2")
             let tmpTar = NSTemporaryDirectory() + "Archiver-\(UUID().uuidString).tar"
-            var step1 = ["a", "-y", "-bsp1", "-bb1", "-ttar"]
-            if deleteAfter { step1.append("-sdel") }
-            let step2 = ["a", "-y", "-bsp1", "-bb1", "-t\(outer)", "-mx=\(mx)", "--", archivePath, tmpTar]
+            var tar = SevenZipBridge.UpdateOptions(format: "tar")
+            tar.deleteSources = deleteAfter
+            let stream = SevenZipBridge.UpdateOptions(format: outer, level: mx)
             return [
-                Step(title: loc.t("progress_packing"), tool: .sevenZip, args: step1 + ["--", tmpTar] + items),
+                Step(title: loc.t("progress_packing"), work: update(tmpTar, items, tar)),
                 Step(
-                    title: loc.t("progress_compressing"), tool: .sevenZip, args: step2,
+                    title: loc.t("progress_compressing"), work: update(archivePath, [tmpTar], stream),
                     cleanup: { try? FileManager.default.removeItem(atPath: tmpTar) }),
             ]
         }
