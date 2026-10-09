@@ -1,0 +1,222 @@
+name: MacRAR - Deploy DMG
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Distribution version to build (e.g. 1.4.2+ARAS.Patch.1)"
+        required: true
+        type: string
+    secrets:
+      DEVELOPER_ID_CERTIFICATE_P12:
+        required: true
+      DEVELOPER_ID_CERTIFICATE_PASSWORD:
+        required: true
+      APPLE_ID:
+        required: true
+      APPLE_ID_PASSWORD:
+        required: true
+
+concurrency:
+  group: deploy-dmg-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: Archive & DMG (arm64 + x86_64)
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      TEAM_ID: GZUHTM7439
+      APP_NAME: "MacRAR"
+
+    steps:
+      # ── 0. Setup temp paths ─────────────────────────────────
+      - name: Setup temp paths
+        run: |
+          echo "KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PASSWORD=ci_ephemeral_${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+          echo "P12_PATH=$RUNNER_TEMP/certificate.p12" >> "$GITHUB_ENV"
+          echo "EXPORT_OPTIONS_PATH=$RUNNER_TEMP/ExportOptions.plist" >> "$GITHUB_ENV"
+
+      # ── 1. Checkout ──────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      # ── 2. Verify version & build number ─────────────────────
+      # The bundle takes its version from project.yml (MARKETING_VERSION +
+      # DISTRIBUTION_PATCH), so the requested version must be the tree's own.
+      - name: Verify version & build number
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$INPUT_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\+ARAS\.Patch\.([0-9]+)$ ]]; then
+            echo "::error::Invalid version: $INPUT_VERSION (expected X.Y.Z+ARAS.Patch.N)"
+            exit 1
+          fi
+          BASE=$(grep -m1 -E '^ +MARKETING_VERSION:' project.yml | sed -E 's/^ +[A-Z_]+: *"?([^"]*)"? *$/\1/')
+          ROUND=$(grep -m1 -E '^ +DISTRIBUTION_PATCH:' project.yml | sed -E 's/^ +[A-Z_]+: *"?([^"]*)"? *$/\1/')
+          TREE="${BASE}+ARAS.Patch.${ROUND}"
+          if [[ "$INPUT_VERSION" != "$TREE" ]]; then
+            echo "::error::Requested $INPUT_VERSION but project.yml says $TREE"
+            exit 1
+          fi
+
+          BUILD_NUMBER=$(TZ=Europe/Istanbul date +"%Y%m%d.%H%M")
+          echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Verify SevenZipKit checksum
+        run: (cd Libraries/SevenZipKit && shasum -a 256 -c CHECKSUM.sha256)
+
+      # ── 3. Import signing certificate ────────────────────────
+      - name: Import signing certificate
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          echo -n "$APPLE_CERTIFICATE_P12" | base64 --decode -o "$P12_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$P12_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+      # ── 4. Install tools ─────────────────────────────────────
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # ── 5. Generate ExportOptions.plist ──────────────────────
+      # MacRAR carries no restricted entitlement, so Developer ID signing
+      # needs no provisioning profile.
+      - name: Generate ExportOptions.plist
+        run: |
+          cat > "$EXPORT_OPTIONS_PATH" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>teamID</key>
+            <string>${TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Developer ID Application</string>
+          </dict>
+          </plist>
+          PLIST
+
+      # ── 6. Archive & export per architecture ─────────────────
+      - name: Archive & export
+        env:
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          xcodegen generate
+
+          for ARCH in arm64 x86_64; do
+            xcodebuild archive \
+              -scheme "MacRAR" \
+              -destination 'generic/platform=macOS' \
+              -archivePath "$RUNNER_TEMP/$ARCH.xcarchive" \
+              CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="Developer ID Application" \
+              DEVELOPMENT_TEAM="$TEAM_ID" \
+              ARCHS="$ARCH" \
+              ONLY_ACTIVE_ARCH=NO
+
+            xcodebuild -exportArchive \
+              -archivePath "$RUNNER_TEMP/$ARCH.xcarchive" \
+              -exportOptionsPlist "$EXPORT_OPTIONS_PATH" \
+              -exportPath "$RUNNER_TEMP/export-$ARCH"
+
+            lipo -archs "$RUNNER_TEMP/export-$ARCH/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+          done
+
+      # ── 7. Notarize & DMG per architecture ───────────────────
+      - name: Notarize & DMG
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          set -euo pipefail
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
+
+          for ARCH in arm64 x86_64; do
+            APP_PATH="$RUNNER_TEMP/export-$ARCH/$APP_NAME.app"
+
+            ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/$ARCH-app.zip"
+            xcrun notarytool submit "$RUNNER_TEMP/$ARCH-app.zip" \
+              --apple-id "$APPLE_ID" --password "$APPLE_ID_PASSWORD" \
+              --team-id "$TEAM_ID" --wait
+            xcrun stapler staple "$APP_PATH"
+
+            DMG_PATH="$RUNNER_TEMP/MacRAR-${APP_VERSION}-${ARCH}.dmg"
+            DMG_STAGING="$RUNNER_TEMP/dmg-$ARCH"
+            mkdir -p "$DMG_STAGING"
+            cp -R "$APP_PATH" "$DMG_STAGING/"
+            ln -s /Applications "$DMG_STAGING/Applications"
+            hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DMG_PATH"
+            rm -rf "$DMG_STAGING"
+
+            codesign --force --timestamp --keychain "$KEYCHAIN_PATH" --sign "$IDENTITY" "$DMG_PATH"
+            xcrun notarytool submit "$DMG_PATH" \
+              --apple-id "$APPLE_ID" --password "$APPLE_ID_PASSWORD" \
+              --team-id "$TEAM_ID" --wait
+            xcrun stapler staple "$DMG_PATH"
+            spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG_PATH"
+          done
+
+          echo "DMG_ARM64=$RUNNER_TEMP/MacRAR-${APP_VERSION}-arm64.dmg" >> "$GITHUB_ENV"
+          echo "DMG_X86_64=$RUNNER_TEMP/MacRAR-${APP_VERSION}-x86_64.dmg" >> "$GITHUB_ENV"
+
+      # ── 8. Upload artifacts ─────────────────────────────────
+      - name: Upload arm64 DMG
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: "MacRAR-${{ steps.version.outputs.version }}-arm64.dmg"
+          path: "${{ env.DMG_ARM64 }}"
+          retention-days: 90
+
+      - name: Upload x86_64 DMG
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: "MacRAR-${{ steps.version.outputs.version }}-x86_64.dmg"
+          path: "${{ env.DMG_X86_64 }}"
+          retention-days: 90
+
+      # ── 9. Cleanup ──────────────────────────────────────────
+      - name: Cleanup signing artifacts
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          rm -f "$P12_PATH" "$EXPORT_OPTIONS_PATH"
+          rm -rf "$RUNNER_TEMP"/*.xcarchive "$RUNNER_TEMP"/export-*

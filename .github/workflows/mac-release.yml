@@ -1,0 +1,122 @@
+name: MacRAR - Release
+
+on:
+  push:
+    tags: [ "mac-v*" ]
+
+jobs:
+  extract-version:
+    name: Extract Version
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      base: ${{ steps.version.outputs.base }}
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/mac-v}"
+          if [[ ! "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\+ARAS\.Patch\.([0-9]+)$ ]]; then
+            echo "::error::Invalid version: $VERSION (expected X.Y.Z+ARAS.Patch.N)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+  build-dmg:
+    needs: extract-version
+    uses: ./.github/workflows/mac-deploy-dmg.yml
+    permissions:
+      contents: read
+    with:
+      version: ${{ needs.extract-version.outputs.version }}
+    secrets:
+      DEVELOPER_ID_CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+      DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+
+  create-release:
+    name: Create GitHub Release
+    needs: [extract-version, build-dmg]
+    runs-on: ubuntu-latest
+    if: success()
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download arm64 DMG
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: "MacRAR-${{ needs.extract-version.outputs.version }}-arm64.dmg"
+          path: ${{ runner.temp }}/release
+
+      - name: Download x86_64 DMG
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: "MacRAR-${{ needs.extract-version.outputs.version }}-x86_64.dmg"
+          path: ${{ runner.temp }}/release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        with:
+          tag_name: "mac-v${{ needs.extract-version.outputs.version }}"
+          name: "MacRAR ${{ needs.extract-version.outputs.version }}"
+          body: |
+            ## MacRAR ${{ needs.extract-version.outputs.version }}
+
+            ---
+
+            ### 🇺🇸
+
+            An independent distribution by ARAS-Workspace, based on [MacRAR](https://github.com/mstcvk/MacRAR) ${{ needs.extract-version.outputs.base }} by Mesut Çevik. Archives are read and written by 7-Zip, built into the app.
+
+            #### Downloads
+
+            | Architecture | File |
+            |---|---|
+            | Apple Silicon (M1/M2/M3/M4) | `MacRAR-${{ needs.extract-version.outputs.version }}-arm64.dmg` |
+            | Intel | `MacRAR-${{ needs.extract-version.outputs.version }}-x86_64.dmg` |
+
+            #### Installation
+
+            1. Download the DMG for your architecture
+            2. Drag **MacRAR** to the **Applications** folder
+            3. Open it once; the Finder Quick Actions are installed on first launch
+
+            #### Requirements
+
+            - macOS 13 (Ventura) or later
+            - Creating RAR archives needs RARLAB's own `rar`, installed by the user; opening and extracting RAR does not
+
+            ---
+
+            ### 🇹🇷
+
+            Mesut Çevik'in [MacRAR](https://github.com/mstcvk/MacRAR) ${{ needs.extract-version.outputs.base }} sürümü üzerine ARAS-Workspace tarafından hazırlanan bağımsız dağıtım. Arşivler uygulamaya gömülü 7-Zip ile okunur ve yazılır.
+
+            #### İndirmeler
+
+            | Mimari | Dosya |
+            |---|---|
+            | Apple Silicon (M1/M2/M3/M4) | `MacRAR-${{ needs.extract-version.outputs.version }}-arm64.dmg` |
+            | Intel | `MacRAR-${{ needs.extract-version.outputs.version }}-x86_64.dmg` |
+
+            #### Kurulum
+
+            1. Mimarinize uygun DMG dosyasını indirin
+            2. **MacRAR** uygulamasını **Applications** klasörüne sürükleyin
+            3. Bir kez açın; Finder Hızlı Eylemleri ilk açılışta kurulur
+
+            #### Gereksinimler
+
+            - macOS 13 (Ventura) veya üzeri
+            - RAR arşivi oluşturmak için RARLAB'ın `rar` aracının kullanıcı tarafından kurulması gerekir; RAR açmak ve çıkartmak için gerekmez
+
+          files: |
+            ${{ runner.temp }}/release/MacRAR-${{ needs.extract-version.outputs.version }}-arm64.dmg
+            ${{ runner.temp }}/release/MacRAR-${{ needs.extract-version.outputs.version }}-x86_64.dmg
+          draft: false
+          prerelease: false
+          generate_release_notes: false
