@@ -11,8 +11,8 @@ enum Quarantine {
         let size = getxattr(path, attr, nil, 0, 0, 0)
         guard size > 0 else { return nil }
         var data = Data(count: size)
-        let n = data.withUnsafeMutableBytes { getxattr(path, attr, $0.baseAddress, size, 0, 0) }
-        return n > 0 ? data.prefix(n) : nil
+        let read = data.withUnsafeMutableBytes { getxattr(path, attr, $0.baseAddress, size, 0, 0) }
+        return read > 0 ? data.prefix(read) : nil
     }
 
     /// Applies the quarantine value to every item this extraction wrote in `dest` (those changed after `since`).
@@ -21,29 +21,30 @@ enum Quarantine {
     static func apply(_ value: Data, dest: String, tops: [String], since: Date) {
         let fm = FileManager.default
         let limit = since.timeIntervalSince1970 - 2   // HFS+/FAT timestamps have one-second precision
-        func info(_ p: String) -> (changed: Bool, isDir: Bool)? {
+        func info(_ path: String) -> (changed: Bool, isDir: Bool)? {
             var st = stat()
-            guard lstat(p, &st) == 0 else { return nil }
+            guard lstat(path, &st) == 0 else { return nil }
             let ctime = Double(st.st_ctimespec.tv_sec) + Double(st.st_ctimespec.tv_nsec) / 1e9
             return (ctime >= limit, (st.st_mode & S_IFMT) == S_IFDIR)
         }
-        func tag(_ p: String) {
-            _ = value.withUnsafeBytes { setxattr(p, attr, $0.baseAddress, value.count, 0, XATTR_NOFOLLOW) }
+        func tag(_ path: String) {
+            _ = value.withUnsafeBytes { setxattr(path, attr, $0.baseAddress, value.count, 0, XATTR_NOFOLLOW) }
         }
 
         // Top-level names + new items extracted under a new name (-aou)
         var roots = Set(tops)
-        for name in (try? fm.contentsOfDirectory(atPath: dest)) ?? [] {
-            if info((dest as NSString).appendingPathComponent(name))?.changed == true { roots.insert(name) }
+        for name in (try? fm.contentsOfDirectory(atPath: dest)) ?? []
+        where info((dest as NSString).appendingPathComponent(name))?.changed == true {
+            roots.insert(name)
         }
         for name in roots {
             let root = (dest as NSString).appendingPathComponent(name)
-            guard let r = info(root) else { continue }
-            if r.changed { tag(root) }
-            guard r.isDir, let walker = fm.enumerator(atPath: root) else { continue }
+            guard let rootInfo = info(root) else { continue }
+            if rootInfo.changed { tag(root) }
+            guard rootInfo.isDir, let walker = fm.enumerator(atPath: root) else { continue }
             for case let rel as String in walker {
-                let p = (root as NSString).appendingPathComponent(rel)
-                if info(p)?.changed == true { tag(p) }
+                let path = (root as NSString).appendingPathComponent(rel)
+                if info(path)?.changed == true { tag(path) }
             }
         }
     }

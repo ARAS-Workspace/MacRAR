@@ -1,6 +1,8 @@
 import AppKit
 import UniformTypeIdentifiers
 
+// swiftlint:disable file_length
+
 enum Command {
     case extractHere([String])
     case extractFolder([String])
@@ -12,17 +14,18 @@ enum Command {
     case installQuickActions
 }
 
+// swiftlint:disable:next type_body_length
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Open Recent menu
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let urls = NSDocumentController.shared.recentDocumentURLs.filter { FileManager.default.fileExists(atPath: $0.path) }
-        for u in urls.prefix(15) {
-            let item = menu.addItem(withTitle: u.lastPathComponent, action: #selector(openRecent(_:)), keyEquivalent: "")
-            item.representedObject = u.path
-            item.image = NSWorkspace.shared.icon(forFile: u.path); item.image?.size = NSSize(width: 16, height: 16)
-            item.toolTip = u.path
+        for url in urls.prefix(15) {
+            let item = menu.addItem(withTitle: url.lastPathComponent, action: #selector(openRecent(_:)), keyEquivalent: "")
+            item.representedObject = url.path
+            item.image = NSWorkspace.shared.icon(forFile: url.path); item.image?.size = NSSize(width: 16, height: 16)
+            item.toolTip = url.path
             item.target = self
         }
         if urls.isEmpty {
@@ -33,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             clear.target = self
         }
     }
-    @objc func openRecent(_ sender: NSMenuItem) { if let p = sender.representedObject as? String { openArchive(p, reuse: nil) } }
+    @objc func openRecent(_ sender: NSMenuItem) { if let path = sender.representedObject as? String { openArchive(path, reuse: nil) } }
     @objc func clearRecent(_ sender: Any?) { NSDocumentController.shared.clearRecentDocuments(nil) }
     static var shared: AppDelegate!
 
@@ -50,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// The app was opened only for a Finder service: quit when the work is done and no window is open
     var launchedForService = false
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         buildMenu()
@@ -64,16 +68,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         scheduleDebugSnapshot()
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ABOUT"] != nil { showAbout(nil) }
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_PREFS"] != nil { showPreferences(nil) }
-        if let e = ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC_APPLY"] {
-            Associations.apply(Associations.types(for: [e]), quiet: true) { ok, failed in
-                print("assoc \(e): ok=\(ok) failed=\(failed) handler=\(Associations.currentHandler(for: [e]))"); exit(0)
+        if let ext = ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC_APPLY"] {
+            Associations.apply(Associations.types(for: [ext]), quiet: true) { ok, failed in
+                print("assoc \(ext): ok=\(ok) failed=\(failed) handler=\(Associations.currentHandler(for: [ext]))"); exit(0)
             }
             return
         }
         #if !APPSTORE
-        if let p = ProcessInfo.processInfo.environment["MACRAR_DEBUG_RARINSTALL"] {
-            do { try RarTools.install(from: URL(fileURLWithPath: p)); print("RAR kuruldu:", RarTools.version ?? "?", RarTools.installDir) }
-            catch { print("RAR install failed:", error.localizedDescription) }
+        if let path = ProcessInfo.processInfo.environment["MACRAR_DEBUG_RARINSTALL"] {
+            do {
+                try RarTools.install(from: URL(fileURLWithPath: path))
+                print("RAR installed:", RarTools.version ?? "?", RarTools.installDir)
+            } catch {
+                print("RAR install failed:", error.localizedDescription)
+            }
             exit(0)
         }
         #endif
@@ -103,8 +111,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Offer file associations on first launch (only when running from /Applications)
         if Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil { Associations.show(firstLaunch: true) }
-                else { Associations.promptIfFirstLaunch() }
+                if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
+                    Associations.show(firstLaunch: true)
+                } else {
+                    Associations.promptIfFirstLaunch()
+                }
             }
         }
     }
@@ -138,8 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
         if let log = ProcessInfo.processInfo.environment["MACRAR_DEBUG_LOG"] {
             let line = "\(Date().timeIntervalSince1970) openFiles(\(filenames.count)): \(filenames.map { ($0 as NSString).lastPathComponent }) launched=\(launched) modal=\(NSApp.modalWindow != nil)\n"
-            if let h = FileHandle(forWritingAtPath: log) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile() }
-            else { try? line.write(toFile: log, atomically: true, encoding: .utf8) }
+            if let h = FileHandle(forWritingAtPath: log) {
+                h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile()
+            } else {
+                try? line.write(toFile: log, atomically: true, encoding: .utf8)
+            }
         }
         // Answer Finder right away; handle the files outside the Apple event handler, while no modal window is up
         sender.reply(toOpenOrPrint: .success)
@@ -201,11 +215,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let files = rawFiles.map { Self.resolved($0) }.filter { seen.insert($0).inserted }
         let archives = files.filter { Self.isArchive($0) }
         let others = files.filter { !Self.isArchive($0) }
-        for a in archives { openArchive(a, reuse: nil) }
+        for archive in archives { openArchive(archive, reuse: nil) }
         if !others.isEmpty {
             compressWithDialog(items: others, host: nil) { [weak self] path in
-                if let path { self?.openArchive(path, reuse: nil) }
-                else if self?.windows.isEmpty == true { self?.showEmptyWindow() }
+                if let path {
+                    self?.openArchive(path, reuse: nil)
+                } else if self?.windows.isEmpty == true {
+                    self?.showEmptyWindow()
+                }
             }
         }
     }
@@ -253,24 +270,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             #endif
         case .installQuickActions:
             #if !APPSTORE
-            let n = QuickActions.installAll()
-            print("\(n) Quick Actions installed: \(QuickActions.servicesDir)")
+            let count = QuickActions.installAll()
+            print("\(count) Quick Actions installed: \(QuickActions.servicesDir)")
             #endif
             self.finishCommand()
-        case .extractHere(let a):
-            processArchives(Self.dedupeVolumes(a), dest: { ($0 as NSString).deletingLastPathComponent })
-        case .extractFolder(let a):
-            processArchives(Self.dedupeVolumes(a), dest: { Ops.folderNamedAfterArchive($0) })
-        case .extractTo(let a):
-            let list = Self.dedupeVolumes(a)
+        case .extractHere(let paths):
+            processArchives(Self.dedupeVolumes(paths), dest: { ($0 as NSString).deletingLastPathComponent })
+        case .extractFolder(let paths):
+            processArchives(Self.dedupeVolumes(paths), dest: { Ops.folderNamedAfterArchive($0) })
+        case .extractTo(let paths):
+            let list = Self.dedupeVolumes(paths)
             guard let first = list.first,
-                  let d = Dialogs.chooseFolder(title: loc.t("panel_extract_destination"), prompt: loc.t("extract"),
+                  let dest = Dialogs.chooseFolder(title: loc.t("panel_extract_destination"), prompt: loc.t("extract"),
                                                initial: (first as NSString).deletingLastPathComponent) else {
                 self.finishCommand(); return
             }
-            processArchives(list, dest: { _ in d })
-        case .test(let a):
-            testArchives(Self.dedupeVolumes(a))
+            processArchives(list, dest: { _ in dest })
+        case .test(let paths):
+            testArchives(Self.dedupeVolumes(paths))
         case .compress(let items):
             let existing = items.filter { FileManager.default.fileExists(atPath: $0) }
             guard !existing.isEmpty else { self.finishCommand(); return }
@@ -296,39 +313,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Keeps only the first part of multi-volume archives (name.part2.rar, name.7z.002 etc. are skipped)
     static func dedupeVolumes(_ paths: [String]) -> [String] {
-        let regex = try! NSRegularExpression(pattern: #"^(.*)\.(?:part(\d+)\.rar|(?:7z|zip|rar|tar|bin)\.(\d{3}))$"#, options: .caseInsensitive)
+        // swiftlint:disable:next force_try
+        let regex = try! NSRegularExpression(
+            pattern: #"^(.*)\.(?:part(\d+)\.rar|(?:7z|zip|rar|tar|bin)\.(\d{3}))$"#, options: .caseInsensitive)
         var best: [String: (Int, String)] = [:]
         var order: [String] = []
         var result: [String] = []
-        for p in paths {
-            let ns = p as NSString
-            if let m = regex.firstMatch(in: p, range: NSRange(location: 0, length: ns.length)) {
+        for path in paths {
+            let ns = path as NSString
+            if let m = regex.firstMatch(in: path, range: NSRange(location: 0, length: ns.length)) {
                 let base = ns.substring(with: m.range(at: 1))
                 let numRange = m.range(at: 2).location != NSNotFound ? m.range(at: 2) : m.range(at: 3)
                 let num = Int(ns.substring(with: numRange)) ?? 0
                 if let cur = best[base] {
-                    if num < cur.0 { best[base] = (num, p) }
+                    if num < cur.0 { best[base] = (num, path) }
                 } else {
-                    best[base] = (num, p)
+                    best[base] = (num, path)
                     order.append(base)
                 }
             } else {
-                result.append(p)
+                result.append(path)
             }
         }
-        for b in order { if let v = best[b] { result.append(v.1) } }
+        for key in order { if let v = best[key] { result.append(v.1) } }
         return result
     }
 
     private func processArchives(_ archives: [String], dest: @escaping (String) -> String, index: Int = 0) {
         guard index < archives.count else { finishCommand(); return }
-        let a = archives[index]
-        var pw: String? = nil
-        guard let info = Ops.listInteractive(archive: a, password: &pw) else {
+        let archive = archives[index]
+        var pw: String?
+        guard let info = Ops.listInteractive(archive: archive, password: &pw) else {
             processArchives(archives, dest: dest, index: index + 1)
             return
         }
-        let target = dest(a)
+        let target = dest(archive)
         Ops.extract(info: info, names: nil, dest: target, password: pw, host: nil) { [weak self] ok, _ in
             if ok, index == archives.count - 1 { Ops.revealExtracted(info: info, names: nil, dest: target) }
             self?.processArchives(archives, dest: dest, index: index + 1)
@@ -337,9 +356,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func testArchives(_ archives: [String], index: Int = 0) {
         guard index < archives.count else { finishCommand(); return }
-        let a = archives[index]
-        var pw: String? = nil
-        guard let info = Ops.listInteractive(archive: a, password: &pw) else {
+        let archive = archives[index]
+        var pw: String?
+        guard let info = Ops.listInteractive(archive: archive, password: &pw) else {
             testArchives(archives, index: index + 1)
             return
         }
@@ -355,10 +374,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let delay = Double(ProcessInfo.processInfo.environment["MACRAR_SNAPSHOT_DELAY"] ?? "") ?? 2.0
         let timer = Timer(timeInterval: delay, repeats: false) { _ in
             var i = 0
-            for w in NSApp.windows where w.isVisible {
-                guard let frame = w.contentView?.superview else { continue }
+            for window in NSApp.windows where window.isVisible {
+                guard let frame = window.contentView?.superview else { continue }
                 func dump(_ v: NSView) {
-                    if let p = v as? NSProgressIndicator { print("progress bar value:", p.doubleValue, "indeterminate:", p.isIndeterminate) }
+                    if let indicator = v as? NSProgressIndicator {
+                        print("progress bar value:", indicator.doubleValue, "indeterminate:", indicator.isIndeterminate)
+                    }
                     v.subviews.forEach(dump)
                 }
                 dump(frame)
@@ -378,9 +399,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func setDefaultHandler(extensions: [String] = ["rar"], completion: @escaping (Error?) -> Void) {
         var types: [UTType] = []
-        for e in extensions {
-            if e == "rar", let t = UTType("com.rarlab.rar-archive") { types.append(t); continue }
-            if let t = UTType(filenameExtension: e) { types.append(t) }
+        for ext in extensions {
+            if ext == "rar", let utType = UTType("com.rarlab.rar-archive") { types.append(utType); continue }
+            if let utType = UTType(filenameExtension: ext) { types.append(utType) }
         }
         func next(_ i: Int) {
             guard i < types.count else { completion(nil); return }
@@ -415,8 +436,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func installQuickActionsAction(_ sender: Any?) {
         #if !APPSTORE
-        let n = QuickActions.installAll()
-        Dialogs.info(loc.t("quick_actions_installed_title"), loc.t("quick_actions_installed_message", n))
+        let count = QuickActions.installAll()
+        Dialogs.info(loc.t("quick_actions_installed_title"), loc.t("quick_actions_installed_message", count))
         #endif
     }
 
@@ -425,13 +446,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func showAbout(_ sender: Any?) {
         let credits = NSMutableAttributedString()
         let para = NSMutableParagraphStyle(); para.alignment = .center
-        let base: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
+        let base: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor, .paragraphStyle: para,
+        ]
         credits.append(NSAttributedString(string: loc.t("about_developer"), attributes: base))
         var link = base
         link[.link] = URL(string: "https://github.com/mstcvk/MacRAR")!
         link[.foregroundColor] = NSColor.linkColor
         credits.append(NSAttributedString(string: "github.com/mstcvk/MacRAR", attributes: link))
-        credits.append(NSAttributedString(string: loc.t("about_third_party"), attributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: para]))
+        credits.append(
+            NSAttributedString(
+                string: loc.t("about_third_party"),
+                attributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: para]))
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: credits,
@@ -442,6 +468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Menu
 
+    // swiftlint:disable:next function_body_length
     private func buildMenu() {
         let main = NSMenu()
 
@@ -460,7 +487,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
         app.addItem(.separator())
         app.addItem(withTitle: loc.t("menu_hide_app", AppInfo.name), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthers = app.addItem(withTitle: loc.t("menu_hide_others"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        let hideOthers = app.addItem(
+            withTitle: loc.t("menu_hide_others"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         app.addItem(withTitle: loc.t("menu_show_all"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
@@ -469,27 +497,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let fileItem = NSMenuItem(); main.addItem(fileItem)
         let file = NSMenu(title: loc.t("menu_file"))
-        file.addItem(withTitle: loc.t("action_open_archive"), action: #selector(ArchiveWindowController.openArchive(_:)), keyEquivalent: "o")
+        file.addItem(
+            withTitle: loc.t("action_open_archive"), action: #selector(ArchiveWindowController.openArchive(_:)), keyEquivalent: "o")
         file.addItem(withTitle: loc.t("action_new_archive"), action: #selector(ArchiveWindowController.newArchive(_:)), keyEquivalent: "n")
         let recentItem = file.addItem(withTitle: loc.t("menu_open_recent"), action: nil, keyEquivalent: "")
         let recent = NSMenu(title: loc.t("menu_open_recent"))
         recent.delegate = self
         recentItem.submenu = recent
         file.addItem(.separator())
-        file.addItem(withTitle: loc.t("action_extract_here"), action: #selector(ArchiveWindowController.extractHere(_:)), keyEquivalent: "e")
-        let ef = file.addItem(withTitle: loc.t("action_extract_to_folder"), action: #selector(ArchiveWindowController.extractToFolder(_:)), keyEquivalent: "e")
+        file.addItem(
+            withTitle: loc.t("action_extract_here"), action: #selector(ArchiveWindowController.extractHere(_:)), keyEquivalent: "e")
+        let ef = file.addItem(
+            withTitle: loc.t("action_extract_to_folder"), action: #selector(ArchiveWindowController.extractToFolder(_:)), keyEquivalent: "e"
+        )
         ef.keyEquivalentModifierMask = [.command, .option]
-        let et = file.addItem(withTitle: loc.t("action_extract_to"), action: #selector(ArchiveWindowController.extractTo(_:)), keyEquivalent: "e")
+        let et = file.addItem(
+            withTitle: loc.t("action_extract_to"), action: #selector(ArchiveWindowController.extractTo(_:)), keyEquivalent: "e")
         et.keyEquivalentModifierMask = [.command, .shift]
-        file.addItem(withTitle: loc.t("action_extract_selected_here"), action: #selector(ArchiveWindowController.extractSelectedHere(_:)), keyEquivalent: "")
-        file.addItem(withTitle: loc.t("action_extract_selected_to"), action: #selector(ArchiveWindowController.extractSelectedTo(_:)), keyEquivalent: "")
+        file.addItem(
+            withTitle: loc.t("action_extract_selected_here"), action: #selector(ArchiveWindowController.extractSelectedHere(_:)),
+            keyEquivalent: "")
+        file.addItem(
+            withTitle: loc.t("action_extract_selected_to"), action: #selector(ArchiveWindowController.extractSelectedTo(_:)),
+            keyEquivalent: "")
         file.addItem(.separator())
-        file.addItem(withTitle: loc.t("action_test_archive"), action: #selector(ArchiveWindowController.testArchive(_:)), keyEquivalent: "t")
+        file.addItem(
+            withTitle: loc.t("action_test_archive"), action: #selector(ArchiveWindowController.testArchive(_:)), keyEquivalent: "t")
         file.addItem(withTitle: loc.t("action_archive_info"), action: #selector(ArchiveWindowController.showInfo(_:)), keyEquivalent: "i")
         file.addItem(.separator())
-        let add = file.addItem(withTitle: loc.t("action_add_files"), action: #selector(ArchiveWindowController.addFiles(_:)), keyEquivalent: "a")
+        let add = file.addItem(
+            withTitle: loc.t("action_add_files"), action: #selector(ArchiveWindowController.addFiles(_:)), keyEquivalent: "a")
         add.keyEquivalentModifierMask = [.command, .shift]
-        file.addItem(withTitle: loc.t("action_delete_selected"), action: #selector(ArchiveWindowController.deleteSelected(_:)), keyEquivalent: "\u{8}")
+        file.addItem(
+            withTitle: loc.t("action_delete_selected"), action: #selector(ArchiveWindowController.deleteSelected(_:)),
+            keyEquivalent: "\u{8}")
         file.addItem(.separator())
         file.addItem(withTitle: loc.t("menu_close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileItem.submenu = file
@@ -508,15 +549,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let view = NSMenu(title: loc.t("menu_view"))
-        view.addItem(withTitle: loc.t("action_quick_look"), action: #selector(ArchiveWindowController.quickLook(_:)), keyEquivalent: " ").keyEquivalentModifierMask = []
+        view.addItem(withTitle: loc.t("action_quick_look"), action: #selector(ArchiveWindowController.quickLook(_:)), keyEquivalent: " ")
+            .keyEquivalentModifierMask = []
         view.addItem(.separator())
-        let ea = view.addItem(withTitle: loc.t("action_expand_all"), action: #selector(ArchiveWindowController.expandAll(_:)), keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
+        let ea = view.addItem(
+            withTitle: loc.t("action_expand_all"), action: #selector(ArchiveWindowController.expandAll(_:)),
+            keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
         ea.keyEquivalentModifierMask = [.command, .option]
-        let ca = view.addItem(withTitle: loc.t("action_collapse_all"), action: #selector(ArchiveWindowController.collapseAll(_:)), keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        let ca = view.addItem(
+            withTitle: loc.t("action_collapse_all"), action: #selector(ArchiveWindowController.collapseAll(_:)),
+            keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
         ca.keyEquivalentModifierMask = [.command, .option]
         view.addItem(.separator())
         view.addItem(withTitle: loc.t("action_refresh"), action: #selector(ArchiveWindowController.refresh(_:)), keyEquivalent: "r")
-        let rv = view.addItem(withTitle: loc.t("action_show_in_finder"), action: #selector(ArchiveWindowController.revealArchive(_:)), keyEquivalent: "r")
+        let rv = view.addItem(
+            withTitle: loc.t("action_show_in_finder"), action: #selector(ArchiveWindowController.revealArchive(_:)), keyEquivalent: "r")
         rv.keyEquivalentModifierMask = [.command, .shift]
         viewItem.submenu = view
 

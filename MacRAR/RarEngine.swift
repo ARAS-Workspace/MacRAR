@@ -39,8 +39,8 @@ struct ArchiveInfo {
     var totalPacked: Int64 { entries.reduce(0) { $0 + $1.packedSize } }
     var topLevelNames: [String] {
         var seen = Set<String>(); var out: [String] = []
-        for e in entries {
-            let top = e.name.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? e.name
+        for entry in entries {
+            let top = entry.name.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? entry.name
             if seen.insert(top).inserted { out.append(top) }
         }
         return out
@@ -70,12 +70,18 @@ struct RarResult {
         let lines = output.components(separatedBy: "\n")
             .map { $0.replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-            .filter { !$0.hasPrefix("UNRAR ") && !$0.hasPrefix("RAR ") && !$0.hasPrefix("Trial version") && !$0.hasPrefix("Evaluation copy") && !$0.hasPrefix("7-Zip") && !$0.hasPrefix("64-bit") }
-        let interesting = lines.filter { l in
-            l.contains("error") || l.contains("Error") || l.contains("ERROR") || l.contains("Incorrect") || l.contains("Wrong")
-                || l.contains("failed") || l.contains("Failed") || l.contains("not RAR") || l.contains("Cannot") || l.contains("Can not")
-                || l.contains("No files") || l.contains("Checksum") || l.contains("CRC") || l.contains("denied") || l.contains("Total errors")
-                || l.contains("Unexpected end") || l.contains("Data Error") || l.contains("Unsupported")
+            .filter {
+                !$0.hasPrefix("UNRAR ") && !$0.hasPrefix("RAR ") && !$0.hasPrefix("Trial version") && !$0.hasPrefix("Evaluation copy")
+                    && !$0.hasPrefix("7-Zip") && !$0.hasPrefix("64-bit")
+            }
+        let interesting = lines.filter { line in
+            line.contains("error") || line.contains("Error") || line.contains("ERROR") || line.contains("Incorrect")
+                || line.contains("Wrong")
+                || line.contains("failed") || line.contains("Failed") || line.contains("not RAR") || line.contains("Cannot")
+                || line.contains("Can not")
+                || line.contains("No files") || line.contains("Checksum") || line.contains("CRC") || line.contains("denied")
+                || line.contains("Total errors")
+                || line.contains("Unexpected end") || line.contains("Data Error") || line.contains("Unsupported")
         }
         let chosen = interesting.isEmpty ? Array(lines.suffix(6)) : Array(interesting.suffix(8))
         return chosen.joined(separator: "\n")
@@ -120,8 +126,9 @@ enum Formats {
         let lower = (path as NSString).lastPathComponent.lowercased()
         let ext = (lower as NSString).pathExtension
         if ["tgz", "tbz", "tbz2", "txz", "tzst", "tlz"].contains(ext) { return true }
-        for suffix in [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tar.lz4", ".tar.z", ".tar.lzma", ".tar.lz", ".tar.br"] {
-            if lower.hasSuffix(suffix) { return true }
+        for suffix in [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tar.lz4", ".tar.z", ".tar.lzma", ".tar.lz", ".tar.br"]
+        where lower.hasSuffix(suffix) {
+            return true
         }
         return false
     }
@@ -131,9 +138,9 @@ enum Formats {
 
 enum RarRunner {
     static let resourceDir: URL = {
-        if let r = Bundle.main.resourceURL,
-           FileManager.default.fileExists(atPath: r.appendingPathComponent("7zz").path) {
-            return r
+        if let resources = Bundle.main.resourceURL,
+           FileManager.default.fileExists(atPath: resources.appendingPathComponent("7zz").path) {
+            return resources
         }
         return URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
     }()
@@ -165,16 +172,16 @@ enum RarRunner {
     }
 
     static func makeProcess(_ tool: RarTool, _ args: [String], cwd: String?) -> Process {
-        let p = Process()
-        p.executableURL = url(tool)
-        p.arguments = args
+        let process = Process()
+        process.executableURL = url(tool)
+        process.arguments = args
         var env = ProcessInfo.processInfo.environment
         env["LANG"] = "en_US.UTF-8"
         env["LC_ALL"] = "en_US.UTF-8"
-        p.environment = env
-        if let cwd { p.currentDirectoryURL = URL(fileURLWithPath: cwd) }
-        p.standardInput = FileHandle.nullDevice
-        return p
+        process.environment = env
+        if let cwd { process.currentDirectoryURL = URL(fileURLWithPath: cwd) }
+        process.standardInput = FileHandle.nullDevice
+        return process
     }
 
     /// Runs synchronously, collects all output.
@@ -185,29 +192,30 @@ enum RarRunner {
     /// Runs the piped stages synchronously; returns the last stage's output and exit code.
     static func runStages(_ stages: [Stage], cwd: String? = nil) -> RarResult {
         var processes: [Process] = []
-        var prevOut: Pipe? = nil
+        var prevOut: Pipe?
         for (i, st) in stages.enumerated() {
-            let p = makeProcess(st.tool, st.args, cwd: cwd)
-            if let prev = prevOut { p.standardInput = prev.fileHandleForReading }
+            let process = makeProcess(st.tool, st.args, cwd: cwd)
+            if let prev = prevOut { process.standardInput = prev.fileHandleForReading }
             if i < stages.count - 1 {
                 let out = Pipe()
-                p.standardOutput = out
-                p.standardError = FileHandle.nullDevice
+                process.standardOutput = out
+                process.standardError = FileHandle.nullDevice
                 prevOut = out
             }
-            processes.append(p)
+            processes.append(process)
         }
         guard let last = processes.last else { return RarResult(code: -1, output: "") }
         let pipe = Pipe()
         last.standardOutput = pipe
         last.standardError = pipe
-        for p in processes {
-            do { try p.run() } catch {
+        for process in processes {
+            do { try process.run() } catch {
                 return RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription))
             }
         }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         processes.forEach { $0.waitUntilExit() }
+        // swiftlint:disable:next optional_data_string_conversion
         return RarResult(code: last.terminationStatus, output: String(decoding: data, as: UTF8.self))
     }
 
@@ -227,15 +235,16 @@ enum RarRunner {
     }
 
     static func list(_ path: String, password: String?) -> ListOutcome {
-        let r = runStages(listStages(path, password: password))
-        if r.wrongPassword { return .wrongPassword }
-        if r.notArchive || (!r.ok && !r.output.contains("----------")) { return .error(r) }
-        guard r.output.contains("----------") || r.output.contains("Type = ") else { return .error(r) }
-        return .ok(parse7zListing(r.output, path: path, kind: Formats.kind(of: path)))
+        let result = runStages(listStages(path, password: password))
+        if result.wrongPassword { return .wrongPassword }
+        if result.notArchive || (!result.ok && !result.output.contains("----------")) { return .error(result) }
+        guard result.output.contains("----------") || result.output.contains("Type = ") else { return .error(result) }
+        return .ok(parse7zListing(result.output, path: path, kind: Formats.kind(of: path)))
     }
 
     // MARK: Parsing 7zz l -slt
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func parse7zListing(_ out: String, path: String, kind: ArchiveKind = .other) -> ArchiveInfo {
         let lines = out.components(separatedBy: "\n")
         // Lines after the last "----------" are the entries; before it are the archive header blocks
@@ -250,9 +259,9 @@ enum RarRunner {
         var outerTypes: [String] = []
         for raw in headerLines {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            guard let r = line.range(of: " = ") else { continue }
-            let key = String(line[..<r.lowerBound])
-            let value = String(line[r.upperBound...])
+            guard let separator = line.range(of: " = ") else { continue }
+            let key = String(line[..<separator.lowerBound])
+            let value = String(line[separator.upperBound...])
             switch key {
             case "Type": if !type.isEmpty { outerTypes.append(type) }; type = value
             case "Solid": solid = (value == "+")
@@ -269,26 +278,26 @@ enum RarRunner {
             guard let name = block["Path"], !name.isEmpty else { return }
             let attrs = block["Attributes"] ?? ""
             let isDir = block["Folder"] == "+" || attrs.hasPrefix("D")
-            var e = ArchiveEntry(name: name.hasSuffix("/") ? String(name.dropLast()) : name, isDirectory: isDir)
-            e.size = Int64(block["Size"] ?? "") ?? 0
-            e.packedSize = Int64(block["Packed Size"] ?? "") ?? 0
-            if e.size > 0, e.packedSize > 0 { e.ratio = "\(Int(Double(e.packedSize) * 100 / Double(e.size)))%" }
-            if let m = block["Modified"] { e.mtime = String(m.prefix(19)) }
-            e.crc = block["CRC"] ?? ""
-            e.encrypted = block["Encrypted"] == "+"
-            e.attributes = attrs
-            e.compression = block["Method"] ?? ""
-            entries.append(e)
+            var entry = ArchiveEntry(name: name.hasSuffix("/") ? String(name.dropLast()) : name, isDirectory: isDir)
+            entry.size = Int64(block["Size"] ?? "") ?? 0
+            entry.packedSize = Int64(block["Packed Size"] ?? "") ?? 0
+            if entry.size > 0, entry.packedSize > 0 { entry.ratio = "\(Int(Double(entry.packedSize) * 100 / Double(entry.size)))%" }
+            if let m = block["Modified"] { entry.mtime = String(m.prefix(19)) }
+            entry.crc = block["CRC"] ?? ""
+            entry.encrypted = block["Encrypted"] == "+"
+            entry.attributes = attrs
+            entry.compression = block["Method"] ?? ""
+            entries.append(entry)
         }
         for raw in entryLines {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { flush(); continue }
-            guard let r = line.range(of: " = ") else {
+            guard let separator = line.range(of: " = ") else {
                 if line.hasSuffix(" =") { block[String(line.dropLast(2))] = "" }
                 continue
             }
-            let key = String(line[..<r.lowerBound])
-            let value = String(line[r.upperBound...])
+            let key = String(line[..<separator.lowerBound])
+            let value = String(line[separator.upperBound...])
             if key == "Path", block["Path"] != nil { flush() }
             block[key] = value
         }
@@ -331,11 +340,15 @@ final class RarJob {
     private(set) var cancelled = false
     var onEvent: ((Event) -> Void)?   // called on the main queue
 
-    private static let verbs = ["Extracting", "Adding", "Testing", "Updating", "Creating", "Deleting", "Compressing", "Fresh", "Calculating"]
+    private static let verbs = [
+        "Extracting", "Adding", "Testing", "Updating", "Creating", "Deleting", "Compressing", "Fresh", "Calculating",
+    ]
+    // swiftlint:disable force_try
     private static let percentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})%"#)
     private static let percentHeadRegex = try! NSRegularExpression(pattern: #"^\s*(\d{1,3})%"#)
     private static let tailRegex = try! NSRegularExpression(pattern: #"\s*(\d{1,3}%|OK|Failed|CRC failed)\s*$"#)
     private static let sevenNameRegex = try! NSRegularExpression(pattern: #"(?:^|\s)([-+TU])\s(\S.*)$"#)
+    // swiftlint:enable force_try
 
     func start(_ tool: RarTool, _ args: [String], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
         start(stages: [(tool, args)], cwd: cwd, completion: completion)
@@ -346,17 +359,17 @@ final class RarJob {
         guard let lastStage = stages.last else { return }
         monitoredTool = lastStage.tool
         var procs: [Process] = []
-        var prevOut: Pipe? = nil
+        var prevOut: Pipe?
         for (i, st) in stages.enumerated() {
-            let p = RarRunner.makeProcess(st.tool, st.args, cwd: cwd)
-            if let prev = prevOut { p.standardInput = prev.fileHandleForReading }
+            let process = RarRunner.makeProcess(st.tool, st.args, cwd: cwd)
+            if let prev = prevOut { process.standardInput = prev.fileHandleForReading }
             if i < stages.count - 1 {
                 let out = Pipe()
-                p.standardOutput = out
-                p.standardError = FileHandle.nullDevice
+                process.standardOutput = out
+                process.standardError = FileHandle.nullDevice
                 prevOut = out
             }
-            procs.append(p)
+            procs.append(process)
         }
         let last = procs[procs.count - 1]
         let pipe = Pipe()
@@ -364,9 +377,9 @@ final class RarJob {
         last.standardError = pipe
         let handle = pipe.fileHandleForReading
         handle.readabilityHandler = { [weak self] h in
-            let d = h.availableData
-            guard !d.isEmpty, let self else { return }
-            self.queue.async { self.consume(d) }
+            let data = h.availableData
+            guard !data.isEmpty, let self else { return }
+            self.queue.async { self.consume(data) }
         }
         last.terminationHandler = { [weak self] proc in
             handle.readabilityHandler = nil
@@ -375,14 +388,14 @@ final class RarJob {
             self.queue.async {
                 self.consume(rest)
                 self.flushPartial()
-                for p in self.processes where p !== proc && p.isRunning { p.terminate() }
+                for process in self.processes where process !== proc && process.isRunning { process.terminate() }
                 let result = RarResult(code: proc.terminationStatus, output: self.output, cancelled: self.cancelled)
                 DispatchQueue.main.async { completion(result) }
             }
         }
         processes = procs
-        for p in procs {
-            do { try p.run() } catch {
+        for process in procs {
+            do { try process.run() } catch {
                 DispatchQueue.main.async {
                     completion(RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription)))
                 }
@@ -401,12 +414,14 @@ final class RarJob {
         while let nl = buffer.firstIndex(of: 0x0A) {
             let lineData = buffer[buffer.startIndex..<nl]
             buffer.removeSubrange(buffer.startIndex...nl)
+            // swiftlint:disable:next optional_data_string_conversion
             let line = String(decoding: lineData, as: UTF8.self)
             output += Self.lastSegment(line, keepAll: true) + "\n"
             parse(Self.lastSegment(line))
         }
         // Progress updated with backspaces (\u{8}) before a newline arrives: read only the latest state
         if !buffer.isEmpty {
+            // swiftlint:disable:next optional_data_string_conversion
             let tail = String(decoding: buffer.suffix(512), as: UTF8.self)
             parse(Self.lastSegment(tail))
             // Keep the buffer from growing on a long single file: drop everything before the last backspace run
@@ -421,7 +436,9 @@ final class RarJob {
         let parts = s.components(separatedBy: "\u{8}").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         if keepAll {
             // For the log: drop the repeated percentage fragments, keep the meaningful text
-            let meaningful = parts.filter { $0.trimmingCharacters(in: .whitespaces).range(of: #"^\d{1,3}%( \d+)?$"#, options: .regularExpression) == nil }
+            let meaningful = parts.filter {
+                $0.trimmingCharacters(in: .whitespaces).range(of: #"^\d{1,3}%( \d+)?$"#, options: .regularExpression) == nil
+            }
             return meaningful.joined(separator: " ")
         }
         return parts.last ?? ""
@@ -429,16 +446,18 @@ final class RarJob {
 
     private func flushPartial() {
         if !buffer.isEmpty {
+            // swiftlint:disable:next optional_data_string_conversion
             output += String(decoding: buffer, as: UTF8.self).replacingOccurrences(of: "\u{8}", with: "")
             buffer.removeAll()
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func parse(_ raw: String) {
         let line = raw.replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespaces)
         guard !line.isEmpty else { return }
-        var pct: Int? = nil
-        var fileName: String? = nil
+        var pct: Int?
+        var fileName: String?
 
         if monitoredTool == .sevenZip {
             let ns = line as NSString
@@ -459,7 +478,7 @@ final class RarJob {
             if let m = Self.percentRegex.matches(in: line, range: full).last {
                 pct = Int(ns.substring(with: m.range(at: 1)))
             }
-            var candidate: String? = nil
+            var candidate: String?
             if line.hasPrefix("... ") {
                 candidate = String(line.dropFirst(4))        // file continued after a volume change
             } else {
@@ -470,8 +489,8 @@ final class RarJob {
                     break
                 }
             }
-            if let c = candidate {
-                var name = c.trimmingCharacters(in: .whitespaces)
+            if let candidate {
+                var name = candidate.trimmingCharacters(in: .whitespaces)
                 while let m = Self.tailRegex.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
                     name = (name as NSString).substring(to: m.range.location)
                 }
@@ -482,7 +501,7 @@ final class RarJob {
         guard fileName != nil || pct != nil, let onEvent else { return }
         DispatchQueue.main.async {
             if let f = fileName, !f.isEmpty { onEvent(.file(f)) }
-            if let p = pct { onEvent(.progress(p)) }
+            if let pct { onEvent(.progress(pct)) }
         }
     }
 }
@@ -494,13 +513,13 @@ enum TempDirs {
     private static var created: [String] = []
     private static let lock = NSLock()
     static func make(_ prefix: String = "Archiver") -> String {
-        let p = FileManager.default.temporaryDirectory.appendingPathComponent("\(prefix)-\(UUID().uuidString)").path
-        lock.lock(); created.append(p); lock.unlock()
-        return p
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("\(prefix)-\(UUID().uuidString)").path
+        lock.lock(); created.append(path); lock.unlock()
+        return path
     }
     static func cleanupAll() {
         lock.lock(); let list = created; created = []; lock.unlock()
-        for p in list { try? FileManager.default.removeItem(atPath: p) }
+        for path in list { try? FileManager.default.removeItem(atPath: path) }
     }
 }
 
@@ -510,7 +529,7 @@ enum Fmt {
         f.countStyle = .file
         return f
     }()
-    static func size(_ n: Int64) -> String { bytes.string(fromByteCount: n) }
+    static func size(_ byteCount: Int64) -> String { bytes.string(fromByteCount: byteCount) }
 }
 
 func isDirectoryPath(_ path: String) -> Bool {

@@ -37,7 +37,7 @@ enum RarTools {
         var candidates: [String] = []
         if let custom = UserDefaults.standard.string(forKey: "RarPath"), !custom.isEmpty { candidates.append(custom) }
         candidates += [(installDir as NSString).appendingPathComponent("rar"), "/usr/local/bin/rar", "/opt/homebrew/bin/rar"]
-        for c in candidates where FileManager.default.isExecutableFile(atPath: c) { return URL(fileURLWithPath: c) }
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) { return URL(fileURLWithPath: candidate) }
         return nil
         #endif
     }
@@ -47,17 +47,18 @@ enum RarTools {
     /// e.g. "RAR 7.23"; nil if it does not run
     static var version: String? {
         guard let url = rarURL else { return nil }
-        let p = Process()
-        p.executableURL = url
-        p.arguments = []
+        let process = Process()
+        process.executableURL = url
+        process.arguments = []
         let pipe = Pipe()
-        p.standardOutput = pipe; p.standardError = pipe; p.standardInput = FileHandle.nullDevice
-        do { try p.run() } catch { return nil }
+        process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        // swiftlint:disable:next optional_data_string_conversion
         let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        p.waitUntilExit()
+        process.waitUntilExit()
         for line in out.components(separatedBy: "\n") {
-            let t = line.trimmingCharacters(in: .whitespaces)
-            if t.hasPrefix("RAR ") { return t.components(separatedBy: "  ").first }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("RAR ") { return trimmed.components(separatedBy: "  ").first }
         }
         return nil
     }
@@ -127,16 +128,16 @@ enum RarTools {
         var tmp: String?
         let lower = url.lastPathComponent.lowercased()
         if lower.hasSuffix(".tar.gz") || lower.hasSuffix(".tgz") {
-            let t = TempDirs.make("rar-install")
-            try fm.createDirectory(atPath: t, withIntermediateDirectories: true)
-            tmp = t
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-            p.arguments = ["-xzf", url.path, "-C", t]
-            p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
-            try p.run(); p.waitUntilExit()
-            guard p.terminationStatus == 0 else { throw InstallError(message: loc.t("rar_tool_err_unreadable")) }
-            sourceDir = findRarDir(in: t)
+            let tempDir = TempDirs.make("rar-install")
+            try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
+            tmp = tempDir
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+            process.arguments = ["-xzf", url.path, "-C", tempDir]
+            process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+            try process.run(); process.waitUntilExit()
+            guard process.terminationStatus == 0 else { throw InstallError(message: loc.t("rar_tool_err_unreadable")) }
+            sourceDir = findRarDir(in: tempDir)
         } else if isDirectoryPath(url.path) {
             sourceDir = findRarDir(in: url.path)
         } else if url.lastPathComponent == "rar" {
@@ -157,11 +158,11 @@ enum RarTools {
         let sfx = (installDir as NSString).appendingPathComponent("default.sfx")
         if fm.fileExists(atPath: sfx) { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sfx) }
         // A tool the user chose themselves: remove the download quarantine
-        let x = Process()
-        x.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-        x.arguments = ["-dr", "com.apple.quarantine", installDir]
-        x.standardOutput = FileHandle.nullDevice; x.standardError = FileHandle.nullDevice
-        try? x.run(); x.waitUntilExit()
+        let xattr = Process()
+        xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+        xattr.arguments = ["-dr", "com.apple.quarantine", installDir]
+        xattr.standardOutput = FileHandle.nullDevice; xattr.standardError = FileHandle.nullDevice
+        try? xattr.run(); xattr.waitUntilExit()
         UserDefaults.standard.removeObject(forKey: "RarPath")
         guard version != nil else {
             try? fm.removeItem(atPath: installDir)
@@ -175,8 +176,8 @@ enum RarTools {
             if fm.isExecutableFile(atPath: (candidate as NSString).appendingPathComponent("rar")),
                !isDirectoryPath((candidate as NSString).appendingPathComponent("rar")) { return candidate }
         }
-        if let e = fm.enumerator(atPath: dir) {
-            while let rel = e.nextObject() as? String {
+        if let enumerator = fm.enumerator(atPath: dir) {
+            while let rel = enumerator.nextObject() as? String {
                 if (rel as NSString).lastPathComponent == "rar" {
                     let full = (dir as NSString).appendingPathComponent(rel)
                     if !isDirectoryPath(full), fm.isExecutableFile(atPath: full) { return (full as NSString).deletingLastPathComponent }

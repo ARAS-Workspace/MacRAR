@@ -40,10 +40,13 @@ enum Ops {
         }
     }
 
+    // swiftlint:disable:next function_parameter_count
     static func runJob(title: String, tool: RarTool, args: [String], cwd: String? = nil,
                        host: NSWindow?, totalFiles: Int?, stripPrefix: String? = nil,
                        completion: @escaping (RarResult) -> Void) {
-        runJob(title: title, stages: [(tool, args)], cwd: cwd, host: host, totalFiles: totalFiles, stripPrefix: stripPrefix, completion: completion)
+        runJob(
+            title: title, stages: [(tool, args)], cwd: cwd, host: host, totalFiles: totalFiles, stripPrefix: stripPrefix,
+            completion: completion)
     }
 
     private static func name(_ path: String) -> String { (path as NSString).lastPathComponent }
@@ -66,11 +69,11 @@ enum Ops {
                 guard let pw = Dialogs.askPassword(archiveName: name(archive), wrong: wrong) else { return nil }
                 password = pw
                 wrong = true
-            case .error(let r):
-                if r.notArchive {
+            case .error(let result):
+                if result.notArchive {
                     Dialogs.error(loc.t("open_failed_title"), loc.t("open_failed_unsupported", name(archive)))
                 } else {
-                    Dialogs.error(loc.t("open_failed_title"), r.errorSummary, details: r.output)
+                    Dialogs.error(loc.t("open_failed_title"), result.errorSummary, details: result.output)
                 }
                 return nil
             }
@@ -83,8 +86,8 @@ enum Ops {
     static func needsPassword(info: ArchiveInfo, names: [String]?) -> Bool {
         if info.headersEncrypted { return true }
         guard let names else { return info.hasEncryptedFiles }
-        return info.entries.contains { e in
-            e.encrypted && names.contains { n in e.name == n || e.name.hasPrefix(n + "/") }
+        return info.entries.contains { entry in
+            entry.encrypted && names.contains { selected in entry.name == selected || entry.name.hasPrefix(selected + "/") }
         }
     }
 
@@ -103,14 +106,15 @@ enum Ops {
         return [(.sevenZip, args)]
     }
 
+    // swiftlint:disable function_parameter_count
     /// names: nil means the whole archive. completion(success, password used)
     static func extract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
                         host: NSWindow?, quiet: Bool = false, completion: @escaping (Bool, String?) -> Void) {
         guard FolderAccess.ensure(FolderAccess.existingAncestor(of: dest), write: true) else { completion(false, password); return }
         var pw = password
         if needsPassword(info: info, names: names), pw == nil {
-            guard let p = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
-            pw = p
+            guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
+            pw = entered
         }
         // Overwrite check
         let tops = topLevelNames(info: info, names: names)
@@ -125,38 +129,45 @@ enum Ops {
             }
         }
         let count = names == nil ? info.entries.count : nil
-        runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, count: count, quiet: quiet, completion: completion)
+        runExtract(
+            info: info, names: names, dest: dest, password: pw, mode: mode, host: host, count: count, quiet: quiet, completion: completion)
     }
+    // swiftlint:enable function_parameter_count
 
+    // swiftlint:disable:next function_parameter_count
     private static func runExtract(info: ArchiveInfo, names: [String]?, dest: String, password: String?, mode: OverwriteArg,
                                    host: NSWindow?, count: Int?, quiet: Bool, completion: @escaping (Bool, String?) -> Void) {
         let stages = extractStages(info: info, names: names, dest: dest, password: password, mode: mode)
         let quarantine = Quarantine.value(of: info.path)
         let started = Date()
-        func finish(_ r: RarResult) {
-            if r.cancelled { completion(false, password); return }
-            if r.wrongPassword {
+        func finish(_ result: RarResult) {
+            if result.cancelled { completion(false, password); return }
+            if result.wrongPassword {
                 guard let pw = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, password); return }
-                runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, count: count, quiet: quiet, completion: completion)
+                runExtract(
+                    info: info, names: names, dest: dest, password: pw, mode: mode, host: host, count: count, quiet: quiet,
+                    completion: completion)
                 return
             }
-            if !r.ok {
-                Dialogs.error(loc.t("extract_failed_title"), r.errorSummary, details: r.output)
+            if !result.ok {
+                Dialogs.error(loc.t("extract_failed_title"), result.errorSummary, details: result.output)
                 completion(false, password)
                 return
             }
-            if r.code == 1, !quiet {
-                Dialogs.info(loc.t("extract_warnings_title"), r.errorSummary)
+            if result.code == 1, !quiet {
+                Dialogs.info(loc.t("extract_warnings_title"), result.errorSummary)
             }
             completion(true, password)
         }
-        runJob(title: loc.t("progress_extracting", name(info.path)), stages: stages, host: host, totalFiles: count, stripPrefix: dest) { r in
+        runJob(
+            title: loc.t("progress_extracting", name(info.path)), stages: stages, host: host, totalFiles: count, stripPrefix: dest
+        ) { result in
             // Every item written, including by an interrupted extraction, gets the archive's quarantine (before the result is handled or anything is opened)
-            guard let quarantine else { finish(r); return }
+            guard let quarantine else { finish(result); return }
             let tops = topLevelNames(info: info, names: names)
             DispatchQueue.global(qos: .userInitiated).async {
                 Quarantine.apply(quarantine, dest: dest, tops: tops, since: started)
-                DispatchQueue.main.async { finish(r) }
+                DispatchQueue.main.async { finish(result) }
             }
         }
     }
@@ -166,8 +177,8 @@ enum Ops {
     static func test(info: ArchiveInfo, password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void) {
         var pw = password
         if info.hasEncryptedFiles, pw == nil {
-            guard let p = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
-            pw = p
+            guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
+            pw = entered
         }
         runTest(info: info, password: pw, host: host, completion: completion)
     }
@@ -180,35 +191,38 @@ enum Ops {
         } else {
             stages = [(.sevenZip, ["t", "-bsp1", "-bb1", RarRunner.passwordArg7z(password), "--", info.path])]
         }
-        runJob(title: loc.t("progress_testing", name(info.path)), stages: stages, host: host, totalFiles: info.entries.count) { r in
-            if r.cancelled { completion(false, password); return }
-            if r.wrongPassword {
+        runJob(title: loc.t("progress_testing", name(info.path)), stages: stages, host: host, totalFiles: info.entries.count) { result in
+            if result.cancelled { completion(false, password); return }
+            if result.wrongPassword {
                 guard let pw = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, password); return }
                 runTest(info: info, password: pw, host: host, completion: completion)
                 return
             }
-            if r.ok {
+            if result.ok {
                 Dialogs.info(loc.t("test_passed_title"), loc.t("test_passed_message", name(info.path)))
             } else {
-                Dialogs.error(loc.t("test_failed_title"), r.errorSummary, details: r.output)
+                Dialogs.error(loc.t("test_failed_title"), result.errorSummary, details: result.output)
             }
-            completion(r.ok, password)
+            completion(result.ok, password)
         }
     }
 
     // MARK: Compression
 
+    // swiftlint:disable:next function_body_length
     static func compress(items: [String], options: CompressOptions, host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
-        var o = options
-        if o.format.isRar, !RarTools.ensureAvailable() { completion(false, o.archivePath); return }
-        guard FolderAccess.ensure((o.archivePath as NSString).deletingLastPathComponent, write: true) else { completion(false, o.archivePath); return }
-        if FileManager.default.fileExists(atPath: o.archivePath) {
+        var options = options
+        if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
+        guard FolderAccess.ensure((options.archivePath as NSString).deletingLastPathComponent, write: true) else {
+            completion(false, options.archivePath); return
+        }
+        if FileManager.default.fileExists(atPath: options.archivePath) {
             let alert = NSAlert()
-            alert.messageText = loc.t("compress_exists_title", name(o.archivePath))
-            if o.format.supportsAppend {
+            alert.messageText = loc.t("compress_exists_title", name(options.archivePath))
+            if options.format.supportsAppend {
                 // Is the existing archive encrypted? (try listing without a password)
                 var existingEncrypted = false
-                switch RarRunner.list(o.archivePath, password: nil) {
+                switch RarRunner.list(options.archivePath, password: nil) {
                 case .ok(let ex): existingEncrypted = ex.hasEncryptedFiles
                 case .wrongPassword: existingEncrypted = true
                 case .error: break
@@ -221,14 +235,16 @@ enum Ops {
                     Dialogs.activate()
                     switch alert.runModal() {
                     case .alertFirstButtonReturn:
-                        o.archivePath = uniquePath(o.archivePath)
+                        options.archivePath = uniquePath(options.archivePath)
                     case .alertSecondButtonReturn:
-                        var pw: String? = nil
-                        guard let existing = listInteractive(archive: o.archivePath, password: &pw) else { completion(false, o.archivePath); return }
-                        add(info: existing, items: items, password: pw, host: host) { ok, _ in completion(ok, o.archivePath) }
+                        var pw: String?
+                        guard let existing = listInteractive(archive: options.archivePath, password: &pw) else {
+                            completion(false, options.archivePath); return
+                        }
+                        add(info: existing, items: items, password: pw, host: host) { ok, _ in completion(ok, options.archivePath) }
                         return
                     default:
-                        completion(false, o.archivePath); return
+                        completion(false, options.archivePath); return
                     }
                 } else {
                     alert.informativeText = loc.t("compress_exists_message")
@@ -237,9 +253,9 @@ enum Ops {
                     alert.addButton(withTitle: loc.t("cancel"))
                     Dialogs.activate()
                     switch alert.runModal() {
-                    case .alertFirstButtonReturn: o.archivePath = uniquePath(o.archivePath)
+                    case .alertFirstButtonReturn: options.archivePath = uniquePath(options.archivePath)
                     case .alertSecondButtonReturn: break
-                    default: completion(false, o.archivePath); return
+                    default: completion(false, options.archivePath); return
                     }
                 }
             } else {
@@ -247,28 +263,33 @@ enum Ops {
                 alert.addButton(withTitle: loc.t("compress_create_new"))
                 alert.addButton(withTitle: loc.t("cancel"))
                 Dialogs.activate()
-                if alert.runModal() == .alertFirstButtonReturn { o.archivePath = uniquePath(o.archivePath) } else { completion(false, o.archivePath); return }
+                if alert.runModal() == .alertFirstButtonReturn {
+                    options.archivePath = uniquePath(options.archivePath)
+                } else {
+                    completion(false, options.archivePath); return
+                }
             }
         }
-        let cwd = (o.archivePath as NSString).deletingLastPathComponent
-        let steps = o.buildSteps(items: items)
-        runSteps(steps, index: 0, archive: o.archivePath, cwd: cwd, host: host, completion: completion)
+        let cwd = (options.archivePath as NSString).deletingLastPathComponent
+        let steps = options.buildSteps(items: items)
+        runSteps(steps, index: 0, archive: options.archivePath, cwd: cwd, host: host, completion: completion)
     }
 
+    // swiftlint:disable:next function_parameter_count
     private static func runSteps(_ steps: [CompressOptions.Step], index: Int, archive: String, cwd: String,
                                  host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
         guard index < steps.count else { completion(true, archive); return }
         let step = steps[index]
         let suffix = steps.count > 1 ? " (\(index + 1)/\(steps.count))" : ""
-        runJob(title: "\(step.title): \(name(archive))\(suffix)", tool: step.tool, args: step.args, cwd: cwd, host: host, totalFiles: nil) { r in
+        runJob(title: "\(step.title): \(name(archive))\(suffix)", tool: step.tool, args: step.args, cwd: cwd, host: host, totalFiles: nil) { result in
             step.cleanup?()
-            if r.cancelled {
+            if result.cancelled {
                 steps[(index + 1)...].forEach { $0.cleanup?() }
                 completion(false, archive); return
             }
-            if !r.ok {
+            if !result.ok {
                 steps[(index + 1)...].forEach { $0.cleanup?() }
-                Dialogs.error(loc.t("compress_failed_title"), r.errorSummary, details: r.output)
+                Dialogs.error(loc.t("compress_failed_title"), result.errorSummary, details: result.output)
                 completion(false, archive)
                 return
             }
@@ -284,44 +305,56 @@ enum Ops {
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
-        guard FolderAccess.ensure((info.path as NSString).deletingLastPathComponent, write: true) else { completion(false, password); return }
+        guard FolderAccess.ensure((info.path as NSString).deletingLastPathComponent, write: true) else {
+            completion(false, password); return
+        }
         var pw = password
         if info.hasEncryptedFiles, pw == nil {
-            guard let p = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
-            pw = p
+            guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
+            pw = entered
         }
         let stages: [Stage]
         switch info.kind {
         case .rar:
-            stages = [(.rar, ["a", "-ep1", "-r", "-y"] + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted) + ["--", info.path] + items)]
+            stages = [
+                (
+                    .rar,
+                    ["a", "-ep1", "-r", "-y"] + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted) + ["--", info.path]
+                        + items
+                )
+            ]
         case .other:
             var args = ["a", "-y", "-bsp1", "-bb1", RarRunner.passwordArg7z(pw)]
             if info.headersEncrypted { args.append("-mhe=on") }
             stages = [(.sevenZip, args + ["--", info.path] + items)]
         }
-        runJob(title: loc.t("progress_adding", name(info.path)), stages: stages, host: host, totalFiles: nil) { r in
-            if r.cancelled { completion(false, pw); return }
-            if r.wrongPassword {
-                guard let p = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
-                add(info: info, items: items, password: p, host: host, completion: completion)
+        runJob(title: loc.t("progress_adding", name(info.path)), stages: stages, host: host, totalFiles: nil) { result in
+            if result.cancelled { completion(false, pw); return }
+            if result.wrongPassword {
+                guard let entered = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
+                add(info: info, items: items, password: entered, host: host, completion: completion)
                 return
             }
-            if !r.ok { Dialogs.error(loc.t("add_failed_title"), r.errorSummary, details: r.output) }
-            completion(r.ok, pw)
+            if !result.ok { Dialogs.error(loc.t("add_failed_title"), result.errorSummary, details: result.output) }
+            completion(result.ok, pw)
         }
     }
 
-    static func delete(info: ArchiveInfo, names: [String], password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void) {
+    static func delete(
+        info: ArchiveInfo, names: [String], password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void
+    ) {
         guard info.supportsModification else {
             Dialogs.error(loc.t("not_supported_title"), loc.t("delete_tar_compressed_unsupported"))
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
-        guard FolderAccess.ensure((info.path as NSString).deletingLastPathComponent, write: true) else { completion(false, password); return }
+        guard FolderAccess.ensure((info.path as NSString).deletingLastPathComponent, write: true) else {
+            completion(false, password); return
+        }
         var pw = password
         if info.headersEncrypted, pw == nil {
-            guard let p = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
-            pw = p
+            guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
+            pw = entered
         }
         let stages: [Stage]
         switch info.kind {
@@ -330,15 +363,15 @@ enum Ops {
         case .other:
             stages = [(.sevenZip, ["d", "-y", "-bsp1", "-bb1", RarRunner.passwordArg7z(pw), "--", info.path] + names)]
         }
-        runJob(title: loc.t("progress_deleting", name(info.path)), stages: stages, host: host, totalFiles: nil) { r in
-            if r.cancelled { completion(false, pw); return }
-            if r.wrongPassword {
-                guard let p = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
-                delete(info: info, names: names, password: p, host: host, completion: completion)
+        runJob(title: loc.t("progress_deleting", name(info.path)), stages: stages, host: host, totalFiles: nil) { result in
+            if result.cancelled { completion(false, pw); return }
+            if result.wrongPassword {
+                guard let entered = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
+                delete(info: info, names: names, password: entered, host: host, completion: completion)
                 return
             }
-            if !r.ok { Dialogs.error(loc.t("delete_failed_title"), r.errorSummary, details: r.output) }
-            completion(r.ok, pw)
+            if !result.ok { Dialogs.error(loc.t("delete_failed_title"), result.errorSummary, details: result.output) }
+            completion(result.ok, pw)
         }
     }
 
@@ -348,7 +381,7 @@ enum Ops {
         let ns = archive as NSString
         var base = (ns.deletingPathExtension as NSString).lastPathComponent
         // multi-volume archives: "name.part1" → "name", "name.7z.001" → "name"
-        if let r = base.range(of: #"\.part\d+$"#, options: [.regularExpression, .caseInsensitive]) { base.removeSubrange(r) }
+        if let range = base.range(of: #"\.part\d+$"#, options: [.regularExpression, .caseInsensitive]) { base.removeSubrange(range) }
         if ns.pathExtension.range(of: #"^\d{3}$"#, options: .regularExpression) != nil {
             base = (base as NSString).deletingPathExtension
         }
@@ -361,9 +394,9 @@ enum Ops {
     static func topLevelNames(info: ArchiveInfo, names: [String]?) -> [String] {
         guard let names else { return info.topLevelNames }
         var seen = Set<String>()
-        return names.compactMap { n in
-            let t = n.split(separator: "/", maxSplits: 1).first.map(String.init) ?? n
-            return seen.insert(t).inserted ? t : nil
+        return names.compactMap { entryName in
+            let top = entryName.split(separator: "/", maxSplits: 1).first.map(String.init) ?? entryName
+            return seen.insert(top).inserted ? top : nil
         }
     }
 

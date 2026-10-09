@@ -2,6 +2,8 @@ import AppKit
 import QuartzCore
 import UniformTypeIdentifiers
 
+// swiftlint:disable file_length
+
 // MARK: - Simple dialogs
 
 enum Dialogs {
@@ -49,9 +51,11 @@ enum Dialogs {
         var value: String { plain.isHidden ? secure.stringValue : plain.stringValue }
         @objc private func flip() {
             if toggle.state == .on {
-                plain.stringValue = secure.stringValue; plain.isHidden = false; secure.isHidden = true; plain.window?.makeFirstResponder(plain)
+                plain.stringValue = secure.stringValue; plain.isHidden = false; secure.isHidden = true
+                plain.window?.makeFirstResponder(plain)
             } else {
-                secure.stringValue = plain.stringValue; secure.isHidden = false; plain.isHidden = true; secure.window?.makeFirstResponder(secure)
+                secure.stringValue = plain.stringValue; secure.isHidden = false; plain.isHidden = true
+                secure.window?.makeFirstResponder(secure)
             }
         }
     }
@@ -153,9 +157,9 @@ enum Dialogs {
         panel.allowsMultipleSelection = true
         if archivesOnly {
             var types: [UTType] = [.archive]
-            if let t = UTType("com.rarlab.rar-archive") { types.append(t) }
-            if let t = UTType("com.arasworkspace.MacRAR.archive") { types.append(t) }
-            for ext in Formats.openable { if let t = UTType(filenameExtension: ext) { types.append(t) } }
+            if let utType = UTType("com.rarlab.rar-archive") { types.append(utType) }
+            if let utType = UTType("com.arasworkspace.MacRAR.archive") { types.append(utType) }
+            for ext in Formats.openable { if let utType = UTType(filenameExtension: ext) { types.append(utType) } }
             panel.allowedContentTypes = types
             panel.allowsOtherFileTypes = true
         }
@@ -169,14 +173,14 @@ final class PlainProgressBar: NSView {
     var fraction: Double = 0 { didSet { needsDisplay = true } }
     override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 8) }
     override func draw(_ dirtyRect: NSRect) {
-        let r = bounds
-        let track = NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
+        let rect = bounds
+        let track = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
         NSColor.quaternaryLabelColor.setFill()
         track.fill()
-        let w = max(r.height, r.width * CGFloat(min(1, max(0, fraction))))
+        let filled = max(rect.height, rect.width * CGFloat(min(1, max(0, fraction))))
         if fraction > 0 {
-            let fill = NSBezierPath(roundedRect: NSRect(x: r.minX, y: r.minY, width: w, height: r.height),
-                                    xRadius: r.height / 2, yRadius: r.height / 2)
+            let fill = NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY, width: filled, height: rect.height),
+                                    xRadius: rect.height / 2, yRadius: rect.height / 2)
             NSColor.controlAccentColor.setFill()
             fill.fill()
         }
@@ -202,12 +206,13 @@ final class ProgressPanel: NSWindowController {
     var onCancel: (() -> Void)?
     private weak var host: NSWindow?
 
+    // swiftlint:disable:next function_body_length
     init(title: String) {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: 150),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: 150),
                          styleMask: [.titled], backing: .buffered, defer: false)
-        w.title = AppInfo.name
-        w.isReleasedWhenClosed = false
-        super.init(window: w)
+        window.title = AppInfo.name
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
 
         titleLabel.stringValue = title
         titleLabel.font = .boldSystemFont(ofSize: 13)
@@ -273,7 +278,7 @@ final class ProgressPanel: NSWindowController {
         stack.setCustomSpacing(14, after: bar)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let content = w.contentView!
+        let content = window.contentView!
         content.addSubview(stack)
         NSLayoutConstraint.activate([
             content.widthAnchor.constraint(equalToConstant: Self.panelWidth),
@@ -307,51 +312,54 @@ final class ProgressPanel: NSWindowController {
 
     /// Sizes the window to the height its content needs (grows and shrinks), keeping the top edge fixed
     private func resizeToFit(animate: Bool) {
-        guard let w = window, let c = w.contentView else { return }
-        c.layoutSubtreeIfNeeded()
-        let fit = c.fittingSize
+        guard let window, let content = window.contentView else { return }
+        content.layoutSubtreeIfNeeded()
+        let fit = content.fittingSize
         let contentRect = NSRect(x: 0, y: 0, width: Self.panelWidth, height: fit.height)
-        if w.sheetParent != nil {
-            w.setContentSize(contentRect.size)
+        if window.sheetParent != nil {
+            window.setContentSize(contentRect.size)
             return
         }
-        var frame = w.frameRect(forContentRect: contentRect)
-        let old = w.frame
+        var frame = window.frameRect(forContentRect: contentRect)
+        let old = window.frame
         frame.origin = NSPoint(x: old.origin.x, y: old.maxY - frame.height)
-        w.setFrame(frame, display: true, animate: animate)
+        window.setFrame(frame, display: true, animate: animate)
     }
 
     func show(on host: NSWindow?) {
         self.host = host
-        guard let w = window else { return }
+        guard let window else { return }
         resizeToFit(animate: false)
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_DETAILS"] != nil { toggleDetails() }
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_DETAILS"] == "toggle" { toggleDetails() }
         if let host, host.isVisible {
-            host.beginSheet(w)
+            host.beginSheet(window)
         } else {
-            w.center()
+            window.center()
             showWindow(nil)
-            w.makeKeyAndOrderFront(nil)
+            window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
     }
 
     func dismiss() {
-        guard let w = window else { return }
-        if let host, host.isVisible, host.attachedSheet == w {
-            host.endSheet(w)
+        guard let window else { return }
+        if let host, host.isVisible, host.attachedSheet == window {
+            host.endSheet(window)
         }
-        w.orderOut(nil)
+        window.orderOut(nil)
         close()
     }
 
     func setFile(_ raw: String) {
         var name = raw
-        if let p = stripPrefix, !p.isEmpty {
-            let pre = p.hasSuffix("/") ? p : p + "/"
-            if name.hasPrefix(pre) { name = String(name.dropFirst(pre.count)) }
-            else if name == p { name = (p as NSString).lastPathComponent }
+        if let stripPrefix, !stripPrefix.isEmpty {
+            let pre = stripPrefix.hasSuffix("/") ? stripPrefix : stripPrefix + "/"
+            if name.hasPrefix(pre) {
+                name = String(name.dropFirst(pre.count))
+            } else if name == stripPrefix {
+                name = (stripPrefix as NSString).lastPathComponent
+            }
         }
         fileLabel.stringValue = name
         guard name != lastLogged else { return }
@@ -386,8 +394,8 @@ final class ProgressPanel: NSWindowController {
         }
     }
 
-    private static func format(_ t: TimeInterval) -> String {
-        let s = Int(t.rounded())
+    private static func format(_ interval: TimeInterval) -> String {
+        let s = Int(interval.rounded())
         if s < 60 { return loc.t("duration_seconds", s) }
         if s < 3600 { return loc.t("duration_minutes_seconds", s / 60, s % 60) }
         return loc.t("duration_hours_minutes", s / 3600, (s % 3600) / 60)
@@ -453,8 +461,9 @@ enum ArchiveFormat: Int, CaseIterable {
     func replacingExtension(in path: String) -> String {
         var base = path
         let lower = base.lowercased()
-        for suf in [".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".txz", ".tbz2", ".tbz", ".rar", ".7z", ".zip", ".tar"] {
-            if lower.hasSuffix(suf) { base = String(base.dropLast(suf.count)); break }
+        for suf in [".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".txz", ".tbz2", ".tbz", ".rar", ".7z", ".zip", ".tar"]
+        where lower.hasSuffix(suf) {
+            base = String(base.dropLast(suf.count)); break
         }
         return base + "." + ext
     }
@@ -464,11 +473,11 @@ struct CompressOptions {
     var archivePath: String
     var format: ArchiveFormat = .rar5
     var level: Int = 3                 // 0-5
-    var password: String? = nil
+    var password: String?
     var encryptNames: Bool = false
     var solid: Bool = false
     var recoveryRecord: Bool = false
-    var volumeSize: String? = nil      // e.g. "100M"
+    var volumeSize: String?      // e.g. "100M"
     var sfx: Bool = false
     var deleteAfter: Bool = false
 
@@ -476,47 +485,47 @@ struct CompressOptions {
         let title: String
         let tool: RarTool
         let args: [String]
-        var cleanup: (() -> Void)? = nil
+        var cleanup: (() -> Void)?
     }
 
     /// Maps the 0-5 level to the 7zz -mx value
     private var mx: Int { [0, 1, 3, 5, 7, 9][max(0, min(5, level))] }
 
     private var sevenZipCommon: [String] {
-        var a = ["a", "-y", "-bsp1", "-bb1"]
-        if let v = volumeSize, !v.isEmpty, format.supportsVolumes { a.append("-v\(v)") }
-        if deleteAfter { a.append("-sdel") }
-        return a
+        var args = ["a", "-y", "-bsp1", "-bb1"]
+        if let v = volumeSize, !v.isEmpty, format.supportsVolumes { args.append("-v\(v)") }
+        if deleteAfter { args.append("-sdel") }
+        return args
     }
 
     func buildSteps(items: [String]) -> [Step] {
         switch format {
         case .rar5:
-            var a = ["a", "-ep1", "-r", "-y", "-m\(level)", "-ma5"]
-            if solid { a.append("-s") }
-            if recoveryRecord { a.append("-rr3") }
-            if let v = volumeSize, !v.isEmpty { a.append("-v\(v)") }
-            if sfx { a.append("-sfx") }
-            if deleteAfter { a.append("-df") }
-            a += RarRunner.rarPasswordArgs(password, encryptHeaders: encryptNames)
-            return [Step(title: loc.t("progress_compressing"), tool: .rar, args: a + ["--", archivePath] + items)]
+            var args = ["a", "-ep1", "-r", "-y", "-m\(level)", "-ma5"]
+            if solid { args.append("-s") }
+            if recoveryRecord { args.append("-rr3") }
+            if let v = volumeSize, !v.isEmpty { args.append("-v\(v)") }
+            if sfx { args.append("-sfx") }
+            if deleteAfter { args.append("-df") }
+            args += RarRunner.rarPasswordArgs(password, encryptHeaders: encryptNames)
+            return [Step(title: loc.t("progress_compressing"), tool: .rar, args: args + ["--", archivePath] + items)]
 
         case .sevenZip:
-            var a = sevenZipCommon + ["-t7z", "-mx=\(mx)", solid ? "-ms=on" : "-ms=off"]
+            var args = sevenZipCommon + ["-t7z", "-mx=\(mx)", solid ? "-ms=on" : "-ms=off"]
             if let pw = password, !pw.isEmpty {
-                a.append("-p" + pw)
-                if encryptNames { a.append("-mhe=on") }
+                args.append("-p" + pw)
+                if encryptNames { args.append("-mhe=on") }
             }
-            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
+            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: args + ["--", archivePath] + items)]
 
         case .zip:
-            var a = sevenZipCommon + ["-tzip", "-mx=\(mx)"]
-            if let pw = password, !pw.isEmpty { a += ["-p" + pw, "-mem=AES256"] }
-            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
+            var args = sevenZipCommon + ["-tzip", "-mx=\(mx)"]
+            if let pw = password, !pw.isEmpty { args += ["-p" + pw, "-mem=AES256"] }
+            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: args + ["--", archivePath] + items)]
 
         case .tar:
-            let a = sevenZipCommon + ["-ttar"]
-            return [Step(title: loc.t("progress_packing"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
+            let args = sevenZipCommon + ["-ttar"]
+            return [Step(title: loc.t("progress_packing"), tool: .sevenZip, args: args + ["--", archivePath] + items)]
 
         case .tgz, .txz, .tbz2:
             let outer: String = format == .tgz ? "gzip" : (format == .txz ? "xz" : "bzip2")
@@ -526,19 +535,21 @@ struct CompressOptions {
             let step2 = ["a", "-y", "-bsp1", "-bb1", "-t\(outer)", "-mx=\(mx)", "--", archivePath, tmpTar]
             return [
                 Step(title: loc.t("progress_packing"), tool: .sevenZip, args: step1 + ["--", tmpTar] + items),
-                Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: step2, cleanup: { try? FileManager.default.removeItem(atPath: tmpTar) }),
+                Step(
+                    title: loc.t("progress_compressing"), tool: .sevenZip, args: step2,
+                    cleanup: { try? FileManager.default.removeItem(atPath: tmpTar) }),
             ]
         }
     }
 
     /// Options object with the defaults from Settings
     static func withDefaults(for items: [String]) -> CompressOptions {
-        var o = CompressOptions(archivePath: defaultArchivePath(for: items, format: Prefs.defaultFormat))
-        o.format = Prefs.defaultFormat
-        o.level = Prefs.defaultLevel
-        o.solid = Prefs.solid && o.format.supportsSolid
-        o.recoveryRecord = Prefs.recoveryRecord && o.format.supportsRecovery
-        return o
+        var options = CompressOptions(archivePath: defaultArchivePath(for: items, format: Prefs.defaultFormat))
+        options.format = Prefs.defaultFormat
+        options.level = Prefs.defaultLevel
+        options.solid = Prefs.solid && options.format.supportsSolid
+        options.recoveryRecord = Prefs.recoveryRecord && options.format.supportsRecovery
+        return options
     }
 
     static func defaultArchivePath(for items: [String], format: ArchiveFormat = .zip) -> String {
@@ -574,15 +585,16 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
 
     init(options: CompressOptions, itemCount: Int) {
         self.options = options
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 470),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 470),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = loc.t("compress_title")
-        w.isReleasedWhenClosed = false
-        super.init(window: w)
+        window.title = loc.t("compress_title")
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
         build(itemCount: itemCount)
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    // swiftlint:disable:next function_body_length
     private func build(itemCount: Int) {
         guard let content = window?.contentView else { return }
         pathField.stringValue = options.archivePath
@@ -600,7 +612,10 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         formatPopup.selectItem(at: ArchiveFormat.creatable.firstIndex(of: options.format) ?? 0)
         formatPopup.target = self
         formatPopup.action = #selector(formatChanged)
-        levelPopup.addItems(withTitles: [loc.t("level_store"), loc.t("level_fastest"), loc.t("level_fast"), loc.t("level_normal"), loc.t("level_good"), loc.t("level_best")])
+        levelPopup.addItems(withTitles: [
+            loc.t("level_store"), loc.t("level_fastest"), loc.t("level_fast"), loc.t("level_normal"), loc.t("level_good"),
+            loc.t("level_best"),
+        ])
         levelPopup.selectItem(at: options.level)
         pwField.placeholderString = loc.t("compress_password_placeholder")
         pw2Field.placeholderString = loc.t("compress_password_repeat_placeholder")
@@ -624,9 +639,9 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         hintLabel.widthAnchor.constraint(equalToConstant: 350).isActive = true
 
         func label(_ s: String) -> NSTextField {
-            let l = NSTextField(labelWithString: s)
-            l.alignment = .right
-            return l
+            let field = NSTextField(labelWithString: s)
+            field.alignment = .right
+            return field
         }
         let header = NSTextField(labelWithString: loc.t("compress_item_count", itemCount))
         header.font = .boldSystemFont(ofSize: 13)
@@ -687,8 +702,8 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
 
     @objc private func formatChanged() {
         let f = selectedFormat
-        let p = pathField.stringValue.trimmingCharacters(in: .whitespaces)
-        if !p.isEmpty { pathField.stringValue = f.replacingExtension(in: p) }
+        let path = pathField.stringValue.trimmingCharacters(in: .whitespaces)
+        if !path.isEmpty { pathField.stringValue = f.replacingExtension(in: path) }
         applyFormatRules()
     }
 
@@ -718,7 +733,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         panel.title = loc.t("compress_save_panel_title")
         panel.nameFieldStringValue = (pathField.stringValue as NSString).lastPathComponent
         panel.directoryURL = URL(fileURLWithPath: (pathField.stringValue as NSString).deletingLastPathComponent)
-        if panel.runModal() == .OK, let u = panel.url { pathField.stringValue = u.path }
+        if panel.runModal() == .OK, let url = panel.url { pathField.stringValue = url.path }
     }
 
     @objc private func okPressed() {
@@ -731,24 +746,24 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
             Dialogs.error(loc.t("compress_password_mismatch_title"), loc.t("compress_password_mismatch_message"))
             return
         }
-        var o = options
-        o.archivePath = path
-        o.format = f
-        o.level = levelPopup.indexOfSelectedItem
-        o.password = (f.supportsPassword && !pwField.stringValue.isEmpty) ? pwField.stringValue : nil
-        o.encryptNames = f.supportsEncryptNames && encryptNamesBox.state == .on
-        o.solid = f.supportsSolid && solidBox.state == .on
-        o.recoveryRecord = f.supportsRecovery && rrBox.state == .on
-        o.sfx = f.supportsSFX && sfxBox.state == .on
-        o.deleteAfter = deleteBox.state == .on
+        var chosen = options
+        chosen.archivePath = path
+        chosen.format = f
+        chosen.level = levelPopup.indexOfSelectedItem
+        chosen.password = (f.supportsPassword && !pwField.stringValue.isEmpty) ? pwField.stringValue : nil
+        chosen.encryptNames = f.supportsEncryptNames && encryptNamesBox.state == .on
+        chosen.solid = f.supportsSolid && solidBox.state == .on
+        chosen.recoveryRecord = f.supportsRecovery && rrBox.state == .on
+        chosen.sfx = f.supportsSFX && sfxBox.state == .on
+        chosen.deleteAfter = deleteBox.state == .on
         let v = volumeField.stringValue.trimmingCharacters(in: .whitespaces)
-        o.volumeSize = (f.supportsVolumes && !v.isEmpty) ? v : nil
+        chosen.volumeSize = (f.supportsVolumes && !v.isEmpty) ? v : nil
         // Remember the last used settings
-        Prefs.defaultFormat = o.format
-        Prefs.defaultLevel = o.level
-        Prefs.solid = o.solid
-        Prefs.recoveryRecord = o.recoveryRecord
-        result = o
+        Prefs.defaultFormat = chosen.format
+        Prefs.defaultLevel = chosen.level
+        Prefs.solid = chosen.solid
+        Prefs.recoveryRecord = chosen.recoveryRecord
+        result = chosen
         NSApp.stopModal(withCode: .OK)
     }
 
@@ -756,17 +771,17 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
 
     /// Shows modally; returns nil on cancel.
     func run() -> CompressOptions? {
-        guard let w = window else { return nil }
+        guard let window else { return nil }
         Dialogs.activate()
         // Size the window to the height its content needs (so extra space is not spread between the rows)
-        if let content = w.contentView {
+        if let content = window.contentView {
             content.layoutSubtreeIfNeeded()
             let fit = content.fittingSize
-            w.setContentSize(NSSize(width: max(fit.width, 520), height: fit.height))
+            window.setContentSize(NSSize(width: max(fit.width, 520), height: fit.height))
         }
-        w.center()
-        let code = NSApp.runModal(for: w)
-        w.orderOut(nil)
+        window.center()
+        let code = NSApp.runModal(for: window)
+        window.orderOut(nil)
         return code == .OK ? result : nil
     }
 }

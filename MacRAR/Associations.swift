@@ -18,7 +18,8 @@ enum Associations {
             Group(title: "7z", exts: ["7z"], defaultOn: true, warning: nil),
             Group(title: "GZ, TAR.GZ", exts: ["gz"], defaultOn: true, warning: nil),
             Group(title: loc.t("assoc_group_other"),
-                  exts: ["tar", "tgz", "bz2", "tbz2", "xz", "txz", "zst", "lz4", "lzma", "zipx", "cab", "lzh", "lha", "arj", "cpio", "z"], defaultOn: false, warning: nil),
+                exts: ["tar", "tgz", "bz2", "tbz2", "xz", "txz", "zst", "lz4", "lzma", "zipx", "cab", "lzh", "lha", "arj", "cpio", "z"],
+                defaultOn: false, warning: nil),
             Group(title: loc.t("assoc_group_disk_images"), exts: ["iso", "dmg", "vhd", "vmdk"], defaultOn: false,
                   warning: loc.t("assoc_disk_images_warning")),
             Group(title: loc.t("assoc_group_packages"), exts: ["pkg", "jar", "apk", "deb", "rpm", "msi"], defaultOn: false,
@@ -26,8 +27,8 @@ enum Associations {
         ]
     }
 
-    static func isMine(_ t: UTType) -> Bool {
-        guard let url = NSWorkspace.shared.urlForApplication(toOpen: t) else { return false }
+    static func isMine(_ utType: UTType) -> Bool {
+        guard let url = NSWorkspace.shared.urlForApplication(toOpen: utType) else { return false }
         return url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL
     }
 
@@ -36,16 +37,19 @@ enum Associations {
 
     static func types(for exts: [String]) -> [UTType] {
         var seen = Set<String>(); var out: [UTType] = []
-        for e in exts {
-            let t: UTType? = e == "rar" ? (UTType("com.rarlab.rar-archive") ?? UTType(filenameExtension: e)) : UTType(filenameExtension: e)
-            if let t, !t.identifier.hasPrefix("dyn."), seen.insert(t.identifier).inserted { out.append(t) }
+        for ext in exts {
+            let utType: UTType? =
+                ext == "rar" ? (UTType("com.rarlab.rar-archive") ?? UTType(filenameExtension: ext)) : UTType(filenameExtension: ext)
+            if let utType, !utType.identifier.hasPrefix("dyn."), seen.insert(utType.identifier).inserted { out.append(utType) }
         }
         return out
     }
 
     /// Name of the current default app for this type
     static func currentHandler(for exts: [String]) -> String {
-        guard let t = types(for: exts).first, let url = NSWorkspace.shared.urlForApplication(toOpen: t) else { return loc.t("assoc_current_none") }
+        guard let utType = types(for: exts).first, let url = NSWorkspace.shared.urlForApplication(toOpen: utType) else {
+            return loc.t("assoc_current_none")
+        }
         if url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL { return AppInfo.name }
         return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
     }
@@ -58,6 +62,7 @@ enum Associations {
     }
 
     @discardableResult
+    // swiftlint:disable:next function_body_length
     static func show(firstLaunch: Bool = false) -> Bool {
         Dialogs.activate()
         let alert = NSAlert()
@@ -71,14 +76,14 @@ enum Associations {
         stack.alignment = .leading
         stack.spacing = 6
         var boxes: [(NSButton, Group)] = []
-        for g in groups {
-            let current = currentHandler(for: g.exts)
+        for group in groups {
+            let current = currentHandler(for: group.exts)
             let mine = current == AppInfo.name
-            let box = NSButton(checkboxWithTitle: g.title, target: nil, action: nil)
-            box.state = (g.defaultOn || mine) ? .on : .off
-            let detail = NSTextField(labelWithString: loc.t("assoc_current", current) + (g.warning.map { "  •  " + $0 } ?? ""))
+            let box = NSButton(checkboxWithTitle: group.title, target: nil, action: nil)
+            box.state = (group.defaultOn || mine) ? .on : .off
+            let detail = NSTextField(labelWithString: loc.t("assoc_current", current) + (group.warning.map { "  •  " + $0 } ?? ""))
             detail.font = .systemFont(ofSize: 10)
-            detail.textColor = g.warning == nil ? .secondaryLabelColor : .systemOrange
+            detail.textColor = group.warning == nil ? .secondaryLabelColor : .systemOrange
             detail.lineBreakMode = .byTruncatingTail
             let row = NSStackView(views: [box, detail])
             row.orientation = .vertical
@@ -87,7 +92,7 @@ enum Associations {
             detail.translatesAutoresizingMaskIntoConstraints = false
             detail.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 20).isActive = true
             stack.addArrangedSubview(row)
-            boxes.append((box, g))
+            boxes.append((box, group))
         }
         stack.translatesAutoresizingMaskIntoConstraints = false
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 10))
@@ -130,10 +135,10 @@ enum Associations {
                 }
                 return
             }
-            let t = types[i]
-            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: t) { err in
+            let utType = types[i]
+            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: utType) { err in
                 DispatchQueue.main.async {
-                    if err == nil { ok += 1 } else { failed.append(t.preferredFilenameExtension ?? t.identifier) }
+                    if err == nil { ok += 1 } else { failed.append(utType.preferredFilenameExtension ?? utType.identifier) }
                     next(i + 1)
                 }
             }

@@ -11,14 +11,17 @@ enum FolderAccess {
         #if APPSTORE
         let datas = UserDefaults.standard.array(forKey: key) as? [Data] ?? []
         var keep: [Data] = []
-        for d in datas {
+        for bookmark in datas {
             var stale = false
-            guard let url = try? URL(resolvingBookmarkData: d, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale) else { continue }
+            guard
+                let url = try? URL(
+                    resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)
+            else { continue }
             if url.startAccessingSecurityScopedResource() { active.append(url) }
             if stale, let fresh = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
                 keep.append(fresh)
             } else {
-                keep.append(d)
+                keep.append(bookmark)
             }
         }
         UserDefaults.standard.set(keep, forKey: key)
@@ -28,9 +31,11 @@ enum FolderAccess {
     static var grantedFolders: [String] { active.map { $0.path } }
 
     static func existingAncestor(of path: String) -> String {
-        var p = path
-        while !p.isEmpty, p != "/", !FileManager.default.fileExists(atPath: p) { p = (p as NSString).deletingLastPathComponent }
-        return p.isEmpty ? "/" : p
+        var candidate = path
+        while !candidate.isEmpty, candidate != "/", !FileManager.default.fileExists(atPath: candidate) {
+            candidate = (candidate as NSString).deletingLastPathComponent
+        }
+        return candidate.isEmpty ? "/" : candidate
     }
 
     static func canRead(_ dir: String) -> Bool {
@@ -83,13 +88,15 @@ enum FolderAccess {
     }
 
     static func resetAll() {
-        for u in active { u.stopAccessingSecurityScopedResource() }
+        for url in active { url.stopAccessingSecurityScopedResource() }
         active = []
         UserDefaults.standard.removeObject(forKey: key)
     }
 
     private static func remember(_ url: URL) {
-        guard let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
+        guard let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else {
+            return
+        }
         var list = UserDefaults.standard.array(forKey: key) as? [Data] ?? []
         list.append(data)
         UserDefaults.standard.set(list, forKey: key)

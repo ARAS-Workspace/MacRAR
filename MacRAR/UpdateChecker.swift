@@ -28,7 +28,7 @@ enum UpdateChecker {
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("MacRAR/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 15
-        URLSession.shared.dataTask(with: req) { data, response, error in
+        URLSession.shared.dataTask(with: req) { data, _, error in
             DispatchQueue.main.async {
                 guard error == nil, let data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -50,13 +50,13 @@ enum UpdateChecker {
         }.resume()
     }
 
-    static func isNewer(_ a: String, than b: String) -> Bool {
-        let pa = a.split(separator: ".").map { Int($0) ?? 0 }
-        let pb = b.split(separator: ".").map { Int($0) ?? 0 }
+    static func isNewer(_ version: String, than other: String) -> Bool {
+        let pa = version.split(separator: ".").map { Int($0) ?? 0 }
+        let pb = other.split(separator: ".").map { Int($0) ?? 0 }
         for i in 0..<max(pa.count, pb.count) {
-            let x = i < pa.count ? pa[i] : 0
-            let y = i < pb.count ? pb[i] : 0
-            if x != y { return x > y }
+            let mine = i < pa.count ? pa[i] : 0
+            let theirs = i < pb.count ? pb[i] : 0
+            if mine != theirs { return mine > theirs }
         }
         return false
     }
@@ -68,11 +68,11 @@ enum UpdateChecker {
         var info = loc.t("update_available_message", currentVersion)
         // Simplify the Markdown markup, show the first lines
         let lines = notes.components(separatedBy: "\n").map { line -> String in
-            var l = line.trimmingCharacters(in: .whitespaces)
-            while l.hasPrefix("#") { l.removeFirst() }
-            l = l.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
-            if l.hasPrefix("- ") { l = "• " + l.dropFirst(2) }
-            return l.trimmingCharacters(in: .whitespaces)
+            var trimmed = line.trimmingCharacters(in: .whitespaces)
+            while trimmed.hasPrefix("#") { trimmed.removeFirst() }
+            trimmed = trimmed.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+            if trimmed.hasPrefix("- ") { trimmed = "• " + trimmed.dropFirst(2) }
+            return trimmed.trimmingCharacters(in: .whitespaces)
         }.filter { !$0.isEmpty }
         if !lines.isEmpty {
             let shown = lines.prefix(7)

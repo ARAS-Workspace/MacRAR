@@ -43,21 +43,22 @@ enum QuickActions {
         try? fm.createDirectory(atPath: servicesDir, withIntermediateDirectories: true)
         // Remove old versions
         if let items = try? fm.contentsOfDirectory(atPath: servicesDir) {
-            for i in items where i.hasPrefix("RAR • ") || i.hasPrefix("MacRAR • ") || i.hasPrefix("MacRAR ile ") || i.hasPrefix("MacRAR: ")
-                || i.hasPrefix("Open with MacRAR") || i.hasPrefix("Compress with MacRAR") {
-                try? fm.removeItem(atPath: (servicesDir as NSString).appendingPathComponent(i))
+            for item in items
+            where item.hasPrefix("RAR • ") || item.hasPrefix("MacRAR • ") || item.hasPrefix("MacRAR ile ") || item.hasPrefix("MacRAR: ")
+                || item.hasPrefix("Open with MacRAR") || item.hasPrefix("Compress with MacRAR") {
+                try? fm.removeItem(atPath: (servicesDir as NSString).appendingPathComponent(item))
             }
         }
         var count = 0
-        for a in actions {
+        for action in actions {
             let quotedApp = shellQuote(appPath)
             let cmd: String
-            if let flag = a.flag {
+            if let flag = action.flag {
                 cmd = "open -n -a \(quotedApp) --args \(flag) \"$@\""
             } else {
                 cmd = "open -a \(quotedApp) \"$@\""
             }
-            if write(action: a, command: cmd) { count += 1 }
+            if write(action: action, command: cmd) { count += 1 }
         }
         enableInFinder(actions.map { $0.name })
         refreshServices()
@@ -68,8 +69,8 @@ enum QuickActions {
     private static func enableInFinder(_ names: [String]) {
         let domain = "pbs" as CFString
         var status = (CFPreferencesCopyAppValue("NSServicesStatus" as CFString, domain) as? [String: Any]) ?? [:]
-        for n in names {
-            status["(null) - \(n) - runWorkflowAsService"] = [
+        for name in names {
+            status["(null) - \(name) - runWorkflowAsService"] = [
                 "enabled_context_menu": true,
                 "enabled_services_menu": true,
                 "presentation_modes": ["ContextMenu": true, "FinderPreview": true, "ServicesMenu": true],
@@ -96,8 +97,10 @@ enum QuickActions {
         let fm = FileManager.default
         do {
             try fm.createDirectory(atPath: contents, withIntermediateDirectories: true)
-            try infoPlist(action: action).write(toFile: (contents as NSString).appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
-            try documentWflow(command: command).write(toFile: (contents as NSString).appendingPathComponent("document.wflow"), atomically: true, encoding: .utf8)
+            try infoPlist(action: action).write(
+                toFile: (contents as NSString).appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
+            try documentWflow(command: command).write(
+                toFile: (contents as NSString).appendingPathComponent("document.wflow"), atomically: true, encoding: .utf8)
             return true
         } catch {
             return false
@@ -107,13 +110,13 @@ enum QuickActions {
     private static func refreshServices() {
         let pbs = "/System/Library/CoreServices/pbs"
         for arg in ["-flush", "-update"] {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: pbs)
-            p.arguments = [arg]
-            p.standardOutput = FileHandle.nullDevice
-            p.standardError = FileHandle.nullDevice
-            try? p.run()
-            p.waitUntilExit()
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: pbs)
+            process.arguments = [arg]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
         }
     }
 
@@ -159,6 +162,7 @@ enum QuickActions {
         """
     }
 
+    // swiftlint:disable:next function_body_length
     private static func documentWflow(command: String) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>

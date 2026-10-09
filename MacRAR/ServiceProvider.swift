@@ -9,9 +9,9 @@ final class ServiceProvider: NSObject {
         return urls.map { $0.path }
     }
     private func run(_ make: ([String]) -> Command, _ pboard: NSPasteboard) {
-        let p = paths(pboard)
-        guard !p.isEmpty else { return }
-        let cmd = make(p)
+        let selected = paths(pboard)
+        guard !selected.isEmpty else { return }
+        let cmd = make(selected)
         DispatchQueue.main.async { AppDelegate.shared.runServiceCommand(cmd) }
     }
     @objc func extractHere(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {

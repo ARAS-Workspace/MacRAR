@@ -2,36 +2,40 @@ import AppKit
 
 /// User settings (UserDefaults)
 enum Prefs {
-    private static let d = UserDefaults.standard
+    private static let defaults = UserDefaults.standard
     static var defaultFormat: ArchiveFormat {
         get {
             let fallback: ArchiveFormat = RarTools.available ? .rar5 : .zip
-            guard d.object(forKey: "DefaultFormat") != nil, let f = ArchiveFormat(rawValue: d.integer(forKey: "DefaultFormat")),
+            guard defaults.object(forKey: "DefaultFormat") != nil,
+                let f = ArchiveFormat(rawValue: defaults.integer(forKey: "DefaultFormat")),
                   ArchiveFormat.creatable.contains(f) else { return fallback }
             return f
         }
-        set { d.set(newValue.rawValue, forKey: "DefaultFormat") }
+        set { defaults.set(newValue.rawValue, forKey: "DefaultFormat") }
     }
     static var defaultLevel: Int {
-        get { d.object(forKey: "DefaultLevel") == nil ? 3 : max(0, min(5, d.integer(forKey: "DefaultLevel"))) }
-        set { d.set(newValue, forKey: "DefaultLevel") }
+        get { defaults.object(forKey: "DefaultLevel") == nil ? 3 : max(0, min(5, defaults.integer(forKey: "DefaultLevel"))) }
+        set { defaults.set(newValue, forKey: "DefaultLevel") }
     }
-    static var solid: Bool { get { d.bool(forKey: "DefaultSolid") } set { d.set(newValue, forKey: "DefaultSolid") } }
-    static var recoveryRecord: Bool { get { d.bool(forKey: "DefaultRecovery") } set { d.set(newValue, forKey: "DefaultRecovery") } }
+    static var solid: Bool { get { defaults.bool(forKey: "DefaultSolid") } set { defaults.set(newValue, forKey: "DefaultSolid") } }
+    static var recoveryRecord: Bool {
+        get { defaults.bool(forKey: "DefaultRecovery") }
+        set { defaults.set(newValue, forKey: "DefaultRecovery") }
+    }
     static var revealAfterExtract: Bool {
-        get { d.object(forKey: "RevealAfterExtract") == nil ? true : d.bool(forKey: "RevealAfterExtract") }
-        set { d.set(newValue, forKey: "RevealAfterExtract") }
+        get { defaults.object(forKey: "RevealAfterExtract") == nil ? true : defaults.bool(forKey: "RevealAfterExtract") }
+        set { defaults.set(newValue, forKey: "RevealAfterExtract") }
     }
     static var revealAfterCompress: Bool {
-        get { d.object(forKey: "RevealAfterCompress") == nil ? true : d.bool(forKey: "RevealAfterCompress") }
-        set { d.set(newValue, forKey: "RevealAfterCompress") }
+        get { defaults.object(forKey: "RevealAfterCompress") == nil ? true : defaults.bool(forKey: "RevealAfterCompress") }
+        set { defaults.set(newValue, forKey: "RevealAfterCompress") }
     }
     static var checkUpdates: Bool {
-        get { d.object(forKey: "CheckUpdates") == nil ? true : d.bool(forKey: "CheckUpdates") }
-        set { d.set(newValue, forKey: "CheckUpdates") }
+        get { defaults.object(forKey: "CheckUpdates") == nil ? true : defaults.bool(forKey: "CheckUpdates") }
+        set { defaults.set(newValue, forKey: "CheckUpdates") }
     }
     /// "" = system language, "tr", "en"
-    static var language: String { get { d.string(forKey: "Language") ?? "" } set { d.set(newValue, forKey: "Language") } }
+    static var language: String { get { defaults.string(forKey: "Language") ?? "" } set { defaults.set(newValue, forKey: "Language") } }
 }
 
 /// Settings window (⌘,)
@@ -50,25 +54,28 @@ final class PreferencesWindowController: NSWindowController {
     private lazy var toolButton = NSButton(title: "", target: self, action: #selector(toolAction))
 
     private init() {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 360),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 360),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = loc.t("prefs_title")
-        w.isReleasedWhenClosed = false
-        super.init(window: w)
+        window.title = loc.t("prefs_title")
+        window.isReleasedWhenClosed = false
+        super.init(window: window)
         build()
     }
     required init?(coder: NSCoder) { fatalError() }
 
     private func build() {
         guard let content = window?.contentView else { return }
-        func label(_ s: String) -> NSTextField { let l = NSTextField(labelWithString: s); l.alignment = .right; return l }
+        func label(_ s: String) -> NSTextField { let field = NSTextField(labelWithString: s); field.alignment = .right; return field }
         formatPopup.addItems(withTitles: ArchiveFormat.creatable.map { $0.title })
-        levelPopup.addItems(withTitles: [loc.t("level_store"), loc.t("level_fastest"), loc.t("level_fast"), loc.t("level_normal"), loc.t("level_good"), loc.t("level_best")])
+        levelPopup.addItems(withTitles: [
+            loc.t("level_store"), loc.t("level_fastest"), loc.t("level_fast"), loc.t("level_normal"), loc.t("level_good"),
+            loc.t("level_best"),
+        ])
         languagePopup.addItems(withTitles: [loc.t("prefs_system_language")] + LocalizationManager.Language.allCases.map(\.displayName))
         languageNote.font = .systemFont(ofSize: 10)
         languageNote.textColor = .secondaryLabelColor
-        for b in [solidBox, rrBox, revealExtractBox, revealCompressBox, updatesBox] { b.target = self; b.action = #selector(changed) }
-        for p in [formatPopup, levelPopup, languagePopup] { p.target = self; p.action = #selector(changed) }
+        for box in [solidBox, rrBox, revealExtractBox, revealCompressBox, updatesBox] { box.target = self; box.action = #selector(changed) }
+        for popup in [formatPopup, levelPopup, languagePopup] { popup.target = self; popup.action = #selector(changed) }
 
         let header1 = NSTextField(labelWithString: loc.t("prefs_section_quick_compress")); header1.font = .boldSystemFont(ofSize: 12)
         let header2 = NSTextField(labelWithString: loc.t("prefs_section_behaviour")); header2.font = .boldSystemFont(ofSize: 12)
@@ -86,7 +93,12 @@ final class PreferencesWindowController: NSWindowController {
             [NSGridCell.emptyContentView, languageNote],
             [label(AppInfo.isAppStore ? loc.t("prefs_label_folders") : loc.t("prefs_label_rar_tool")), toolStatus],
             [NSGridCell.emptyContentView, toolButton],
-            [label(loc.t("prefs_label_files")), NSButton(title: loc.t("action_file_associations"), target: AppDelegate.shared, action: #selector(AppDelegate.showAssociations(_:)))],
+            [
+                label(loc.t("prefs_label_files")),
+                NSButton(
+                    title: loc.t("action_file_associations"), target: AppDelegate.shared,
+                    action: #selector(AppDelegate.showAssociations(_:))),
+            ],
         ])
         updatesBox.isHidden = AppInfo.isAppStore
         toolStatus.font = .systemFont(ofSize: 11)
@@ -107,8 +119,8 @@ final class PreferencesWindowController: NSWindowController {
 
     private func refreshTool() {
         if AppInfo.isAppStore {
-            let n = FolderAccess.grantedFolders.count
-            toolStatus.stringValue = n == 0 ? loc.t("prefs_folders_none") : loc.t("prefs_folders_count", n)
+            let count = FolderAccess.grantedFolders.count
+            toolStatus.stringValue = count == 0 ? loc.t("prefs_folders_none") : loc.t("prefs_folders_count", count)
             toolButton.title = loc.t("prefs_allow_home")
         } else if let v = RarTools.version {
             toolStatus.stringValue = loc.t("prefs_rar_installed", v)
@@ -160,11 +172,14 @@ final class PreferencesWindowController: NSWindowController {
 
     func show() {
         load()
-        guard let w = window else { return }
-        if let c = w.contentView { c.layoutSubtreeIfNeeded(); w.setContentSize(NSSize(width: max(c.fittingSize.width, 520), height: c.fittingSize.height)) }
-        w.center()
+        guard let window else { return }
+        if let content = window.contentView {
+            content.layoutSubtreeIfNeeded()
+            window.setContentSize(NSSize(width: max(content.fittingSize.width, 520), height: content.fittingSize.height))
+        }
+        window.center()
         showWindow(nil)
-        w.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 }

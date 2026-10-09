@@ -2,6 +2,8 @@ import AppKit
 import Quartz
 import UniformTypeIdentifiers
 
+// swiftlint:disable file_length
+
 // MARK: - Keyboard-aware outline view
 
 final class ArchiveOutlineView: NSOutlineView {
@@ -63,48 +65,50 @@ final class Node: NSObject {
     }
 
     /// Folders always first; then by the selected column
-    static func compare(_ a: Node, _ b: Node, key: String, ascending: Bool) -> Bool {
-        if a.isDir != b.isDir { return a.isDir }
-        var r: ComparisonResult
-        func cmp<T: Comparable>(_ x: T, _ y: T) -> ComparisonResult { x < y ? .orderedAscending : (x == y ? .orderedSame : .orderedDescending) }
-        switch key {
-        case "size": r = cmp(a.totalSize, b.totalSize)
-        case "packed": r = cmp(a.totalPacked, b.totalPacked)
-        case "date": r = (a.entry?.mtime ?? "").compare(b.entry?.mtime ?? "")
-        case "ratio":
-            let ra = a.totalSize > 0 ? Double(a.totalPacked) / Double(a.totalSize) : 0
-            let rb = b.totalSize > 0 ? Double(b.totalPacked) / Double(b.totalSize) : 0
-            r = cmp(ra, rb)
-        default: r = a.name.localizedStandardCompare(b.name)
+    static func compare(_ lhs: Node, _ rhs: Node, key: String, ascending: Bool) -> Bool {
+        if lhs.isDir != rhs.isDir { return lhs.isDir }
+        var result: ComparisonResult
+        func cmp<T: Comparable>(_ left: T, _ right: T) -> ComparisonResult {
+            left < right ? .orderedAscending : (left == right ? .orderedSame : .orderedDescending)
         }
-        if r == .orderedSame { return a.name.localizedStandardCompare(b.name) == .orderedAscending }
-        return ascending ? r == .orderedAscending : r == .orderedDescending
+        switch key {
+        case "size": result = cmp(lhs.totalSize, rhs.totalSize)
+        case "packed": result = cmp(lhs.totalPacked, rhs.totalPacked)
+        case "date": result = (lhs.entry?.mtime ?? "").compare(rhs.entry?.mtime ?? "")
+        case "ratio":
+            let ra = lhs.totalSize > 0 ? Double(lhs.totalPacked) / Double(lhs.totalSize) : 0
+            let rb = rhs.totalSize > 0 ? Double(rhs.totalPacked) / Double(rhs.totalSize) : 0
+            result = cmp(ra, rb)
+        default: result = lhs.name.localizedStandardCompare(rhs.name)
+        }
+        if result == .orderedSame { return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending }
+        return ascending ? result == .orderedAscending : result == .orderedDescending
     }
 
     static func buildTree(_ entries: [ArchiveEntry]) -> Node {
         let root = Node(name: "", path: "", isDir: true)
         var map: [String: Node] = ["": root]
         func ensure(_ path: String) -> Node {
-            if let n = map[path] { return n }
+            if let existing = map[path] { return existing }
             let parentPath = (path as NSString).deletingLastPathComponent
             let parent = ensure(parentPath)
-            let n = Node(name: (path as NSString).lastPathComponent, path: path, isDir: true)
-            n.parent = parent
-            parent.children.append(n)
-            map[path] = n
-            return n
+            let node = Node(name: (path as NSString).lastPathComponent, path: path, isDir: true)
+            node.parent = parent
+            parent.children.append(node)
+            map[path] = node
+            return node
         }
-        for e in entries {
-            let clean = e.name.hasSuffix("/") ? String(e.name.dropLast()) : e.name
-            if e.isDirectory {
-                ensure(clean).entry = e
+        for entry in entries {
+            let clean = entry.name.hasSuffix("/") ? String(entry.name.dropLast()) : entry.name
+            if entry.isDirectory {
+                ensure(clean).entry = entry
             } else {
                 let parent = ensure((clean as NSString).deletingLastPathComponent)
-                let n = Node(name: (clean as NSString).lastPathComponent, path: clean, isDir: false)
-                n.entry = e
-                n.parent = parent
-                parent.children.append(n)
-                map[clean] = n
+                let node = Node(name: (clean as NSString).lastPathComponent, path: clean, isDir: false)
+                node.entry = entry
+                node.parent = parent
+                parent.children.append(node)
+                map[clean] = node
             }
         }
         root.sortRecursively()
@@ -112,21 +116,22 @@ final class Node: NSObject {
     }
 
     func flatten(into out: inout [Node]) {
-        for c in children {
-            out.append(c)
-            c.flatten(into: &out)
+        for child in children {
+            out.append(child)
+            child.flatten(into: &out)
         }
     }
 }
 
 // MARK: - Window
 
+// swiftlint:disable:next type_body_length
 final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     private(set) var archivePath: String?
     private(set) var info: ArchiveInfo?
     private var password: String?
     private var root = Node(name: "", path: "", isDir: true)
-    private var filtered: [Node]? = nil
+    private var filtered: [Node]?
     private var filterText = ""
 
     private let outline = ArchiveOutlineView()
@@ -138,12 +143,12 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private var sortAscending = true
     private var previewURLs: [URL] = []
     private let promiseQueue: OperationQueue = {
-        let q = OperationQueue(); q.maxConcurrentOperationCount = 1; return q
+        let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1; return queue
     }()
     // Drag-to-Finder session (the question is asked once, the items are extracted in one go)
     private var dragNodes: [Node] = []
-    private var dragDecision: Bool? = nil
-    private var dragTempDir: String? = nil
+    private var dragDecision: Bool?
+    private var dragTempDir: String?
     private var dragExtracted = false
     private var dragExtractOK = false
     private var dragPending = 0
@@ -157,33 +162,36 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     static let lockCol = NSUserInterfaceItemIdentifier("lock")
 
     init() {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
                          backing: .buffered, defer: false)
-        w.title = AppInfo.name
-        w.minSize = NSSize(width: 560, height: 300)
-        w.isReleasedWhenClosed = false
-        w.setFrameAutosaveName("ArchiveWindow")
-        super.init(window: w)
-        w.delegate = self
+        window.title = AppInfo.name
+        window.minSize = NSSize(width: 560, height: 300)
+        window.isReleasedWhenClosed = false
+        window.setFrameAutosaveName("ArchiveWindow")
+        super.init(window: window)
+        window.delegate = self
         buildUI()
         buildToolbar()
-        w.center()
+        window.center()
     }
     required init?(coder: NSCoder) { fatalError() }
 
     // MARK: UI
 
+    // swiftlint:disable:next function_body_length
     private func buildUI() {
-        guard let w = window, let content = w.contentView else { return }
+        guard let window, let content = window.contentView else { return }
 
-        func col(_ id: NSUserInterfaceItemIdentifier, _ title: String, width: CGFloat, min: CGFloat = 40, align: NSTextAlignment = .left) -> NSTableColumn {
-            let c = NSTableColumn(identifier: id)
-            c.title = title
-            c.width = width
-            c.minWidth = min
-            c.headerCell.alignment = align
-            return c
+        func col(
+            _ id: NSUserInterfaceItemIdentifier, _ title: String, width: CGFloat, min: CGFloat = 40, align: NSTextAlignment = .left
+        ) -> NSTableColumn {
+            let column = NSTableColumn(identifier: id)
+            column.title = title
+            column.width = width
+            column.minWidth = min
+            column.headerCell.alignment = align
+            return column
         }
         outline.addTableColumn(col(Self.nameCol, loc.t("column_name"), width: 320, min: 160))
         outline.addTableColumn(col(Self.lockCol, "🔒", width: 28, min: 28, align: .center))
@@ -192,8 +200,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         outline.addTableColumn(col(Self.ratioCol, loc.t("column_ratio"), width: 55, align: .right))
         outline.addTableColumn(col(Self.dateCol, loc.t("column_modified"), width: 140))
         outline.addTableColumn(col(Self.crcCol, "CRC32", width: 80))
-        for c in outline.tableColumns where c.identifier != Self.lockCol && c.identifier != Self.crcCol {
-            c.sortDescriptorPrototype = NSSortDescriptor(key: c.identifier.rawValue, ascending: true)
+        for column in outline.tableColumns where column.identifier != Self.lockCol && column.identifier != Self.crcCol {
+            column.sortDescriptorPrototype = NSSortDescriptor(key: column.identifier.rawValue, ascending: true)
         }
         outline.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
         outline.autosaveName = "ArchiveOutline"
@@ -287,7 +295,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     // MARK: Toolbar
 
-    private enum TB {
+    private enum ToolbarItemID {
         static let open = NSToolbarItem.Identifier("open")
         static let newArchive = NSToolbarItem.Identifier("new")
         static let extractTo = NSToolbarItem.Identifier("extractTo")
@@ -358,14 +366,14 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         let nodes = Array(root.children.prefix(2))
         guard !nodes.isEmpty else { return }
         outlineView(outline, draggingSession: NSDraggingSession(), willBeginAt: .zero, forItems: nodes)
-        for n in nodes {
-            let p = NSFilePromiseProvider(fileType: "public.data", delegate: self)
-            p.userInfo = n
-            let url = URL(fileURLWithPath: (dest as NSString).appendingPathComponent(n.name))
+        for node in nodes {
+            let provider = NSFilePromiseProvider(fileType: "public.data", delegate: self)
+            provider.userInfo = node
+            let url = URL(fileURLWithPath: (dest as NSString).appendingPathComponent(node.name))
             promiseQueue.addOperation { [self] in
                 let done = DispatchSemaphore(value: 0)
-                filePromiseProvider(p, writePromiseTo: url) { err in
-                    print("drag-sim:", n.name, err.map { "HATA \($0)" } ?? "OK")
+                filePromiseProvider(provider, writePromiseTo: url) { err in
+                    print("drag-sim:", node.name, err.map { "HATA \($0)" } ?? "OK")
                     done.signal()
                 }
                 done.wait()
@@ -425,7 +433,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     private static func paths(for nodes: [Node]) -> [String] {
         let dirs = nodes.filter { $0.isDir }.map { $0.path + "/" }
-        return nodes.filter { n in !dirs.contains { n.path.hasPrefix($0) } }.map { $0.path }
+        return nodes.filter { node in !dirs.contains { node.path.hasPrefix($0) } }.map { $0.path }
     }
 
     // MARK: Actions
@@ -514,7 +522,11 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         let names = selectedPaths()
         guard !names.isEmpty else { return }
         let list = names.prefix(5).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ") + (names.count > 5 ? " …" : "")
-        guard Dialogs.confirm(loc.t("delete_confirm_title", names.count), list + loc.t("delete_confirm_irreversible"), okTitle: loc.t("delete"), destructive: true) else { return }
+        guard
+            Dialogs.confirm(
+                loc.t("delete_confirm_title", names.count), list + loc.t("delete_confirm_irreversible"), okTitle: loc.t("delete"),
+                destructive: true)
+        else { return }
         Ops.delete(info: info, names: names, password: password, host: window) { [weak self] ok, pw in
             guard let self else { return }
             self.password = pw ?? self.password
@@ -533,26 +545,26 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     @objc func openSelected(_ sender: Any?) {
-        for n in selectedNodes() { openNode(n) }
+        for node in selectedNodes() { openNode(node) }
     }
 
     @objc private func doubleClicked() {
         let row = outline.clickedRow
-        guard row >= 0, let n = outline.item(atRow: row) as? Node else { return }
-        if n.isDir {
-            if outline.isItemExpanded(n) { outline.collapseItem(n) } else { outline.expandItem(n) }
+        guard row >= 0, let node = outline.item(atRow: row) as? Node else { return }
+        if node.isDir {
+            if outline.isItemExpanded(node) { outline.collapseItem(node) } else { outline.expandItem(node) }
         } else {
-            openNode(n)
+            openNode(node)
         }
     }
 
-    private func openNode(_ n: Node) {
+    private func openNode(_ node: Node) {
         guard let info else { return }
         let tmp = TempDirs.make("open")
-        Ops.extract(info: info, names: [n.path], dest: tmp, password: password, host: window, quiet: true) { [weak self] ok, pw in
+        Ops.extract(info: info, names: [node.path], dest: tmp, password: password, host: window, quiet: true) { [weak self] ok, pw in
             self?.password = pw ?? self?.password
             guard ok else { return }
-            let target = (tmp as NSString).appendingPathComponent(n.path)
+            let target = (tmp as NSString).appendingPathComponent(node.path)
             NSWorkspace.shared.open(URL(fileURLWithPath: target))
         }
     }
@@ -562,7 +574,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     @objc func expandAll(_ sender: Any?) { outline.expandItem(nil, expandChildren: true) }
     @objc func collapseAll(_ sender: Any?) { outline.collapseItem(nil, collapseChildren: true) }
     @objc func refresh(_ sender: Any?) { reload() }
-    @objc func revealArchive(_ sender: Any?) { if let p = archivePath { Ops.revealInFinder(p) } }
+    @objc func revealArchive(_ sender: Any?) { if let archivePath { Ops.revealInFinder(archivePath) } }
 
     // MARK: Quick Look
 
@@ -576,7 +588,9 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         let files = selectedNodes().filter { !$0.isDir }
         guard !files.isEmpty else { return }
         let tmp = TempDirs.make("ql")
-        Ops.extract(info: info, names: files.map { $0.path }, dest: tmp, password: password, host: window, quiet: true) { [weak self] ok, pw in
+        Ops.extract(
+            info: info, names: files.map { $0.path }, dest: tmp, password: password, host: window, quiet: true
+        ) { [weak self] ok, pw in
             guard let self else { return }
             self.password = pw ?? self.password
             guard ok else { return }
@@ -637,13 +651,19 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
 extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [TB.open, TB.newArchive, .space, TB.extractTo, TB.extractHere, TB.extractFolder, .space, TB.test, TB.add, TB.delete, TB.info, .flexibleSpace, TB.search]
+        [
+            ToolbarItemID.open, ToolbarItemID.newArchive, .space, ToolbarItemID.extractTo, ToolbarItemID.extractHere,
+            ToolbarItemID.extractFolder, .space, ToolbarItemID.test, ToolbarItemID.add, ToolbarItemID.delete, ToolbarItemID.info,
+            .flexibleSpace, ToolbarItemID.search,
+        ]
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar) + [.flexibleSpace, .space]
     }
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        if id == TB.search {
+    func toolbar(
+        _ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        if id == ToolbarItemID.search {
             let s = NSSearchToolbarItem(itemIdentifier: id)
             s.label = loc.t("search_label")
             s.searchField.placeholderString = loc.t("search_placeholder")
@@ -653,16 +673,23 @@ extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
             s.searchField.sendsWholeSearchString = false
             return s
         }
+        // swiftlint:disable:next large_tuple
         let specs: [NSToolbarItem.Identifier: (String, String, Selector, String)] = [
-            TB.open: (loc.t("open"), "folder", #selector(openArchive), loc.t("toolbar_open_tooltip")),
-            TB.newArchive: (loc.t("toolbar_compress"), "doc.zipper", #selector(newArchive), loc.t("toolbar_compress_tooltip")),
-            TB.extractTo: (loc.t("toolbar_extract"), "square.and.arrow.down", #selector(extractTo), loc.t("toolbar_extract_tooltip")),
-            TB.extractHere: (loc.t("toolbar_extract_here"), "arrow.down.doc", #selector(extractHere), loc.t("toolbar_extract_here_tooltip")),
-            TB.extractFolder: (loc.t("toolbar_extract_folder"), "folder.badge.plus", #selector(extractToFolder), loc.t("toolbar_extract_folder_tooltip")),
-            TB.test: (loc.t("toolbar_test"), "checkmark.shield", #selector(testArchive), loc.t("toolbar_test_tooltip")),
-            TB.add: (loc.t("add"), "plus.rectangle.on.folder", #selector(addFiles), loc.t("toolbar_add_tooltip")),
-            TB.delete: (loc.t("delete"), "trash", #selector(deleteSelected), loc.t("toolbar_delete_tooltip")),
-            TB.info: (loc.t("toolbar_info"), "info.circle", #selector(showInfo), loc.t("toolbar_info_tooltip")),
+            ToolbarItemID.open: (loc.t("open"), "folder", #selector(openArchive), loc.t("toolbar_open_tooltip")),
+            ToolbarItemID.newArchive: (loc.t("toolbar_compress"), "doc.zipper", #selector(newArchive), loc.t("toolbar_compress_tooltip")),
+            ToolbarItemID.extractTo: (
+                loc.t("toolbar_extract"), "square.and.arrow.down", #selector(extractTo), loc.t("toolbar_extract_tooltip")
+            ),
+            ToolbarItemID.extractHere: (
+                loc.t("toolbar_extract_here"), "arrow.down.doc", #selector(extractHere), loc.t("toolbar_extract_here_tooltip")
+            ),
+            ToolbarItemID.extractFolder: (
+                loc.t("toolbar_extract_folder"), "folder.badge.plus", #selector(extractToFolder), loc.t("toolbar_extract_folder_tooltip")
+            ),
+            ToolbarItemID.test: (loc.t("toolbar_test"), "checkmark.shield", #selector(testArchive), loc.t("toolbar_test_tooltip")),
+            ToolbarItemID.add: (loc.t("add"), "plus.rectangle.on.folder", #selector(addFiles), loc.t("toolbar_add_tooltip")),
+            ToolbarItemID.delete: (loc.t("delete"), "trash", #selector(deleteSelected), loc.t("toolbar_delete_tooltip")),
+            ToolbarItemID.info: (loc.t("toolbar_info"), "info.circle", #selector(showInfo), loc.t("toolbar_info_tooltip")),
         ]
         guard let (label, symbol, sel, tip) = specs[id] else { return nil }
         let item = NSToolbarItem(itemIdentifier: id)
@@ -694,44 +721,45 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
         return (item as? Node)?.isDir ?? false
     }
 
+    // swiftlint:disable:next function_body_length
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         guard let col = tableColumn, let node = item as? Node else { return nil }
         let id = col.identifier
         var cell = outlineView.makeView(withIdentifier: id, owner: self) as? NSTableCellView
         if cell == nil {
-            let c = NSTableCellView()
-            c.identifier = id
+            let newCell = NSTableCellView()
+            newCell.identifier = id
             let tf = NSTextField(labelWithString: "")
             tf.translatesAutoresizingMaskIntoConstraints = false
             tf.lineBreakMode = .byTruncatingMiddle
             tf.font = .systemFont(ofSize: 12)
-            c.addSubview(tf)
-            c.textField = tf
+            newCell.addSubview(tf)
+            newCell.textField = tf
             if id == Self.nameCol {
                 let iv = NSImageView()
                 iv.translatesAutoresizingMaskIntoConstraints = false
-                c.addSubview(iv)
-                c.imageView = iv
+                newCell.addSubview(iv)
+                newCell.imageView = iv
                 NSLayoutConstraint.activate([
-                    iv.leadingAnchor.constraint(equalTo: c.leadingAnchor, constant: 2),
-                    iv.centerYAnchor.constraint(equalTo: c.centerYAnchor),
+                    iv.leadingAnchor.constraint(equalTo: newCell.leadingAnchor, constant: 2),
+                    iv.centerYAnchor.constraint(equalTo: newCell.centerYAnchor),
                     iv.widthAnchor.constraint(equalToConstant: 16),
                     iv.heightAnchor.constraint(equalToConstant: 16),
                     tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 4),
                 ])
             } else {
-                tf.leadingAnchor.constraint(equalTo: c.leadingAnchor, constant: 4).isActive = true
+                tf.leadingAnchor.constraint(equalTo: newCell.leadingAnchor, constant: 4).isActive = true
                 if id == Self.sizeCol || id == Self.packedCol || id == Self.ratioCol { tf.alignment = .right }
                 if id == Self.lockCol { tf.alignment = .center }
                 if id == Self.crcCol || id == Self.dateCol { tf.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular) }
             }
             NSLayoutConstraint.activate([
-                tf.trailingAnchor.constraint(equalTo: c.trailingAnchor, constant: -4),
-                tf.centerYAnchor.constraint(equalTo: c.centerYAnchor),
+                tf.trailingAnchor.constraint(equalTo: newCell.trailingAnchor, constant: -4),
+                tf.centerYAnchor.constraint(equalTo: newCell.centerYAnchor),
             ])
-            cell = c
+            cell = newCell
         }
-        let e = node.entry
+        let entry = node.entry
         switch id {
         case Self.nameCol:
             cell?.textField?.stringValue = filtered != nil ? node.path : node.name
@@ -741,11 +769,11 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
         case Self.packedCol:
             cell?.textField?.stringValue = Fmt.size(node.totalPacked)
         case Self.ratioCol:
-            cell?.textField?.stringValue = e?.ratio ?? ""
+            cell?.textField?.stringValue = entry?.ratio ?? ""
         case Self.dateCol:
-            cell?.textField?.stringValue = e?.mtime ?? ""
+            cell?.textField?.stringValue = entry?.mtime ?? ""
         case Self.crcCol:
-            cell?.textField?.stringValue = node.isDir ? "" : (e?.crc ?? "")
+            cell?.textField?.stringValue = node.isDir ? "" : (entry?.crc ?? "")
         case Self.lockCol:
             cell?.textField?.stringValue = node.containsEncrypted ? "🔒" : ""
         default: break
@@ -757,9 +785,13 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
     private func icon(for node: Node) -> NSImage {
         if node.isDir { return NSWorkspace.shared.icon(for: .folder) }
         let ext = (node.name as NSString).pathExtension.lowercased()
-        if let c = Self.iconCache[ext] { return c }
+        if let cached = Self.iconCache[ext] { return cached }
         let img: NSImage
-        if let t = UTType(filenameExtension: ext) { img = NSWorkspace.shared.icon(for: t) } else { img = NSWorkspace.shared.icon(for: .data) }
+        if let utType = UTType(filenameExtension: ext) {
+            img = NSWorkspace.shared.icon(for: utType)
+        } else {
+            img = NSWorkspace.shared.icon(for: .data)
+        }
         Self.iconCache[ext] = img
         return img
     }
@@ -772,15 +804,17 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
     }
 
     func outlineView(_ outlineView: NSOutlineView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
-        guard let d = outlineView.sortDescriptors.first, let key = d.key else { return }
+        guard let descriptor = outlineView.sortDescriptors.first, let key = descriptor.key else { return }
         sortKey = key
-        sortAscending = d.ascending
+        sortAscending = descriptor.ascending
         root.sortRecursively(key: sortKey, ascending: sortAscending)
         applyFilter()
     }
 
     // Drag and drop: open a dropped archive file, add other files to the archive
-    func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+    func outlineView(
+        _ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int
+    ) -> NSDragOperation {
         guard info.draggingSource as? NSOutlineView !== outlineView else { return [] }
         guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty else { return [] }
         outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex)
@@ -797,7 +831,7 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
         let archives = paths.filter { AppDelegate.isArchive($0) }
         let others = paths.filter { !AppDelegate.isArchive($0) }
         if self.info == nil || others.isEmpty {
-            for a in archives { AppDelegate.shared.openArchive(a, reuse: self.info == nil ? self : nil) }
+            for archive in archives { AppDelegate.shared.openArchive(archive, reuse: self.info == nil ? self : nil) }
             if !others.isEmpty, self.info == nil {
                 AppDelegate.shared.compressWithDialog(items: others, host: window) { [weak self] path in
                     if let self, let path { AppDelegate.shared.openArchive(path, reuse: self) }
@@ -809,7 +843,10 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
     }
 
     // Dragging from the archive to Finder (file promises)
-    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
+    func outlineView(
+        _ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint,
+        forItems draggedItems: [Any]
+    ) {
         dragNodes = draggedItems.compactMap { $0 as? Node }
         dragDecision = nil
         dragTempDir = nil
@@ -821,24 +858,29 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
     func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
         guard let node = item as? Node else { return nil }
         let type: String
-        if node.isDir { type = UTType.folder.identifier }
-        else { type = UTType(filenameExtension: (node.name as NSString).pathExtension)?.identifier ?? UTType.data.identifier }
-        let p = NSFilePromiseProvider(fileType: type, delegate: self)
-        p.userInfo = node
-        return p
+        if node.isDir {
+            type = UTType.folder.identifier
+        } else {
+            type = UTType(filenameExtension: (node.name as NSString).pathExtension)?.identifier ?? UTType.data.identifier
+        }
+        let provider = NSFilePromiseProvider(fileType: type, delegate: self)
+        provider.userInfo = node
+        return provider
     }
 }
 
 extension ArchiveWindowController: NSFilePromiseProviderDelegate {
-    func filePromiseProvider(_ p: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
-        (p.userInfo as? Node)?.name ?? "dosya"
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
+        (filePromiseProvider.userInfo as? Node)?.name ?? "dosya"
     }
-    func operationQueue(for p: NSFilePromiseProvider) -> OperationQueue { promiseQueue }
+    func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue { promiseQueue }
 
-    func filePromiseProvider(_ p: NSFilePromiseProvider, writePromiseTo url: URL, completionHandler: @escaping (Error?) -> Void) {
-        guard let node = p.userInfo as? Node, let info else { completionHandler(nil); return }
+    func filePromiseProvider(
+        _ filePromiseProvider: NSFilePromiseProvider, writePromiseTo url: URL, completionHandler: @escaping (Error?) -> Void
+    ) {
+        guard let node = filePromiseProvider.userInfo as? Node, let info else { completionHandler(nil); return }
         let sem = DispatchSemaphore(value: 0)
-        var error: Error? = nil
+        var error: Error?
 
         DispatchQueue.main.async { [self] in
             let nodes = dragNodes.isEmpty ? [node] : dragNodes
@@ -851,7 +893,10 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
                 let title = nodes.count == 1
                     ? loc.t("drag_extract_confirm_single", nodes[0].name, destName)
                     : loc.t("drag_extract_confirm_multiple", nodes.count, destName)
-                dragDecision = Dialogs.confirm(title, loc.t("drag_extract_details", (info.path as NSString).lastPathComponent, AppInfo.abbreviate(destFolder.path), list), okTitle: loc.t("extract"))
+                dragDecision = Dialogs.confirm(
+                    title,
+                    loc.t("drag_extract_details", (info.path as NSString).lastPathComponent, AppInfo.abbreviate(destFolder.path), list),
+                    okTitle: loc.t("extract"))
             }
             guard dragDecision == true else { error = CocoaError(.userCancelled); sem.signal(); return }
 
@@ -861,7 +906,7 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
                     let src = URL(fileURLWithPath: (tmp as NSString).appendingPathComponent(node.path))
                     if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
                     try FileManager.default.moveItem(at: src, to: url)
-                } catch let e { error = e }
+                } catch let failure { error = failure }
                 sem.signal()
             }
 
