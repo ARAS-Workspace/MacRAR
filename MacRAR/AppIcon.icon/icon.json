@@ -1,0 +1,59 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.30000,0.16000,0.48000,1.00000",
+      "srgb:0.11000,0.06000,0.22000,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 1
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "Lock.svg",
+          "name" : "Lock"
+        },
+        {
+          "glass" : false,
+          "image-name" : "Badge.svg",
+          "name" : "Badge"
+        }
+      ],
+      "name" : "Badge",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "Stack.svg",
+          "name" : "Stack"
+        }
+      ],
+      "name" : "Stack",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

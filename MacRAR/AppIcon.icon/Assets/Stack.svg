@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="MacRAR_Stack" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <g id="Slab1">
+    <polygon fill="#452E9E" points="174.08,716.8 512,885.76 512,962.56 174.08,793.6"/>
+    <polygon fill="#331F7A" points="512,885.76 849.92,716.8 849.92,793.6 512,962.56"/>
+    <polygon fill="#6B4CDB" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="3.75" stroke-linejoin="round" points="512,547.84 849.92,716.8 512,885.76 174.08,716.8"/>
+  </g>
+  <g id="Slab2">
+    <polygon fill="#5C3BB8" points="174.08,599.04 512,768 512,844.8 174.08,675.84"/>
+    <polygon fill="#45298F" points="512,768 849.92,599.04 849.92,675.84 512,844.8"/>
+    <polygon fill="#8C61F2" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="3.75" stroke-linejoin="round" points="512,430.08 849.92,599.04 512,768 174.08,599.04"/>
+  </g>
+  <g id="Slab3">
+    <polygon fill="#784FD1" points="174.08,481.28 512,650.24 512,727.04 174.08,558.08"/>
+    <polygon fill="#5C38A8" points="512,650.24 849.92,481.28 849.92,558.08 512,727.04"/>
+    <polygon fill="#B285FF" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="3.75" stroke-linejoin="round" points="512,312.32 849.92,481.28 512,650.24 174.08,481.28"/>
+  </g>
+  <g id="Slab4">
+    <polygon fill="#9970EB" points="174.08,363.52 512,532.48 512,609.28 174.08,440.32"/>
+    <polygon fill="#754FC7" points="512,532.48 849.92,363.52 849.92,440.32 512,609.28"/>
+    <polygon fill="#DBBDFF" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="3.75" stroke-linejoin="round" points="512,194.56 849.92,363.52 512,532.48 174.08,363.52"/>
+  </g>
+</svg>
