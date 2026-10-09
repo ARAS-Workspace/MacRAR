@@ -39,20 +39,20 @@ final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
     private let formatPopup = NSPopUpButton()
     private let levelPopup = NSPopUpButton()
-    private let solidBox = NSButton(checkboxWithTitle: L("Katı (solid) arşiv"), target: nil, action: nil)
-    private let rrBox = NSButton(checkboxWithTitle: L("Kurtarma kaydı ekle (%3)"), target: nil, action: nil)
-    private let revealExtractBox = NSButton(checkboxWithTitle: L("Çıkartma bitince öğeleri Finder'da göster"), target: nil, action: nil)
-    private let revealCompressBox = NSButton(checkboxWithTitle: L("Sıkıştırma bitince arşivi Finder'da göster"), target: nil, action: nil)
-    private let updatesBox = NSButton(checkboxWithTitle: L("Günde bir kez GitHub'dan güncelleme denetle"), target: nil, action: nil)
+    private let solidBox = NSButton(checkboxWithTitle: loc.t("compress_solid"), target: nil, action: nil)
+    private let rrBox = NSButton(checkboxWithTitle: loc.t("compress_recovery_record"), target: nil, action: nil)
+    private let revealExtractBox = NSButton(checkboxWithTitle: loc.t("prefs_reveal_after_extract"), target: nil, action: nil)
+    private let revealCompressBox = NSButton(checkboxWithTitle: loc.t("prefs_reveal_after_compress"), target: nil, action: nil)
+    private let updatesBox = NSButton(checkboxWithTitle: loc.t("prefs_check_updates"), target: nil, action: nil)
     private let languagePopup = NSPopUpButton()
-    private let languageNote = NSTextField(labelWithString: L("Dil değişikliği uygulama yeniden açılınca geçerli olur."))
+    private let languageNote = NSTextField(labelWithString: loc.t("prefs_language_note"))
     private let toolStatus = NSTextField(labelWithString: "")
     private lazy var toolButton = NSButton(title: "", target: self, action: #selector(toolAction))
 
     private init() {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 360),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = L("Ayarlar")
+        w.title = loc.t("prefs_title")
         w.isReleasedWhenClosed = false
         super.init(window: w)
         build()
@@ -63,30 +63,30 @@ final class PreferencesWindowController: NSWindowController {
         guard let content = window?.contentView else { return }
         func label(_ s: String) -> NSTextField { let l = NSTextField(labelWithString: s); l.alignment = .right; return l }
         formatPopup.addItems(withTitles: ArchiveFormat.creatable.map { $0.title })
-        levelPopup.addItems(withTitles: [L("Depola (sıkıştırma yok)"), L("En hızlı"), L("Hızlı"), L("Normal"), L("İyi"), L("En iyi")])
-        languagePopup.addItems(withTitles: [L("Sistem dili"), "Türkçe", "English"])
+        levelPopup.addItems(withTitles: [loc.t("level_store"), loc.t("level_fastest"), loc.t("level_fast"), loc.t("level_normal"), loc.t("level_good"), loc.t("level_best")])
+        languagePopup.addItems(withTitles: [loc.t("prefs_system_language")] + LocalizationManager.Language.allCases.map(\.displayName))
         languageNote.font = .systemFont(ofSize: 10)
         languageNote.textColor = .secondaryLabelColor
         for b in [solidBox, rrBox, revealExtractBox, revealCompressBox, updatesBox] { b.target = self; b.action = #selector(changed) }
         for p in [formatPopup, levelPopup, languagePopup] { p.target = self; p.action = #selector(changed) }
 
-        let header1 = NSTextField(labelWithString: L("Hızlı sıkıştırma varsayılanları")); header1.font = .boldSystemFont(ofSize: 12)
-        let header2 = NSTextField(labelWithString: L("Davranış")); header2.font = .boldSystemFont(ofSize: 12)
+        let header1 = NSTextField(labelWithString: loc.t("prefs_section_quick_compress")); header1.font = .boldSystemFont(ofSize: 12)
+        let header2 = NSTextField(labelWithString: loc.t("prefs_section_behaviour")); header2.font = .boldSystemFont(ofSize: 12)
         let grid = NSGridView(views: [
             [NSGridCell.emptyContentView, header1],
-            [label(L("Biçim:")), formatPopup],
-            [label(L("Sıkıştırma:")), levelPopup],
+            [label(loc.t("compress_label_format")), formatPopup],
+            [label(loc.t("compress_label_level")), levelPopup],
             [NSGridCell.emptyContentView, solidBox],
             [NSGridCell.emptyContentView, rrBox],
             [NSGridCell.emptyContentView, header2],
             [NSGridCell.emptyContentView, revealExtractBox],
             [NSGridCell.emptyContentView, revealCompressBox],
             [NSGridCell.emptyContentView, updatesBox],
-            [label(L("Dil:")), languagePopup],
+            [label(loc.t("prefs_label_language")), languagePopup],
             [NSGridCell.emptyContentView, languageNote],
-            [label(AppInfo.isAppStore ? L("Klasörler:") : L("RAR aracı:")), toolStatus],
+            [label(AppInfo.isAppStore ? loc.t("prefs_label_folders") : loc.t("prefs_label_rar_tool")), toolStatus],
             [NSGridCell.emptyContentView, toolButton],
-            [label(L("Dosyalar:")), NSButton(title: L("Dosya İlişkilendirmeleri…"), target: AppDelegate.shared, action: #selector(AppDelegate.showAssociations(_:)))],
+            [label(loc.t("prefs_label_files")), NSButton(title: loc.t("action_file_associations"), target: AppDelegate.shared, action: #selector(AppDelegate.showAssociations(_:)))],
         ])
         updatesBox.isHidden = AppInfo.isAppStore
         toolStatus.font = .systemFont(ofSize: 11)
@@ -108,14 +108,14 @@ final class PreferencesWindowController: NSWindowController {
     private func refreshTool() {
         if AppInfo.isAppStore {
             let n = FolderAccess.grantedFolders.count
-            toolStatus.stringValue = n == 0 ? L("Henüz izin verilmiş klasör yok (Downloads her zaman açık).") : LF("%d klasöre izin verildi.", n)
-            toolButton.title = L("Ana Klasöre İzin Ver…")
+            toolStatus.stringValue = n == 0 ? loc.t("prefs_folders_none") : loc.t("prefs_folders_count", n)
+            toolButton.title = loc.t("prefs_allow_home")
         } else if let v = RarTools.version {
-            toolStatus.stringValue = LF("Kurulu: %@", v)
-            toolButton.title = L("RAR Aracını Kaldır")
+            toolStatus.stringValue = loc.t("prefs_rar_installed", v)
+            toolButton.title = loc.t("prefs_rar_remove")
         } else {
-            toolStatus.stringValue = L("Kurulu değil (RAR oluşturmak için gerekir)")
-            toolButton.title = L("RAR Aracını Kur…")
+            toolStatus.stringValue = loc.t("prefs_rar_not_installed")
+            toolButton.title = loc.t("prefs_rar_install")
         }
     }
 
@@ -142,7 +142,7 @@ final class PreferencesWindowController: NSWindowController {
         revealExtractBox.state = Prefs.revealAfterExtract ? .on : .off
         revealCompressBox.state = Prefs.revealAfterCompress ? .on : .off
         updatesBox.state = Prefs.checkUpdates ? .on : .off
-        languagePopup.selectItem(at: Prefs.language == "tr" ? 1 : (Prefs.language == "en" ? 2 : 0))
+        languagePopup.selectItem(at: LocalizationManager.Language.allCases.firstIndex { $0.rawValue == Prefs.language }.map { $0 + 1 } ?? 0)
     }
 
     @objc private func changed() {
@@ -155,7 +155,7 @@ final class PreferencesWindowController: NSWindowController {
         Prefs.revealAfterExtract = revealExtractBox.state == .on
         Prefs.revealAfterCompress = revealCompressBox.state == .on
         Prefs.checkUpdates = updatesBox.state == .on
-        Prefs.language = ["", "tr", "en"][languagePopup.indexOfSelectedItem]
+        Prefs.language = ([""] + LocalizationManager.Language.allCases.map(\.rawValue))[languagePopup.indexOfSelectedItem]
     }
 
     func show() {

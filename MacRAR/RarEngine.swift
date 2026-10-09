@@ -203,7 +203,7 @@ enum RarRunner {
         last.standardError = pipe
         for p in processes {
             do { try p.run() } catch {
-                return RarResult(code: -1, output: LF("Çalıştırılamadı: %@", error.localizedDescription))
+                return RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription))
             }
         }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
@@ -296,7 +296,7 @@ enum RarRunner {
 
         let pretty: String
         switch type.lowercased() {
-        case "": pretty = L("arşiv")
+        case "": pretty = loc.t("archive_format_generic")
         case "rar5": pretty = "RAR 5"
         case "rar": pretty = "RAR 4"
         case "7z": pretty = "7z"
@@ -384,7 +384,7 @@ final class RarJob {
         for p in procs {
             do { try p.run() } catch {
                 DispatchQueue.main.async {
-                    completion(RarResult(code: -1, output: LF("Çalıştırılamadı: %@", error.localizedDescription)))
+                    completion(RarResult(code: -1, output: loc.t("could_not_run", error.localizedDescription)))
                 }
                 return
             }

@@ -20,14 +20,14 @@ enum QuickActions {
     static var actions: [Action] {
         [
             // Üst seviye (Servis)
-            Action(name: L("MacRAR ile Aç"), flag: nil, topLevel: true, fileTypes: archiveTypes),
-            Action(name: L("MacRAR: Buraya Çıkart"), flag: "--extract-here", topLevel: true, fileTypes: archiveTypes),
-            Action(name: L("MacRAR: Klasöre Çıkart"), flag: "--extract-folder", topLevel: true, fileTypes: archiveTypes),
-            Action(name: L("MacRAR ile Sıkıştır…"), flag: "--compress-dialog", topLevel: true, fileTypes: anyType),
+            Action(name: loc.t("quick_action_open"), flag: nil, topLevel: true, fileTypes: archiveTypes),
+            Action(name: loc.t("quick_action_extract_here"), flag: "--extract-here", topLevel: true, fileTypes: archiveTypes),
+            Action(name: loc.t("quick_action_extract_to_folder"), flag: "--extract-folder", topLevel: true, fileTypes: archiveTypes),
+            Action(name: loc.t("quick_action_compress"), flag: "--compress-dialog", topLevel: true, fileTypes: anyType),
             // Hızlı Eylemler alt menüsü
-            Action(name: L("MacRAR • Şuraya Çıkart…"), flag: "--extract-to", topLevel: false, fileTypes: archiveTypes),
-            Action(name: L("MacRAR • Test Et"), flag: "--test", topLevel: false, fileTypes: archiveTypes),
-            Action(name: L("MacRAR • Hızlı Sıkıştır"), flag: "--compress", topLevel: false, fileTypes: anyType),
+            Action(name: loc.t("quick_action_extract_to"), flag: "--extract-to", topLevel: false, fileTypes: archiveTypes),
+            Action(name: loc.t("quick_action_test"), flag: "--test", topLevel: false, fileTypes: archiveTypes),
+            Action(name: loc.t("quick_action_quick_compress"), flag: "--compress", topLevel: false, fileTypes: anyType),
         ]
     }
 

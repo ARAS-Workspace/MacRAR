@@ -17,6 +17,10 @@ targets:
       - path: MacRAR
         excludes:
           - "**/.DS_Store"
+          - Localization/translations
+      - path: MacRAR/Localization/translations
+        type: folder
+        buildPhase: resources
     scheme: {}
     settings:
       base:

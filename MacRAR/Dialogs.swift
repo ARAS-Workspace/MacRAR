@@ -11,15 +11,15 @@ enum Dialogs {
         if let dbg = ProcessInfo.processInfo.environment["MACRAR_DEBUG_PASSWORD"], !wrong { return dbg == "__cancel__" ? nil : dbg }
         activate()
         let alert = NSAlert()
-        alert.messageText = wrong ? L("Şifre hatalı") : L("Şifre gerekli")
-        alert.informativeText = LF("\"%@\" arşivi şifreli. Lütfen şifreyi girin.", archiveName)
+        alert.messageText = wrong ? loc.t("password_wrong_title") : loc.t("password_required_title")
+        alert.informativeText = loc.t("password_prompt_message", archiveName)
         alert.icon = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil)
-        alert.addButton(withTitle: L("Tamam"))
-        alert.addButton(withTitle: L("İptal"))
+        alert.addButton(withTitle: loc.t("ok"))
+        alert.addButton(withTitle: loc.t("cancel"))
         let secure = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        secure.placeholderString = L("Şifre")
+        secure.placeholderString = loc.t("password_field")
         let plain = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        plain.placeholderString = L("Şifre")
+        plain.placeholderString = loc.t("password_field")
         plain.isHidden = true
         let box = PasswordBox(secure: secure, plain: plain)
         let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 52))
@@ -41,7 +41,7 @@ enum Dialogs {
         let toggle: NSButton
         init(secure: NSSecureTextField, plain: NSTextField) {
             self.secure = secure; self.plain = plain
-            toggle = NSButton(checkboxWithTitle: L("Şifreyi göster"), target: nil, action: nil)
+            toggle = NSButton(checkboxWithTitle: loc.t("password_show"), target: nil, action: nil)
             super.init()
             toggle.target = self; toggle.action = #selector(flip)
             toggle.font = .systemFont(ofSize: 11)
@@ -61,14 +61,14 @@ enum Dialogs {
     static func askOverwrite(existing: [String], dest: String) -> OverwriteMode {
         activate()
         let alert = NSAlert()
-        alert.messageText = L("Hedefte aynı adlı öğeler var")
+        alert.messageText = loc.t("overwrite_title")
         let shown = existing.prefix(5).joined(separator: ", ") + (existing.count > 5 ? " …" : "")
-        alert.informativeText = LF("\"%@\" klasöründe şu öğeler zaten mevcut:\n%@\n\nNe yapılsın?", (dest as NSString).lastPathComponent, shown)
+        alert.informativeText = loc.t("overwrite_message", (dest as NSString).lastPathComponent, shown)
         alert.alertStyle = .warning
-        alert.addButton(withTitle: L("Üzerine Yaz"))
-        alert.addButton(withTitle: L("Yeniden Adlandır"))
-        alert.addButton(withTitle: L("Atla"))
-        alert.addButton(withTitle: L("İptal"))
+        alert.addButton(withTitle: loc.t("overwrite_replace"))
+        alert.addButton(withTitle: loc.t("overwrite_rename"))
+        alert.addButton(withTitle: loc.t("overwrite_skip"))
+        alert.addButton(withTitle: loc.t("cancel"))
         switch alert.runModal() {
         case .alertFirstButtonReturn: return .overwrite
         case .alertSecondButtonReturn: return .rename
@@ -81,12 +81,12 @@ enum Dialogs {
         activate()
         let alert = NSAlert()
         alert.messageText = title
-        alert.informativeText = detail.isEmpty ? L("Bilinmeyen hata.") : detail
+        alert.informativeText = detail.isEmpty ? loc.t("unknown_error") : detail
         alert.alertStyle = .critical
-        alert.addButton(withTitle: L("Tamam"))
+        alert.addButton(withTitle: loc.t("ok"))
         let full = (details ?? "").replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !full.isEmpty, full != detail {
-            alert.addButton(withTitle: L("Ayrıntıları Kopyala"))
+            alert.addButton(withTitle: loc.t("error_copy_details"))
             let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 140))
             let tv = NSTextView(frame: scroll.bounds)
             tv.isEditable = false
@@ -111,11 +111,11 @@ enum Dialogs {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = detail
-        alert.addButton(withTitle: L("Tamam"))
+        alert.addButton(withTitle: loc.t("ok"))
         alert.runModal()
     }
 
-    static func confirm(_ title: String, _ detail: String, okTitle: String = L("Tamam"), destructive: Bool = false) -> Bool {
+    static func confirm(_ title: String, _ detail: String, okTitle: String = loc.t("ok"), destructive: Bool = false) -> Bool {
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil { return true }
         activate()
         let alert = NSAlert()
@@ -123,7 +123,7 @@ enum Dialogs {
         alert.informativeText = detail
         alert.alertStyle = destructive ? .warning : .informational
         alert.addButton(withTitle: okTitle)
-        alert.addButton(withTitle: L("İptal"))
+        alert.addButton(withTitle: loc.t("cancel"))
         if destructive, #available(macOS 11.0, *) { alert.buttons.first?.hasDestructiveAction = true }
         return alert.runModal() == .alertFirstButtonReturn
     }
@@ -191,8 +191,8 @@ final class ProgressPanel: NSWindowController {
     private let fileLabel = NSTextField(labelWithString: "")
     private let bar = PlainProgressBar()
     private let detailLabel = NSTextField(labelWithString: "")
-    private let toggleButton = NSButton(title: L("Detayları Göster"), target: nil, action: nil)
-    private let cancelButton = NSButton(title: L("İptal"), target: nil, action: nil)
+    private let toggleButton = NSButton(title: loc.t("progress_show_details"), target: nil, action: nil)
+    private let cancelButton = NSButton(title: loc.t("cancel"), target: nil, action: nil)
     private let logScroll = NSScrollView()
     private let logView = NSTextView()
     private let startTime = Date()
@@ -220,7 +220,7 @@ final class ProgressPanel: NSWindowController {
         fileLabel.lineBreakMode = .byTruncatingHead        // sondaki dosya adı her zaman görünür
         fileLabel.maximumNumberOfLines = 1
         fileLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        fileLabel.stringValue = L("Hazırlanıyor…")
+        fileLabel.stringValue = loc.t("progress_preparing")
 
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.heightAnchor.constraint(equalToConstant: 8).isActive = true
@@ -293,14 +293,14 @@ final class ProgressPanel: NSWindowController {
 
     @objc private func cancelPressed() {
         cancelButton.isEnabled = false
-        fileLabel.stringValue = L("İptal ediliyor…")
+        fileLabel.stringValue = loc.t("progress_cancelling")
         onCancel?()
     }
 
     @objc private func toggleDetails() {
         let show = logScroll.isHidden
         logScroll.isHidden = !show
-        toggleButton.title = show ? L("Detayları Gizle") : L("Detayları Göster")
+        toggleButton.title = show ? loc.t("progress_hide_details") : loc.t("progress_show_details")
         resizeToFit(animate: true)
         if show { scrollLogToEnd() }
     }
@@ -371,13 +371,13 @@ final class ProgressPanel: NSWindowController {
         if let f {
             let v = min(1, max(0, f))
             bar.fraction = v
-            var text = LF("%%%d", Int(v * 100))
+            var text = loc.t("progress_percent", Int(v * 100))
             let elapsed = Date().timeIntervalSince(startTime)
             if v >= 0.02, v < 1, elapsed > 2 {
                 let remaining = elapsed * (1 - v) / v
-                text += LF("  •  kalan ~%@  •  geçen %@", Self.format(remaining), Self.format(elapsed))
+                text += loc.t("progress_remaining_elapsed", Self.format(remaining), Self.format(elapsed))
             } else if elapsed > 2 {
-                text += LF("  •  geçen %@", Self.format(elapsed))
+                text += loc.t("progress_elapsed", Self.format(elapsed))
             }
             detailLabel.stringValue = text
         } else {
@@ -388,9 +388,9 @@ final class ProgressPanel: NSWindowController {
 
     private static func format(_ t: TimeInterval) -> String {
         let s = Int(t.rounded())
-        if s < 60 { return LF("%d sn", s) }
-        if s < 3600 { return LF("%d dk %d sn", s / 60, s % 60) }
-        return LF("%d sa %d dk", s / 3600, (s % 3600) / 60)
+        if s < 60 { return loc.t("duration_seconds", s) }
+        if s < 3600 { return loc.t("duration_minutes_seconds", s / 60, s % 60) }
+        return loc.t("duration_hours_minutes", s / 3600, (s % 3600) / 60)
     }
 }
 
@@ -404,10 +404,10 @@ enum ArchiveFormat: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .rar5: return RarTools.available ? "RAR 5" : L("RAR 5 (RAR aracı gerekir)")
+        case .rar5: return RarTools.available ? "RAR 5" : loc.t("format_rar5")
         case .sevenZip: return "7z"
         case .zip: return "ZIP"
-        case .tar: return L("TAR (sıkıştırmasız)")
+        case .tar: return loc.t("format_tar")
         case .tgz: return "TAR.GZ"
         case .txz: return "TAR.XZ"
         case .tbz2: return "TAR.BZ2"
@@ -499,7 +499,7 @@ struct CompressOptions {
             if sfx { a.append("-sfx") }
             if deleteAfter { a.append("-df") }
             a += RarRunner.rarPasswordArgs(password, encryptHeaders: encryptNames)
-            return [Step(title: L("Sıkıştırılıyor"), tool: .rar, args: a + ["--", archivePath] + items)]
+            return [Step(title: loc.t("progress_compressing"), tool: .rar, args: a + ["--", archivePath] + items)]
 
         case .sevenZip:
             var a = sevenZipCommon + ["-t7z", "-mx=\(mx)", solid ? "-ms=on" : "-ms=off"]
@@ -507,16 +507,16 @@ struct CompressOptions {
                 a.append("-p" + pw)
                 if encryptNames { a.append("-mhe=on") }
             }
-            return [Step(title: L("Sıkıştırılıyor"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
+            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
 
         case .zip:
             var a = sevenZipCommon + ["-tzip", "-mx=\(mx)"]
             if let pw = password, !pw.isEmpty { a += ["-p" + pw, "-mem=AES256"] }
-            return [Step(title: L("Sıkıştırılıyor"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
+            return [Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
 
         case .tar:
             let a = sevenZipCommon + ["-ttar"]
-            return [Step(title: L("Paketleniyor"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
+            return [Step(title: loc.t("progress_packing"), tool: .sevenZip, args: a + ["--", archivePath] + items)]
 
         case .tgz, .txz, .tbz2:
             let outer: String = format == .tgz ? "gzip" : (format == .txz ? "xz" : "bzip2")
@@ -525,8 +525,8 @@ struct CompressOptions {
             if deleteAfter { step1.append("-sdel") }
             let step2 = ["a", "-y", "-bsp1", "-bb1", "-t\(outer)", "-mx=\(mx)", "--", archivePath, tmpTar]
             return [
-                Step(title: L("Paketleniyor"), tool: .sevenZip, args: step1 + ["--", tmpTar] + items),
-                Step(title: L("Sıkıştırılıyor"), tool: .sevenZip, args: step2, cleanup: { try? FileManager.default.removeItem(atPath: tmpTar) }),
+                Step(title: loc.t("progress_packing"), tool: .sevenZip, args: step1 + ["--", tmpTar] + items),
+                Step(title: loc.t("progress_compressing"), tool: .sevenZip, args: step2, cleanup: { try? FileManager.default.removeItem(atPath: tmpTar) }),
             ]
         }
     }
@@ -542,7 +542,7 @@ struct CompressOptions {
     }
 
     static func defaultArchivePath(for items: [String], format: ArchiveFormat = .zip) -> String {
-        guard let first = items.first else { return L("arşiv") + "." + format.ext }
+        guard let first = items.first else { return loc.t("compress_default_archive_name") + "." + format.ext }
         let parent = (first as NSString).deletingLastPathComponent
         var base: String
         if items.count == 1 {
@@ -551,7 +551,7 @@ struct CompressOptions {
         } else {
             base = (parent as NSString).lastPathComponent
         }
-        if base.isEmpty || base == "/" { base = L("arşiv") }
+        if base.isEmpty || base == "/" { base = loc.t("compress_default_archive_name") }
         return (parent as NSString).appendingPathComponent(base + "." + format.ext)
     }
 }
@@ -562,11 +562,11 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     private let levelPopup = NSPopUpButton()
     private let pwField = NSSecureTextField()
     private let pw2Field = NSSecureTextField()
-    private let encryptNamesBox = NSButton(checkboxWithTitle: L("Dosya adlarını da şifrele"), target: nil, action: nil)
-    private let solidBox = NSButton(checkboxWithTitle: L("Katı (solid) arşiv"), target: nil, action: nil)
-    private let rrBox = NSButton(checkboxWithTitle: L("Kurtarma kaydı ekle (%3)"), target: nil, action: nil)
-    private let sfxBox = NSButton(checkboxWithTitle: L("Kendiliğinden açılan (SFX) arşiv"), target: nil, action: nil)
-    private let deleteBox = NSButton(checkboxWithTitle: L("Sıkıştırdıktan sonra kaynak dosyaları sil"), target: nil, action: nil)
+    private let encryptNamesBox = NSButton(checkboxWithTitle: loc.t("compress_encrypt_names"), target: nil, action: nil)
+    private let solidBox = NSButton(checkboxWithTitle: loc.t("compress_solid"), target: nil, action: nil)
+    private let rrBox = NSButton(checkboxWithTitle: loc.t("compress_recovery_record"), target: nil, action: nil)
+    private let sfxBox = NSButton(checkboxWithTitle: loc.t("compress_sfx"), target: nil, action: nil)
+    private let deleteBox = NSButton(checkboxWithTitle: loc.t("compress_delete_sources"), target: nil, action: nil)
     private let volumeField = NSTextField()
     private let hintLabel = NSTextField(labelWithString: "")
     private var result: CompressOptions?
@@ -576,7 +576,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         self.options = options
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 470),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = L("Arşiv Oluştur")
+        w.title = loc.t("compress_title")
         w.isReleasedWhenClosed = false
         super.init(window: w)
         build(itemCount: itemCount)
@@ -586,12 +586,12 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     private func build(itemCount: Int) {
         guard let content = window?.contentView else { return }
         pathField.stringValue = options.archivePath
-        pathField.placeholderString = L("/yol/arşiv.rar")
+        pathField.placeholderString = loc.t("compress_path_placeholder")
         pathField.usesSingleLineMode = true
         pathField.cell?.wraps = false
         pathField.cell?.isScrollable = true
         pathField.lineBreakMode = .byTruncatingMiddle
-        let browse = NSButton(title: L("Gözat…"), target: self, action: #selector(browse))
+        let browse = NSButton(title: loc.t("compress_browse"), target: self, action: #selector(browse))
         let pathRow = NSStackView(views: [pathField, browse])
         pathRow.orientation = .horizontal
         pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -600,12 +600,12 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         formatPopup.selectItem(at: ArchiveFormat.creatable.firstIndex(of: options.format) ?? 0)
         formatPopup.target = self
         formatPopup.action = #selector(formatChanged)
-        levelPopup.addItems(withTitles: [L("Depola (sıkıştırma yok)"), L("En hızlı"), L("Hızlı"), L("Normal"), L("İyi"), L("En iyi")])
+        levelPopup.addItems(withTitles: [loc.t("level_store"), loc.t("level_fastest"), loc.t("level_fast"), loc.t("level_normal"), loc.t("level_good"), loc.t("level_best")])
         levelPopup.selectItem(at: options.level)
-        pwField.placeholderString = L("Boş bırakılırsa şifrelenmez")
-        pw2Field.placeholderString = L("Şifreyi tekrar girin")
+        pwField.placeholderString = loc.t("compress_password_placeholder")
+        pw2Field.placeholderString = loc.t("compress_password_repeat_placeholder")
         pwField.delegate = self
-        volumeField.placeholderString = L("örn. 100M, 1G, 700M  (boş = bölme)")
+        volumeField.placeholderString = loc.t("compress_volume_placeholder")
         for f in [volumeField, pwField, pw2Field] as [NSTextField] {
             f.usesSingleLineMode = true
             f.cell?.wraps = false
@@ -628,7 +628,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
             l.alignment = .right
             return l
         }
-        let header = NSTextField(labelWithString: LF("%d öğe sıkıştırılacak", itemCount))
+        let header = NSTextField(labelWithString: loc.t("compress_item_count", itemCount))
         header.font = .boldSystemFont(ofSize: 13)
 
         let formatCell = NSStackView(views: [formatPopup, hintLabel])
@@ -637,14 +637,14 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         formatCell.spacing = 4
 
         let grid = NSGridView(views: [
-            [label(L("Arşiv:")), pathRow],
-            [label(L("Biçim:")), formatCell],
-            [label(L("Sıkıştırma:")), levelPopup],
-            [label(L("Şifre:")), pwField],
-            [label(L("Şifre (tekrar):")), pw2Field],
+            [label(loc.t("compress_label_archive")), pathRow],
+            [label(loc.t("compress_label_format")), formatCell],
+            [label(loc.t("compress_label_level")), levelPopup],
+            [label(loc.t("compress_label_password")), pwField],
+            [label(loc.t("compress_label_password_repeat")), pw2Field],
             [NSGridCell.emptyContentView, encryptNamesBox],
-            [label(L("Parçalara böl:")), volumeField],
-            [label(L("Seçenekler:")), solidBox],
+            [label(loc.t("compress_label_volumes")), volumeField],
+            [label(loc.t("compress_label_options")), solidBox],
             [NSGridCell.emptyContentView, rrBox],
             [NSGridCell.emptyContentView, sfxBox],
             [NSGridCell.emptyContentView, deleteBox],
@@ -654,9 +654,9 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).width = 360
 
-        let ok = NSButton(title: L("Oluştur"), target: self, action: #selector(okPressed))
+        let ok = NSButton(title: loc.t("create"), target: self, action: #selector(okPressed))
         ok.keyEquivalent = "\r"
-        let cancel = NSButton(title: L("İptal"), target: self, action: #selector(cancelPressed))
+        let cancel = NSButton(title: loc.t("cancel"), target: self, action: #selector(cancelPressed))
         cancel.keyEquivalent = "\u{1b}"
         let buttons = NSStackView(views: [cancel, ok])
         buttons.orientation = .horizontal
@@ -705,17 +705,17 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         sfxBox.isEnabled = f.supportsSFX
         volumeField.isEnabled = f.supportsVolumes
         switch f {
-        case .rar5: hintLabel.stringValue = RarTools.available ? L("En iyi sıkıştırma ve kurtarma kaydı; WinRAR 5+ ile açılır.") : L("RARLAB'ın RAR aracını gerektirir; Oluştur'a basınca indirme adımları gösterilir.")
-        case .sevenZip: hintLabel.stringValue = L("Ücretsiz, yüksek sıkıştırma; AES-256 şifre ve ad şifreleme destekler.")
-        case .zip: hintLabel.stringValue = L("En yaygın biçim; şifre AES-256 ile uygulanır (eski açıcılar desteklemeyebilir).")
-        case .tar: hintLabel.stringValue = L("Sıkıştırma yapmaz, yalnızca paketler.")
-        case .tgz, .txz, .tbz2: hintLabel.stringValue = L("Unix/Linux için; şifre ve parçalara bölme desteklemez.")
+        case .rar5: hintLabel.stringValue = RarTools.available ? loc.t("format_hint_rar5") : loc.t("format_hint_rar_tool_required")
+        case .sevenZip: hintLabel.stringValue = loc.t("format_hint_7z")
+        case .zip: hintLabel.stringValue = loc.t("format_hint_zip")
+        case .tar: hintLabel.stringValue = loc.t("format_hint_tar")
+        case .tgz, .txz, .tbz2: hintLabel.stringValue = loc.t("format_hint_tar_compressed")
         }
     }
 
     @objc private func browse() {
         let panel = NSSavePanel()
-        panel.title = L("Arşivi Kaydet")
+        panel.title = loc.t("compress_save_panel_title")
         panel.nameFieldStringValue = (pathField.stringValue as NSString).lastPathComponent
         panel.directoryURL = URL(fileURLWithPath: (pathField.stringValue as NSString).deletingLastPathComponent)
         if panel.runModal() == .OK, let u = panel.url { pathField.stringValue = u.path }
@@ -728,7 +728,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         if ArchiveFormat.detect(fromPath: path) != f { path = f.replacingExtension(in: path) }
         if f.isRar, !RarTools.ensureAvailable() { return }
         if f.supportsPassword, pwField.stringValue != pw2Field.stringValue {
-            Dialogs.error(L("Şifreler eşleşmiyor"), L("Her iki şifre alanına aynı şifreyi girin."))
+            Dialogs.error(loc.t("compress_password_mismatch_title"), loc.t("compress_password_mismatch_message"))
             return
         }
         var o = options

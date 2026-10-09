@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let none = menu.addItem(withTitle: "—", action: nil, keyEquivalent: ""); none.isEnabled = false
         } else {
             menu.addItem(.separator())
-            let clear = menu.addItem(withTitle: L("Listeyi Temizle"), action: #selector(clearRecent(_:)), keyEquivalent: "")
+            let clear = menu.addItem(withTitle: loc.t("menu_clear_recent"), action: #selector(clearRecent(_:)), keyEquivalent: "")
             clear.target = self
         }
     }
@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #if !APPSTORE
         if let p = ProcessInfo.processInfo.environment["MACRAR_DEBUG_RARINSTALL"] {
             do { try RarTools.install(from: URL(fileURLWithPath: p)); print("RAR kuruldu:", RarTools.version ?? "?", RarTools.installDir) }
-            catch { print("RAR kurulamadı:", error.localizedDescription) }
+            catch { print("RAR install failed:", error.localizedDescription) }
             exit(0)
         }
         #endif
@@ -254,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .installQuickActions:
             #if !APPSTORE
             let n = QuickActions.installAll()
-            print("\(n) hızlı eylem kuruldu: \(QuickActions.servicesDir)")
+            print("\(n) Quick Actions installed: \(QuickActions.servicesDir)")
             #endif
             self.finishCommand()
         case .extractHere(let a):
@@ -264,7 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .extractTo(let a):
             let list = Self.dedupeVolumes(a)
             guard let first = list.first,
-                  let d = Dialogs.chooseFolder(title: L("Nereye çıkartılsın?"), prompt: L("Çıkart"),
+                  let d = Dialogs.chooseFolder(title: loc.t("panel_extract_destination"), prompt: loc.t("extract"),
                                                initial: (first as NSString).deletingLastPathComponent) else {
                 self.finishCommand(); return
             }
@@ -396,9 +396,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func makeDefaultForAll(_ sender: Any?) {
         setDefaultHandler(extensions: ["rar", "zip", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab", "iso", "lzh", "arj"]) { err in
             if let err {
-                Dialogs.error(L("Varsayılan uygulama ayarlanamadı"), err.localizedDescription)
+                Dialogs.error(loc.t("default_app_failed_title"), err.localizedDescription)
             } else {
-                Dialogs.info(L("Tamam"), LF("%@ artık yaygın arşiv biçimleri için varsayılan uygulama.", AppInfo.name))
+                Dialogs.info(loc.t("ok"), loc.t("default_app_all_done", AppInfo.name))
             }
         }
     }
@@ -406,9 +406,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func makeDefault(_ sender: Any?) {
         setDefaultHandler { err in
             if let err {
-                Dialogs.error(L("Varsayılan uygulama ayarlanamadı"), err.localizedDescription)
+                Dialogs.error(loc.t("default_app_failed_title"), err.localizedDescription)
             } else {
-                Dialogs.info(L("Tamam"), LF("%@ artık .rar dosyaları için varsayılan uygulama.", AppInfo.name))
+                Dialogs.info(loc.t("ok"), loc.t("default_app_rar_done", AppInfo.name))
             }
         }
     }
@@ -416,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func installQuickActionsAction(_ sender: Any?) {
         #if !APPSTORE
         let n = QuickActions.installAll()
-        Dialogs.info(L("Finder hızlı eylemleri yüklendi"), LF("%d hızlı eylem kuruldu. Finder'da bir dosyaya sağ tıklayıp \"Hızlı Eylemler\" menüsünden kullanabilirsiniz.", n))
+        Dialogs.info(loc.t("quick_actions_installed_title"), loc.t("quick_actions_installed_message", n))
         #endif
     }
 
@@ -426,12 +426,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let credits = NSMutableAttributedString()
         let para = NSMutableParagraphStyle(); para.alignment = .center
         let base: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
-        credits.append(NSAttributedString(string: L("Geliştirici: Mesut Çevik\n"), attributes: base))
+        credits.append(NSAttributedString(string: loc.t("about_developer"), attributes: base))
         var link = base
         link[.link] = URL(string: "https://github.com/mstcvk/MacRAR")!
         link[.foregroundColor] = NSColor.linkColor
         credits.append(NSAttributedString(string: "github.com/mstcvk/MacRAR", attributes: link))
-        credits.append(NSAttributedString(string: L("\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR açma: unRAR kodu © Alexander Roshal"), attributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: para]))
+        credits.append(NSAttributedString(string: loc.t("about_third_party"), attributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: para]))
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: credits,
@@ -447,85 +447,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let appItem = NSMenuItem(); main.addItem(appItem)
         let app = NSMenu()
-        app.addItem(withTitle: LF("%@ Hakkında", AppInfo.name), action: #selector(showAbout(_:)), keyEquivalent: "")
+        app.addItem(withTitle: loc.t("menu_about", AppInfo.name), action: #selector(showAbout(_:)), keyEquivalent: "")
         #if !APPSTORE
-        app.addItem(withTitle: L("Güncellemeleri Denetle…"), action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        app.addItem(withTitle: loc.t("menu_check_for_updates"), action: #selector(checkForUpdates(_:)), keyEquivalent: "")
         #endif
         app.addItem(.separator())
-        app.addItem(withTitle: L("Ayarlar…"), action: #selector(showPreferences(_:)), keyEquivalent: ",")
+        app.addItem(withTitle: loc.t("menu_settings"), action: #selector(showPreferences(_:)), keyEquivalent: ",")
         app.addItem(.separator())
-        app.addItem(withTitle: L("Dosya İlişkilendirmeleri…"), action: #selector(showAssociations(_:)), keyEquivalent: "")
+        app.addItem(withTitle: loc.t("action_file_associations"), action: #selector(showAssociations(_:)), keyEquivalent: "")
         #if !APPSTORE
-        app.addItem(withTitle: L("Finder Hızlı Eylemlerini (Yeniden) Yükle"), action: #selector(installQuickActionsAction(_:)), keyEquivalent: "")
+        app.addItem(withTitle: loc.t("menu_install_quick_actions"), action: #selector(installQuickActionsAction(_:)), keyEquivalent: "")
         #endif
         app.addItem(.separator())
-        app.addItem(withTitle: LF("%@'ı Gizle", AppInfo.name), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthers = app.addItem(withTitle: L("Diğerlerini Gizle"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        app.addItem(withTitle: loc.t("menu_hide_app", AppInfo.name), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = app.addItem(withTitle: loc.t("menu_hide_others"), action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
-        app.addItem(withTitle: L("Tümünü Göster"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        app.addItem(withTitle: loc.t("menu_show_all"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
-        app.addItem(withTitle: LF("%@'dan Çık", AppInfo.name), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        app.addItem(withTitle: loc.t("menu_quit_app", AppInfo.name), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = app
 
         let fileItem = NSMenuItem(); main.addItem(fileItem)
-        let file = NSMenu(title: L("Dosya"))
-        file.addItem(withTitle: L("Arşiv Aç…"), action: #selector(ArchiveWindowController.openArchive(_:)), keyEquivalent: "o")
-        file.addItem(withTitle: L("Yeni Arşiv Oluştur…"), action: #selector(ArchiveWindowController.newArchive(_:)), keyEquivalent: "n")
-        let recentItem = file.addItem(withTitle: L("Son Kullanılanlar"), action: nil, keyEquivalent: "")
-        let recent = NSMenu(title: L("Son Kullanılanlar"))
+        let file = NSMenu(title: loc.t("menu_file"))
+        file.addItem(withTitle: loc.t("action_open_archive"), action: #selector(ArchiveWindowController.openArchive(_:)), keyEquivalent: "o")
+        file.addItem(withTitle: loc.t("action_new_archive"), action: #selector(ArchiveWindowController.newArchive(_:)), keyEquivalent: "n")
+        let recentItem = file.addItem(withTitle: loc.t("menu_open_recent"), action: nil, keyEquivalent: "")
+        let recent = NSMenu(title: loc.t("menu_open_recent"))
         recent.delegate = self
         recentItem.submenu = recent
         file.addItem(.separator())
-        file.addItem(withTitle: L("Buraya Çıkart"), action: #selector(ArchiveWindowController.extractHere(_:)), keyEquivalent: "e")
-        let ef = file.addItem(withTitle: L("Klasöre Çıkart"), action: #selector(ArchiveWindowController.extractToFolder(_:)), keyEquivalent: "e")
+        file.addItem(withTitle: loc.t("action_extract_here"), action: #selector(ArchiveWindowController.extractHere(_:)), keyEquivalent: "e")
+        let ef = file.addItem(withTitle: loc.t("action_extract_to_folder"), action: #selector(ArchiveWindowController.extractToFolder(_:)), keyEquivalent: "e")
         ef.keyEquivalentModifierMask = [.command, .option]
-        let et = file.addItem(withTitle: L("Şuraya Çıkart…"), action: #selector(ArchiveWindowController.extractTo(_:)), keyEquivalent: "e")
+        let et = file.addItem(withTitle: loc.t("action_extract_to"), action: #selector(ArchiveWindowController.extractTo(_:)), keyEquivalent: "e")
         et.keyEquivalentModifierMask = [.command, .shift]
-        file.addItem(withTitle: L("Seçilenleri Buraya Çıkart"), action: #selector(ArchiveWindowController.extractSelectedHere(_:)), keyEquivalent: "")
-        file.addItem(withTitle: L("Seçilenleri Şuraya Çıkart…"), action: #selector(ArchiveWindowController.extractSelectedTo(_:)), keyEquivalent: "")
+        file.addItem(withTitle: loc.t("action_extract_selected_here"), action: #selector(ArchiveWindowController.extractSelectedHere(_:)), keyEquivalent: "")
+        file.addItem(withTitle: loc.t("action_extract_selected_to"), action: #selector(ArchiveWindowController.extractSelectedTo(_:)), keyEquivalent: "")
         file.addItem(.separator())
-        file.addItem(withTitle: L("Arşivi Test Et"), action: #selector(ArchiveWindowController.testArchive(_:)), keyEquivalent: "t")
-        file.addItem(withTitle: L("Arşiv Bilgisi"), action: #selector(ArchiveWindowController.showInfo(_:)), keyEquivalent: "i")
+        file.addItem(withTitle: loc.t("action_test_archive"), action: #selector(ArchiveWindowController.testArchive(_:)), keyEquivalent: "t")
+        file.addItem(withTitle: loc.t("action_archive_info"), action: #selector(ArchiveWindowController.showInfo(_:)), keyEquivalent: "i")
         file.addItem(.separator())
-        let add = file.addItem(withTitle: L("Arşive Dosya Ekle…"), action: #selector(ArchiveWindowController.addFiles(_:)), keyEquivalent: "a")
+        let add = file.addItem(withTitle: loc.t("action_add_files"), action: #selector(ArchiveWindowController.addFiles(_:)), keyEquivalent: "a")
         add.keyEquivalentModifierMask = [.command, .shift]
-        file.addItem(withTitle: L("Seçilenleri Arşivden Sil"), action: #selector(ArchiveWindowController.deleteSelected(_:)), keyEquivalent: "\u{8}")
+        file.addItem(withTitle: loc.t("action_delete_selected"), action: #selector(ArchiveWindowController.deleteSelected(_:)), keyEquivalent: "\u{8}")
         file.addItem(.separator())
-        file.addItem(withTitle: L("Kapat"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        file.addItem(withTitle: loc.t("menu_close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileItem.submenu = file
 
         let editItem = NSMenuItem(); main.addItem(editItem)
-        let edit = NSMenu(title: L("Düzen"))
-        edit.addItem(withTitle: L("Geri Al"), action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: L("Yinele"), action: Selector(("redo:")), keyEquivalent: "z")
+        let edit = NSMenu(title: loc.t("menu_edit"))
+        edit.addItem(withTitle: loc.t("menu_undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: loc.t("menu_redo"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: L("Kes"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: L("Kopyala"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: L("Yapıştır"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: L("Tümünü Seç"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: loc.t("menu_cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: loc.t("menu_copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: loc.t("menu_paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: loc.t("menu_select_all"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
 
         let viewItem = NSMenuItem(); main.addItem(viewItem)
-        let view = NSMenu(title: L("Görünüm"))
-        view.addItem(withTitle: L("Göz At"), action: #selector(ArchiveWindowController.quickLook(_:)), keyEquivalent: " ").keyEquivalentModifierMask = []
+        let view = NSMenu(title: loc.t("menu_view"))
+        view.addItem(withTitle: loc.t("action_quick_look"), action: #selector(ArchiveWindowController.quickLook(_:)), keyEquivalent: " ").keyEquivalentModifierMask = []
         view.addItem(.separator())
-        let ea = view.addItem(withTitle: L("Tümünü Genişlet"), action: #selector(ArchiveWindowController.expandAll(_:)), keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
+        let ea = view.addItem(withTitle: loc.t("action_expand_all"), action: #selector(ArchiveWindowController.expandAll(_:)), keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!))
         ea.keyEquivalentModifierMask = [.command, .option]
-        let ca = view.addItem(withTitle: L("Tümünü Daralt"), action: #selector(ArchiveWindowController.collapseAll(_:)), keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        let ca = view.addItem(withTitle: loc.t("action_collapse_all"), action: #selector(ArchiveWindowController.collapseAll(_:)), keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!))
         ca.keyEquivalentModifierMask = [.command, .option]
         view.addItem(.separator())
-        view.addItem(withTitle: L("Yenile"), action: #selector(ArchiveWindowController.refresh(_:)), keyEquivalent: "r")
-        let rv = view.addItem(withTitle: L("Arşivi Finder'da Göster"), action: #selector(ArchiveWindowController.revealArchive(_:)), keyEquivalent: "r")
+        view.addItem(withTitle: loc.t("action_refresh"), action: #selector(ArchiveWindowController.refresh(_:)), keyEquivalent: "r")
+        let rv = view.addItem(withTitle: loc.t("action_show_in_finder"), action: #selector(ArchiveWindowController.revealArchive(_:)), keyEquivalent: "r")
         rv.keyEquivalentModifierMask = [.command, .shift]
         viewItem.submenu = view
 
         let winItem = NSMenuItem(); main.addItem(winItem)
-        let win = NSMenu(title: L("Pencere"))
-        win.addItem(withTitle: L("Küçült"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        win.addItem(withTitle: L("Büyüt"), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        let win = NSMenu(title: loc.t("menu_window"))
+        win.addItem(withTitle: loc.t("menu_minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        win.addItem(withTitle: loc.t("menu_zoom"), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         win.addItem(.separator())
-        win.addItem(withTitle: L("Tümünü Öne Getir"), action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        win.addItem(withTitle: loc.t("menu_bring_all_to_front"), action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         winItem.submenu = win
         NSApp.windowsMenu = win
 

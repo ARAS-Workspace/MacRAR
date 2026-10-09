@@ -17,12 +17,12 @@ enum Associations {
             Group(title: "ZIP", exts: ["zip"], defaultOn: true, warning: nil),
             Group(title: "7z", exts: ["7z"], defaultOn: true, warning: nil),
             Group(title: "GZ, TAR.GZ", exts: ["gz"], defaultOn: true, warning: nil),
-            Group(title: L("Diğer arşivler: TAR, TGZ, BZ2, XZ, ZST, ZIPX, CAB, LZH, ARJ, CPIO…"),
+            Group(title: loc.t("assoc_group_other"),
                   exts: ["tar", "tgz", "bz2", "tbz2", "xz", "txz", "zst", "lz4", "lzma", "zipx", "cab", "lzh", "lha", "arj", "cpio", "z"], defaultOn: false, warning: nil),
-            Group(title: L("Disk görüntüleri: ISO, DMG, VHD, VMDK"), exts: ["iso", "dmg", "vhd", "vmdk"], defaultOn: false,
-                  warning: L("Önerilmez: çift tıklayınca disk bağlanmaz, arşiv gibi açılır.")),
-            Group(title: L("Paketler: PKG, JAR, APK, DEB, RPM, MSI"), exts: ["pkg", "jar", "apk", "deb", "rpm", "msi"], defaultOn: false,
-                  warning: L("Önerilmez: çift tıklayınca kurulum/çalıştırma yerine arşiv olarak açılır.")),
+            Group(title: loc.t("assoc_group_disk_images"), exts: ["iso", "dmg", "vhd", "vmdk"], defaultOn: false,
+                  warning: loc.t("assoc_disk_images_warning")),
+            Group(title: loc.t("assoc_group_packages"), exts: ["pkg", "jar", "apk", "deb", "rpm", "msi"], defaultOn: false,
+                  warning: loc.t("assoc_packages_warning")),
         ]
     }
 
@@ -45,7 +45,7 @@ enum Associations {
 
     /// Bu türün şu anki varsayılan uygulamasının adı
     static func currentHandler(for exts: [String]) -> String {
-        guard let t = types(for: exts).first, let url = NSWorkspace.shared.urlForApplication(toOpen: t) else { return L("yok") }
+        guard let t = types(for: exts).first, let url = NSWorkspace.shared.urlForApplication(toOpen: t) else { return loc.t("assoc_current_none") }
         if url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL { return AppInfo.name }
         return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
     }
@@ -61,10 +61,10 @@ enum Associations {
     static func show(firstLaunch: Bool = false) -> Bool {
         Dialogs.activate()
         let alert = NSAlert()
-        alert.messageText = LF("Hangi dosyalar %@ ile açılsın?", AppInfo.name)
+        alert.messageText = loc.t("assoc_title", AppInfo.name)
         alert.informativeText = (firstLaunch
-            ? L("Seçtiğiniz dosya türlerine çift tıklayınca bu uygulama açılır. Daha sonra menüden “Dosya İlişkilendirmeleri…” ile değiştirebilirsiniz.")
-            : L("Seçtiğiniz dosya türlerine çift tıklayınca bu uygulama açılır.")) + "\n\n" + L("macOS her dosya türü için ayrıca onay isteyecek.")
+            ? loc.t("assoc_message_first_launch")
+            : loc.t("assoc_message")) + "\n\n" + loc.t("assoc_confirm_note")
         alert.icon = NSApp.applicationIconImage
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -76,7 +76,7 @@ enum Associations {
             let mine = current == AppInfo.name
             let box = NSButton(checkboxWithTitle: g.title, target: nil, action: nil)
             box.state = (g.defaultOn || mine) ? .on : .off
-            let detail = NSTextField(labelWithString: LF("Şu an: %@", current) + (g.warning.map { "  •  " + $0 } ?? ""))
+            let detail = NSTextField(labelWithString: loc.t("assoc_current", current) + (g.warning.map { "  •  " + $0 } ?? ""))
             detail.font = .systemFont(ofSize: 10)
             detail.textColor = g.warning == nil ? .secondaryLabelColor : .systemOrange
             detail.lineBreakMode = .byTruncatingTail
@@ -101,8 +101,8 @@ enum Associations {
         container.layoutSubtreeIfNeeded()
         container.setFrameSize(NSSize(width: 400, height: stack.fittingSize.height))
         alert.accessoryView = container
-        alert.addButton(withTitle: L("Varsayılan Yap"))
-        alert.addButton(withTitle: L("Şimdi Değil"))
+        alert.addButton(withTitle: loc.t("assoc_make_default"))
+        alert.addButton(withTitle: loc.t("assoc_not_now"))
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] == "show" {
             // ekran görüntüsü için pencereyi açık bırak
         }
@@ -123,9 +123,9 @@ enum Associations {
                 completion?(ok, failed)
                 if !quiet {
                     if failed.isEmpty {
-                        Dialogs.info(L("Tamam"), LF("%@ artık %d dosya türü için varsayılan uygulama.", AppInfo.name, ok))
+                        Dialogs.info(loc.t("ok"), loc.t("assoc_done", AppInfo.name, ok))
                     } else {
-                        Dialogs.error(L("Bazı türler ayarlanamadı"), failed.joined(separator: ", "))
+                        Dialogs.error(loc.t("assoc_partial_failure"), failed.joined(separator: ", "))
                     }
                 }
                 return

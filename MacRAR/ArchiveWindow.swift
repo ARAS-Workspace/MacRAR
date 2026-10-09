@@ -132,7 +132,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private let outline = ArchiveOutlineView()
     private let scroll = NSScrollView()
     private let statusLabel = NSTextField(labelWithString: "")
-    private let emptyLabel = NSTextField(wrappingLabelWithString: L("Bir arşiv açmak için ⌘O kullanın\nveya bir arşiv dosyasını (RAR, ZIP, 7z…) bu pencereye sürükleyin."))
+    private let emptyLabel = NSTextField(wrappingLabelWithString: loc.t("window_empty_hint"))
     private let emptyView = EmptyStateView()
     private var sortKey = "name"
     private var sortAscending = true
@@ -185,12 +185,12 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
             c.headerCell.alignment = align
             return c
         }
-        outline.addTableColumn(col(Self.nameCol, L("Ad"), width: 320, min: 160))
+        outline.addTableColumn(col(Self.nameCol, loc.t("column_name"), width: 320, min: 160))
         outline.addTableColumn(col(Self.lockCol, "🔒", width: 28, min: 28, align: .center))
-        outline.addTableColumn(col(Self.sizeCol, L("Boyut"), width: 90, align: .right))
-        outline.addTableColumn(col(Self.packedCol, L("Paketli"), width: 90, align: .right))
-        outline.addTableColumn(col(Self.ratioCol, L("Oran"), width: 55, align: .right))
-        outline.addTableColumn(col(Self.dateCol, L("Değiştirilme"), width: 140))
+        outline.addTableColumn(col(Self.sizeCol, loc.t("column_size"), width: 90, align: .right))
+        outline.addTableColumn(col(Self.packedCol, loc.t("column_packed"), width: 90, align: .right))
+        outline.addTableColumn(col(Self.ratioCol, loc.t("column_ratio"), width: 55, align: .right))
+        outline.addTableColumn(col(Self.dateCol, loc.t("column_modified"), width: 140))
         outline.addTableColumn(col(Self.crcCol, "CRC32", width: 80))
         for c in outline.tableColumns where c.identifier != Self.lockCol && c.identifier != Self.crcCol {
             c.sortDescriptorPrototype = NSSortDescriptor(key: c.identifier.rawValue, ascending: true)
@@ -228,8 +228,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         emptyLabel.alignment = .center
         emptyLabel.textColor = .tertiaryLabelColor
         emptyLabel.font = .systemFont(ofSize: 15)
-        let openBtn = NSButton(title: L("Arşiv Aç…"), target: self, action: #selector(openArchive(_:)))
-        let newBtn = NSButton(title: L("Yeni Arşiv…"), target: self, action: #selector(newArchive(_:)))
+        let openBtn = NSButton(title: loc.t("action_open_archive"), target: self, action: #selector(openArchive(_:)))
+        let newBtn = NSButton(title: loc.t("window_empty_new_archive"), target: self, action: #selector(newArchive(_:)))
         openBtn.bezelStyle = .rounded; newBtn.bezelStyle = .rounded
         let btnRow = NSStackView(views: [openBtn, newBtn]); btnRow.spacing = 12
         let emptyStack = NSStackView(views: [emptyLabel, btnRow])
@@ -275,13 +275,13 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     private func buildContextMenu() -> NSMenu {
         let m = NSMenu()
-        m.addItem(withTitle: L("Aç"), action: #selector(openSelected), keyEquivalent: "")
-        m.addItem(withTitle: L("Göz At"), action: #selector(quickLook(_:)), keyEquivalent: "")
+        m.addItem(withTitle: loc.t("open"), action: #selector(openSelected), keyEquivalent: "")
+        m.addItem(withTitle: loc.t("action_quick_look"), action: #selector(quickLook(_:)), keyEquivalent: "")
         m.addItem(.separator())
-        m.addItem(withTitle: L("Seçilenleri Buraya Çıkart"), action: #selector(extractSelectedHere), keyEquivalent: "")
-        m.addItem(withTitle: L("Seçilenleri Şuraya Çıkart…"), action: #selector(extractSelectedTo), keyEquivalent: "")
+        m.addItem(withTitle: loc.t("action_extract_selected_here"), action: #selector(extractSelectedHere), keyEquivalent: "")
+        m.addItem(withTitle: loc.t("action_extract_selected_to"), action: #selector(extractSelectedTo), keyEquivalent: "")
         m.addItem(.separator())
-        m.addItem(withTitle: L("Arşivden Sil"), action: #selector(deleteSelected), keyEquivalent: "")
+        m.addItem(withTitle: loc.t("action_delete_from_archive"), action: #selector(deleteSelected), keyEquivalent: "")
         return m
     }
 
@@ -389,27 +389,27 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func updateStatus() {
         emptyView.isHidden = info != nil
         guard let info else {
-            statusLabel.stringValue = L("Arşiv açık değil")
+            statusLabel.stringValue = loc.t("status_no_archive")
             return
         }
         var parts: [String] = []
         let sel = selectedNodes()
         if !sel.isEmpty {
             let size = sel.reduce(0) { $0 + $1.totalSize }
-            parts.append(LF("Seçili: %d öğe, %@", sel.count, Fmt.size(size)))
+            parts.append(loc.t("status_selection", sel.count, Fmt.size(size)))
         } else if let f = filtered {
-            parts.append(LF("%d eşleşme", f.count))
+            parts.append(loc.t("status_matches", f.count))
         } else {
-            parts.append(LF("%d dosya, %@ (paketli %@)", info.fileCount, Fmt.size(info.totalSize), Fmt.size(info.totalPacked)))
+            parts.append(loc.t("status_summary", info.fileCount, Fmt.size(info.totalSize), Fmt.size(info.totalPacked)))
         }
         var det = info.details
         if info.headersEncrypted, !det.contains("encrypted headers") { det += ", encrypted headers" }
-        det = det.replacingOccurrences(of: "encrypted headers", with: L("şifreli başlıklar"))
-            .replacingOccurrences(of: "solid", with: L("katı"))
-            .replacingOccurrences(of: "recovery record", with: L("kurtarma kaydı"))
-            .replacingOccurrences(of: "volume", with: L("parça"))
-            .replacingOccurrences(of: "lock", with: L("kilitli"))
-        if info.hasEncryptedFiles && !info.headersEncrypted { det += L(", şifreli dosyalar") }
+        det = det.replacingOccurrences(of: "encrypted headers", with: loc.t("status_flag_encrypted_headers"))
+            .replacingOccurrences(of: "solid", with: loc.t("status_flag_solid"))
+            .replacingOccurrences(of: "recovery record", with: loc.t("status_flag_recovery_record"))
+            .replacingOccurrences(of: "volume", with: loc.t("status_flag_volume"))
+            .replacingOccurrences(of: "lock", with: loc.t("status_flag_locked"))
+        if info.hasEncryptedFiles && !info.headersEncrypted { det += loc.t("status_flag_encrypted_files") }
         parts.append(det)
         statusLabel.stringValue = parts.joined(separator: "   •   ")
     }
@@ -431,12 +431,12 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     // MARK: Eylemler
 
     @objc func openArchive(_ sender: Any?) {
-        let files = Dialogs.chooseFiles(title: L("Arşiv Aç"), prompt: L("Aç"), archivesOnly: true)
+        let files = Dialogs.chooseFiles(title: loc.t("panel_open_archive_title"), prompt: loc.t("open"), archivesOnly: true)
         for f in files { AppDelegate.shared.openArchive(f, reuse: self.info == nil ? self : nil) }
     }
 
     @objc func newArchive(_ sender: Any?) {
-        let items = Dialogs.chooseFiles(title: L("Sıkıştırılacak dosya ve klasörleri seçin"), prompt: L("Seç"), archivesOnly: false)
+        let items = Dialogs.chooseFiles(title: loc.t("panel_compress_message"), prompt: loc.t("choose"), archivesOnly: false)
         guard !items.isEmpty else { return }
         AppDelegate.shared.compressWithDialog(items: items, host: window) { [weak self] path in
             guard let self, let path else { return }
@@ -457,7 +457,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     @objc func extractTo(_ sender: Any?) {
         guard let info else { return }
-        guard let dest = Dialogs.chooseFolder(title: L("Nereye çıkartılsın?"), prompt: L("Çıkart"),
+        guard let dest = Dialogs.chooseFolder(title: loc.t("panel_extract_destination"), prompt: loc.t("extract"),
                                               initial: (info.path as NSString).deletingLastPathComponent) else { return }
         doExtract(names: nil, dest: dest)
     }
@@ -473,7 +473,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         guard let info else { return }
         let names = selectedPaths()
         guard !names.isEmpty else { return }
-        guard let dest = Dialogs.chooseFolder(title: L("Seçilenler nereye çıkartılsın?"), prompt: L("Çıkart"),
+        guard let dest = Dialogs.chooseFolder(title: loc.t("panel_extract_selected_destination"), prompt: loc.t("extract"),
                                               initial: (info.path as NSString).deletingLastPathComponent) else { return }
         doExtract(names: names, dest: dest)
     }
@@ -495,7 +495,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     @objc func addFiles(_ sender: Any?) {
         guard info != nil else { newArchive(sender); return }
-        let items = Dialogs.chooseFiles(title: L("Arşive eklenecek dosya ve klasörleri seçin"), prompt: L("Ekle"), archivesOnly: false)
+        let items = Dialogs.chooseFiles(title: loc.t("panel_add_files_message"), prompt: loc.t("add"), archivesOnly: false)
         guard !items.isEmpty else { return }
         addItems(items)
     }
@@ -514,7 +514,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         let names = selectedPaths()
         guard !names.isEmpty else { return }
         let list = names.prefix(5).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ") + (names.count > 5 ? " …" : "")
-        guard Dialogs.confirm(LF("%d öğe arşivden silinsin mi?", names.count), list + L("\n\nBu işlem geri alınamaz."), okTitle: L("Sil"), destructive: true) else { return }
+        guard Dialogs.confirm(loc.t("delete_confirm_title", names.count), list + loc.t("delete_confirm_irreversible"), okTitle: loc.t("delete"), destructive: true) else { return }
         Ops.delete(info: info, names: names, password: password, host: window) { [weak self] ok, pw in
             guard let self else { return }
             self.password = pw ?? self.password
@@ -526,9 +526,9 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         guard let info else { return }
         let attrs = (try? FileManager.default.attributesOfItem(atPath: info.path)) ?? [:]
         let fileSize = (attrs[.size] as? Int64) ?? 0
-        let text = LF("Dosya: %@\nArşiv boyutu: %@\nBiçim: %@\nDosya sayısı: %d\nKlasör sayısı: %d\nToplam boyut: %@\nPaketli boyut: %@\nŞifreli: %@",
+        let text = loc.t("archive_info_details",
                       info.path, Fmt.size(fileSize), info.details, info.fileCount, info.entries.count - info.fileCount,
-                      Fmt.size(info.totalSize), Fmt.size(info.totalPacked), info.hasEncryptedFiles ? L("Evet") : L("Hayır"))
+                      Fmt.size(info.totalSize), Fmt.size(info.totalPacked), info.hasEncryptedFiles ? loc.t("yes") : loc.t("no"))
         Dialogs.info((info.path as NSString).lastPathComponent, text)
     }
 
@@ -645,8 +645,8 @@ extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         if id == TB.search {
             let s = NSSearchToolbarItem(itemIdentifier: id)
-            s.label = L("Ara")
-            s.searchField.placeholderString = L("Arşivde ara")
+            s.label = loc.t("search_label")
+            s.searchField.placeholderString = loc.t("search_placeholder")
             s.searchField.target = self
             s.searchField.action = #selector(searchChanged(_:))
             s.searchField.sendsSearchStringImmediately = true
@@ -654,15 +654,15 @@ extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
             return s
         }
         let specs: [NSToolbarItem.Identifier: (String, String, Selector, String)] = [
-            TB.open: (L("Aç"), "folder", #selector(openArchive), L("Arşiv aç")),
-            TB.newArchive: (L("Sıkıştır"), "doc.zipper", #selector(newArchive), L("Yeni arşiv oluştur")),
-            TB.extractTo: (L("Çıkart…"), "square.and.arrow.down", #selector(extractTo), L("Seçilen klasöre çıkart")),
-            TB.extractHere: (L("Buraya"), "arrow.down.doc", #selector(extractHere), L("Arşivin bulunduğu klasöre çıkart")),
-            TB.extractFolder: (L("Klasöre"), "folder.badge.plus", #selector(extractToFolder), L("Arşiv adıyla yeni klasöre çıkart")),
-            TB.test: (L("Test"), "checkmark.shield", #selector(testArchive), L("Arşivi test et")),
-            TB.add: (L("Ekle"), "plus.rectangle.on.folder", #selector(addFiles), L("Arşive dosya ekle")),
-            TB.delete: (L("Sil"), "trash", #selector(deleteSelected), L("Seçilenleri arşivden sil")),
-            TB.info: (L("Bilgi"), "info.circle", #selector(showInfo), L("Arşiv bilgisi")),
+            TB.open: (loc.t("open"), "folder", #selector(openArchive), loc.t("toolbar_open_tooltip")),
+            TB.newArchive: (loc.t("toolbar_compress"), "doc.zipper", #selector(newArchive), loc.t("toolbar_compress_tooltip")),
+            TB.extractTo: (loc.t("toolbar_extract"), "square.and.arrow.down", #selector(extractTo), loc.t("toolbar_extract_tooltip")),
+            TB.extractHere: (loc.t("toolbar_extract_here"), "arrow.down.doc", #selector(extractHere), loc.t("toolbar_extract_here_tooltip")),
+            TB.extractFolder: (loc.t("toolbar_extract_folder"), "folder.badge.plus", #selector(extractToFolder), loc.t("toolbar_extract_folder_tooltip")),
+            TB.test: (loc.t("toolbar_test"), "checkmark.shield", #selector(testArchive), loc.t("toolbar_test_tooltip")),
+            TB.add: (loc.t("add"), "plus.rectangle.on.folder", #selector(addFiles), loc.t("toolbar_add_tooltip")),
+            TB.delete: (loc.t("delete"), "trash", #selector(deleteSelected), loc.t("toolbar_delete_tooltip")),
+            TB.info: (loc.t("toolbar_info"), "info.circle", #selector(showInfo), loc.t("toolbar_info_tooltip")),
         ]
         guard let (label, symbol, sel, tip) = specs[id] else { return nil }
         let item = NSToolbarItem(itemIdentifier: id)
@@ -849,9 +849,9 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
                 let list = nodes.prefix(6).map { $0.name }.joined(separator: ", ") + (nodes.count > 6 ? " …" : "")
                 let destName = destFolder.lastPathComponent
                 let title = nodes.count == 1
-                    ? LF("\"%@\" \"%@\" klasörüne çıkartılsın mı?", nodes[0].name, destName)
-                    : LF("%d öğe \"%@\" klasörüne çıkartılsın mı?", nodes.count, destName)
-                dragDecision = Dialogs.confirm(title, LF("Arşiv: %@\nHedef: %@\nÖğeler: %@", (info.path as NSString).lastPathComponent, AppInfo.abbreviate(destFolder.path), list), okTitle: L("Çıkart"))
+                    ? loc.t("drag_extract_confirm_single", nodes[0].name, destName)
+                    : loc.t("drag_extract_confirm_multiple", nodes.count, destName)
+                dragDecision = Dialogs.confirm(title, loc.t("drag_extract_details", (info.path as NSString).lastPathComponent, AppInfo.abbreviate(destFolder.path), list), okTitle: loc.t("extract"))
             }
             guard dragDecision == true else { error = CocoaError(.userCancelled); sem.signal(); return }
 

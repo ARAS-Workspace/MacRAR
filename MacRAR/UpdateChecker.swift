@@ -33,7 +33,7 @@ enum UpdateChecker {
                 guard error == nil, let data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let tag = json["tag_name"] as? String else {
-                    if manual { Dialogs.error(L("Güncelleme denetlenemedi"), L("GitHub'a ulaşılamadı. İnternet bağlantınızı kontrol edin.")) }
+                    if manual { Dialogs.error(loc.t("update_check_failed_title"), loc.t("update_check_failed_message")) }
                     return
                 }
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
@@ -44,7 +44,7 @@ enum UpdateChecker {
                     if !manual, UserDefaults.standard.string(forKey: skipKey) == latest { return }
                     present(latest: latest, page: pageURL, notes: notes)
                 } else if manual {
-                    Dialogs.info(L("Güncel sürümü kullanıyorsunuz"), LF("MacRAR %@ en son sürüm.", currentVersion))
+                    Dialogs.info(loc.t("update_up_to_date_title"), loc.t("update_up_to_date_message", currentVersion))
                 }
             }
         }.resume()
@@ -64,8 +64,8 @@ enum UpdateChecker {
     private static func present(latest: String, page: URL, notes: String) {
         Dialogs.activate()
         let alert = NSAlert()
-        alert.messageText = LF("MacRAR %@ sürümü çıktı", latest)
-        var info = LF("Kullandığınız sürüm: %@. Yeni sürümü GitHub'dan indirip Uygulamalar klasörüne sürükleyerek güncelleyebilirsiniz.", currentVersion)
+        alert.messageText = loc.t("update_available_title", latest)
+        var info = loc.t("update_available_message", currentVersion)
         // Markdown işaretlerini sadeleştir, ilk satırları göster
         let lines = notes.components(separatedBy: "\n").map { line -> String in
             var l = line.trimmingCharacters(in: .whitespaces)
@@ -79,9 +79,9 @@ enum UpdateChecker {
             info += "\n\n" + shown.joined(separator: "\n") + (lines.count > shown.count ? "\n…" : "")
         }
         alert.informativeText = info
-        alert.addButton(withTitle: L("İndir"))
-        alert.addButton(withTitle: L("Daha Sonra"))
-        alert.addButton(withTitle: L("Bu Sürümü Atla"))
+        alert.addButton(withTitle: loc.t("download"))
+        alert.addButton(withTitle: loc.t("later"))
+        alert.addButton(withTitle: loc.t("update_skip_version"))
         switch alert.runModal() {
         case .alertFirstButtonReturn: NSWorkspace.shared.open(page)
         case .alertThirdButtonReturn: UserDefaults.standard.set(latest, forKey: skipKey)

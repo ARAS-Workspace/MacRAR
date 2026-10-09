@@ -51,9 +51,9 @@ enum FolderAccess {
         if write ? canWrite(dir) : canRead(dir) { return true }
         Dialogs.activate()
         let panel = NSOpenPanel()
-        panel.title = L("Klasör izni")
-        panel.message = LF("%@, “%@” klasörüne erişmek için izninizi istiyor. Bu klasörü (ya da her seferinde sorulmaması için ana klasörünüzü) seçip “İzin Ver”e basın.", AppInfo.name, (dir as NSString).lastPathComponent)
-        panel.prompt = L("İzin Ver")
+        panel.title = loc.t("folder_access_title")
+        panel.message = loc.t("folder_access_message", AppInfo.name, (dir as NSString).lastPathComponent)
+        panel.prompt = loc.t("allow")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = false
@@ -71,9 +71,9 @@ enum FolderAccess {
     static func grantHome() {
         #if APPSTORE
         let panel = NSOpenPanel()
-        panel.title = L("Klasör izni")
-        panel.message = L("Ana klasörünüz seçili. “İzin Ver”e basarak altındaki tüm klasörlerde sormadan çalışmasına izin verebilirsiniz.")
-        panel.prompt = L("İzin Ver")
+        panel.title = loc.t("folder_access_title")
+        panel.message = loc.t("folder_access_home_selected")
+        panel.prompt = loc.t("allow")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.directoryURL = URL(fileURLWithPath: AppInfo.realHome)

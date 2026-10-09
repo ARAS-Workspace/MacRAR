@@ -71,21 +71,21 @@ enum RarTools {
         #else
         Dialogs.activate()
         let alert = NSAlert()
-        alert.messageText = L("RAR aracı gerekli")
-        alert.informativeText = L("RAR biçiminde arşiv oluşturmak veya RAR arşivini değiştirmek için RARLAB'ın “RAR for macOS” aracı gerekir (ücretli, 40 gün denenebilir). Lisansı gereği uygulamayla birlikte dağıtılamıyor.\n\n1. İndirme sayfasından “RAR for macOS ARM” (Apple Silicon) veya “RAR for macOS x64” (Intel) dosyasını indirin.\n2. “İndirdiğim Dosyayı Seç…” ile o dosyayı gösterin.\n\nRAR açmak, ZIP, 7z ve TAR için bu araç gerekmez.")
-        alert.addButton(withTitle: L("İndirdiğim Dosyayı Seç…"))
-        alert.addButton(withTitle: L("İndirme Sayfasını Aç"))
-        alert.addButton(withTitle: L("İptal"))
+        alert.messageText = loc.t("rar_tool_required_title")
+        alert.informativeText = loc.t("rar_tool_required_message")
+        alert.addButton(withTitle: loc.t("rar_tool_choose_downloaded"))
+        alert.addButton(withTitle: loc.t("rar_tool_open_download_page"))
+        alert.addButton(withTitle: loc.t("cancel"))
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             return chooseAndInstall()
         case .alertSecondButtonReturn:
             NSWorkspace.shared.open(downloadPage)
             let wait = NSAlert()
-            wait.messageText = L("İndirme bitince dosyayı seçin")
-            wait.informativeText = L("Tarayıcıda “RAR for macOS” dosyasını indirdikten sonra “Dosyayı Seç…” düğmesine basın.")
-            wait.addButton(withTitle: L("Dosyayı Seç…"))
-            wait.addButton(withTitle: L("İptal"))
+            wait.messageText = loc.t("rar_tool_wait_title")
+            wait.informativeText = loc.t("rar_tool_wait_message")
+            wait.addButton(withTitle: loc.t("rar_tool_choose_file"))
+            wait.addButton(withTitle: loc.t("cancel"))
             Dialogs.activate()
             return wait.runModal() == .alertFirstButtonReturn ? chooseAndInstall() : false
         default:
@@ -97,9 +97,9 @@ enum RarTools {
     #if !APPSTORE
     private static func chooseAndInstall() -> Bool {
         let panel = NSOpenPanel()
-        panel.title = L("RAR for macOS dosyasını seçin")
-        panel.message = L("İndirdiğiniz rarmacos-….tar.gz dosyasını, onu açtığınız “rar” klasörünü ya da içindeki “rar” programını seçin.")
-        panel.prompt = L("Kur")
+        panel.title = loc.t("rar_tool_panel_title")
+        panel.message = loc.t("rar_tool_panel_message")
+        panel.prompt = loc.t("install")
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -108,10 +108,10 @@ enum RarTools {
         guard panel.runModal() == .OK, let url = panel.url else { return false }
         do {
             try install(from: url)
-            Dialogs.info(L("RAR aracı kuruldu"), LF("%@ hazır. Artık RAR arşivi oluşturabilirsiniz.", version ?? "RAR"))
+            Dialogs.info(loc.t("rar_tool_installed_title"), loc.t("rar_tool_installed_message", version ?? "RAR"))
             return true
         } catch {
-            Dialogs.error(L("RAR aracı kurulamadı"), error.localizedDescription)
+            Dialogs.error(loc.t("rar_tool_install_failed_title"), error.localizedDescription)
             return false
         }
     }
@@ -135,7 +135,7 @@ enum RarTools {
             p.arguments = ["-xzf", url.path, "-C", t]
             p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
             try p.run(); p.waitUntilExit()
-            guard p.terminationStatus == 0 else { throw InstallError(message: L("Dosya açılamadı. Bozuk ya da farklı bir dosya olabilir.")) }
+            guard p.terminationStatus == 0 else { throw InstallError(message: loc.t("rar_tool_err_unreadable")) }
             sourceDir = findRarDir(in: t)
         } else if isDirectoryPath(url.path) {
             sourceDir = findRarDir(in: url.path)
@@ -144,7 +144,7 @@ enum RarTools {
         }
         defer { if let tmp { try? fm.removeItem(atPath: tmp) } }
         guard let src = sourceDir else {
-            throw InstallError(message: L("Seçilen yerde “rar” programı bulunamadı. RARLAB'dan indirdiğiniz “RAR for macOS” dosyasını seçin."))
+            throw InstallError(message: loc.t("rar_tool_err_not_found"))
         }
         try? fm.removeItem(atPath: installDir)
         try fm.createDirectory(atPath: installDir, withIntermediateDirectories: true)
@@ -165,7 +165,7 @@ enum RarTools {
         UserDefaults.standard.removeObject(forKey: "RarPath")
         guard version != nil else {
             try? fm.removeItem(atPath: installDir)
-            throw InstallError(message: L("RAR aracı bu Mac'te çalışmadı. Mac'inize uygun sürümü (Apple Silicon için ARM, Intel için x64) indirdiğinizden emin olun."))
+            throw InstallError(message: loc.t("rar_tool_err_wrong_arch"))
         }
     }
 
