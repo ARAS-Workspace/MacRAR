@@ -14,7 +14,7 @@ enum Command {
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
-    // MARK: Son kullanılanlar menüsü
+    // MARK: Open Recent menu
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let urls = NSDocumentController.shared.recentDocumentURLs.filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -45,9 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     static func isArchive(_ path: String) -> Bool { Formats.isArchive(path) }
 
-    // MARK: Yaşam döngüsü
+    // MARK: Lifecycle
 
-    /// Uygulama yalnızca bir Finder servisi için açıldıysa: iş bitince pencere yoksa kapanır
+    /// The app was opened only for a Finder service: quit when the work is done and no window is open
     var launchedForService = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -91,16 +91,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         #if !APPSTORE
-        // Finder sağ tık komutları: bu kurulum (yol + sürüm) için henüz kurulmadıysa sessizce kur
+        // Finder context-menu commands: install silently if not yet installed for this install (path + version)
         let stamp = Bundle.main.bundlePath + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
         if UserDefaults.standard.string(forKey: "QuickActionsInstalledFor") != stamp, Bundle.main.bundlePath.hasPrefix("/Applications/") {
             QuickActions.installAll()
             UserDefaults.standard.set(stamp, forKey: "QuickActionsInstalledFor")
         }
-        // Yalnızca pencereli kullanımda, günde bir kez
+        // Windowed use only, once a day
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if Prefs.checkUpdates { UpdateChecker.checkAutomatically() } }
         #endif
-        // İlk açılışta dosya ilişkilendirme önerisi (yalnızca /Applications'dan çalışırken)
+        // Offer file associations on first launch (only when running from /Applications)
         if Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil { Associations.show(firstLaunch: true) }
@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showAssociations(_ sender: Any?) { Associations.show() }
 
-    /// Finder servisinden gelen komut: uygulama açık kalır; yalnızca servis için açıldıysa ve pencere yoksa kapanır
+    /// Command from a Finder service: the app stays open; it quits only if it was opened for the service and no window is open
     func runServiceCommand(_ cmd: Command) {
         serviceMode = true
         NSApp.activate(ignoringOtherApps: true)
@@ -119,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     private var serviceMode = false
 
-    /// Komut bitti: komut satırı modunda çık; servis modunda gerekirse çık
+    /// Command finished: quit in command-line mode; in service mode quit if needed
     private func finishCommand() {
         if serviceMode {
             serviceMode = false
@@ -141,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let h = FileHandle(forWritingAtPath: log) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile() }
             else { try? line.write(toFile: log, atomically: true, encoding: .utf8) }
         }
-        // Finder'a hemen yanıt ver; dosyaları Apple olayı işleyicisinin dışında, modal pencere yokken işle
+        // Answer Finder right away; handle the files outside the Apple event handler, while no modal window is up
         sender.reply(toOpenOrPrint: .success)
         if launched {
             scheduleOpen(filenames)
@@ -177,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return true
     }
 
-    // MARK: Pencereler
+    // MARK: Windows
 
     @discardableResult
     func showEmptyWindow() -> ArchiveWindowController {
@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func handleOpen(_ rawFiles: [String]) {
-        // Aynı dosya hem argüman hem de LaunchServices üzerinden gelebilir → tekilleştir
+        // The same file can arrive both as an argument and through LaunchServices → deduplicate
         var seen = Set<String>()
         let files = rawFiles.map { Self.resolved($0) }.filter { seen.insert($0).inserted }
         let archives = files.filter { Self.isArchive($0) }
@@ -231,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if wc.info == nil, windows.count > 1 { wc.close() }
     }
 
-    /// Seçenek penceresi gösterip sıkıştırır. completion(oluşan arşiv yolu / nil)
+    /// Shows the options window and compresses. completion(path of the created archive / nil)
     func compressWithDialog(items: [String], host: NSWindow?, completion: @escaping (String?) -> Void) {
         let opts = CompressOptions.withDefaults(for: items)
         guard let chosen = CompressDialog(options: opts, itemCount: items.count).run() else { completion(nil); return }
@@ -241,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: Komut satırı / Finder hızlı eylem modu
+    // MARK: Command-line / Finder Quick Action mode
 
     private func runCommand(_ cmd: Command) {
         switch cmd {
@@ -275,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let existing = items.filter { FileManager.default.fileExists(atPath: $0) }
             guard !existing.isEmpty else { self.finishCommand(); return }
             var opts = CompressOptions.withDefaults(for: existing)
-            // Hata ayıklama: MACRAR_DEBUG_FORMAT=zip|7z|tar.gz… ve MACRAR_DEBUG_PASSWORD ile biçim/şifre seçimi
+            // Debugging: MACRAR_DEBUG_FORMAT=zip|7z|tar.gz… and MACRAR_DEBUG_PASSWORD pick the format/password
             if let f = ProcessInfo.processInfo.environment["MACRAR_DEBUG_FORMAT"],
                let fmt = ArchiveFormat.allCases.first(where: { $0.ext == f }) {
                 opts.format = fmt
@@ -294,7 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Çok parçalı arşivlerde yalnızca ilk parçayı bırakır (ad.part2.rar, ad.7z.002 vb. atlanır)
+    /// Keeps only the first part of multi-volume archives (name.part2.rar, name.7z.002 etc. are skipped)
     static func dedupeVolumes(_ paths: [String]) -> [String] {
         let regex = try! NSRegularExpression(pattern: #"^(.*)\.(?:part(\d+)\.rar|(?:7z|zip|rar|tar|bin)\.(\d{3}))$"#, options: .caseInsensitive)
         var best: [String: (Int, String)] = [:]
@@ -348,7 +348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: Hata ayıklama: MACRAR_SNAPSHOT=/yol/önek → açık pencereleri PNG olarak kaydedip çıkar
+    // MARK: Debugging: MACRAR_SNAPSHOT=/path/prefix → save open windows as PNG and quit
 
     private func scheduleDebugSnapshot() {
         guard let prefix = ProcessInfo.processInfo.environment["MACRAR_SNAPSHOT"] else { return }
@@ -374,7 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    // MARK: Varsayılan uygulama
+    // MARK: Default app
 
     func setDefaultHandler(extensions: [String] = ["rar"], completion: @escaping (Error?) -> Void) {
         var types: [UTType] = []
@@ -420,7 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #endif
     }
 
-    // MARK: Hakkında
+    // MARK: About
 
     @objc func showAbout(_ sender: Any?) {
         let credits = NSMutableAttributedString()
@@ -440,7 +440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
     }
 
-    // MARK: Menü
+    // MARK: Menu
 
     private func buildMenu() {
         let main = NSMenu()

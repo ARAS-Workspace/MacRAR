@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 import UniformTypeIdentifiers
 
-// MARK: - Basit iletişim kutuları
+// MARK: - Simple dialogs
 
 enum Dialogs {
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
@@ -34,7 +34,7 @@ enum Dialogs {
         return box.value
     }
 
-    /// Şifre alanı + "Şifreyi göster" anahtarı
+    /// Password field + "Show password" toggle
     final class PasswordBox: NSObject {
         let secure: NSSecureTextField
         let plain: NSTextField
@@ -163,7 +163,7 @@ enum Dialogs {
     }
 }
 
-// MARK: - İlerleme çubuğu (animasyonsuz, anında güncellenir)
+// MARK: - Progress bar (no animation, updates immediately)
 
 final class PlainProgressBar: NSView {
     var fraction: Double = 0 { didSet { needsDisplay = true } }
@@ -183,7 +183,7 @@ final class PlainProgressBar: NSView {
     }
 }
 
-// MARK: - İlerleme penceresi
+// MARK: - Progress window
 
 final class ProgressPanel: NSWindowController {
     private static let panelWidth: CGFloat = 500
@@ -197,7 +197,7 @@ final class ProgressPanel: NSWindowController {
     private let logView = NSTextView()
     private let startTime = Date()
     private var lastLogged = ""
-    /// unrar çıktısındaki hedef klasör öneki (dosya adlarını kısaltmak için)
+    /// Destination folder prefix in the unrar output (to shorten file names)
     var stripPrefix: String?
     var onCancel: (() -> Void)?
     private weak var host: NSWindow?
@@ -217,7 +217,7 @@ final class ProgressPanel: NSWindowController {
 
         fileLabel.font = .systemFont(ofSize: 11)
         fileLabel.textColor = .secondaryLabelColor
-        fileLabel.lineBreakMode = .byTruncatingHead        // sondaki dosya adı her zaman görünür
+        fileLabel.lineBreakMode = .byTruncatingHead        // the trailing file name always stays visible
         fileLabel.maximumNumberOfLines = 1
         fileLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         fileLabel.stringValue = loc.t("progress_preparing")
@@ -305,7 +305,7 @@ final class ProgressPanel: NSWindowController {
         if show { scrollLogToEnd() }
     }
 
-    /// Pencereyi içeriğin gerektirdiği yüksekliğe getirir (büyütür ve küçültür), üst kenar sabit kalır
+    /// Sizes the window to the height its content needs (grows and shrinks), keeping the top edge fixed
     private func resizeToFit(animate: Bool) {
         guard let w = window, let c = w.contentView else { return }
         c.layoutSubtreeIfNeeded()
@@ -394,12 +394,12 @@ final class ProgressPanel: NSWindowController {
     }
 }
 
-// MARK: - Sıkıştırma seçenekleri
+// MARK: - Compression options
 
 enum ArchiveFormat: Int, CaseIterable {
     case rar5 = 0, sevenZip = 2, zip = 3, tar = 4, tgz = 5, txz = 6, tbz2 = 7
 
-    /// Bu sürümde oluşturulabilen biçimler (App Store sürümünde RAR yok)
+    /// Formats this edition can create (no RAR in the App Store edition)
     static var creatable: [ArchiveFormat] { AppInfo.isAppStore ? allCases.filter { $0 != .rar5 } : allCases }
 
     var title: String {
@@ -449,7 +449,7 @@ enum ArchiveFormat: Int, CaseIterable {
         }
     }
 
-    /// Yolun arşiv uzantısını bu biçime göre değiştirir
+    /// Changes the path's archive extension to match this format
     func replacingExtension(in path: String) -> String {
         var base = path
         let lower = base.lowercased()
@@ -468,7 +468,7 @@ struct CompressOptions {
     var encryptNames: Bool = false
     var solid: Bool = false
     var recoveryRecord: Bool = false
-    var volumeSize: String? = nil      // "100M" gibi
+    var volumeSize: String? = nil      // e.g. "100M"
     var sfx: Bool = false
     var deleteAfter: Bool = false
 
@@ -479,7 +479,7 @@ struct CompressOptions {
         var cleanup: (() -> Void)? = nil
     }
 
-    /// 0-5 düzeyini 7zz -mx değerine çevirir
+    /// Maps the 0-5 level to the 7zz -mx value
     private var mx: Int { [0, 1, 3, 5, 7, 9][max(0, min(5, level))] }
 
     private var sevenZipCommon: [String] {
@@ -531,7 +531,7 @@ struct CompressOptions {
         }
     }
 
-    /// Ayarlardaki varsayılanlarla seçenek nesnesi
+    /// Options object with the defaults from Settings
     static func withDefaults(for items: [String]) -> CompressOptions {
         var o = CompressOptions(archivePath: defaultArchivePath(for: items, format: Prefs.defaultFormat))
         o.format = Prefs.defaultFormat
@@ -743,7 +743,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         o.deleteAfter = deleteBox.state == .on
         let v = volumeField.stringValue.trimmingCharacters(in: .whitespaces)
         o.volumeSize = (f.supportsVolumes && !v.isEmpty) ? v : nil
-        // Son kullanılan ayarları hatırla
+        // Remember the last used settings
         Prefs.defaultFormat = o.format
         Prefs.defaultLevel = o.level
         Prefs.solid = o.solid
@@ -754,11 +754,11 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
 
     @objc private func cancelPressed() { NSApp.stopModal(withCode: .cancel) }
 
-    /// Modal gösterir; iptalde nil döner.
+    /// Shows modally; returns nil on cancel.
     func run() -> CompressOptions? {
         guard let w = window else { return nil }
         Dialogs.activate()
-        // Pencereyi içeriğin gerektirdiği yüksekliğe getir (fazla boşluk satırlar arasına dağılmasın)
+        // Size the window to the height its content needs (so extra space is not spread between the rows)
         if let content = w.contentView {
             content.layoutSubtreeIfNeeded()
             let fit = content.fittingSize

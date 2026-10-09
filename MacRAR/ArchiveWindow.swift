@@ -2,7 +2,7 @@ import AppKit
 import Quartz
 import UniformTypeIdentifiers
 
-// MARK: - Klavye destekli ağaç görünümü
+// MARK: - Keyboard-aware outline view
 
 final class ArchiveOutlineView: NSOutlineView {
     var onReturn: (() -> Void)?
@@ -17,7 +17,7 @@ final class ArchiveOutlineView: NSOutlineView {
     }
 }
 
-/// Boş pencere: etiket + düğmeler; üzerine dosya bırakılabilir
+/// Empty window: label + buttons; files can be dropped onto it
 final class EmptyStateView: NSView {
     var onDrop: (([URL]) -> Void)?
     override init(frame: NSRect) { super.init(frame: frame); registerForDraggedTypes([.fileURL]) }
@@ -30,7 +30,7 @@ final class EmptyStateView: NSView {
     }
 }
 
-// MARK: - Ağaç düğümü
+// MARK: - Tree node
 
 final class Node: NSObject {
     let name: String
@@ -62,7 +62,7 @@ final class Node: NSObject {
         children.forEach { $0.sortRecursively(key: key, ascending: ascending) }
     }
 
-    /// Klasörler her zaman önce; sonra seçilen sütuna göre
+    /// Folders always first; then by the selected column
     static func compare(_ a: Node, _ b: Node, key: String, ascending: Bool) -> Bool {
         if a.isDir != b.isDir { return a.isDir }
         var r: ComparisonResult
@@ -119,7 +119,7 @@ final class Node: NSObject {
     }
 }
 
-// MARK: - Pencere
+// MARK: - Window
 
 final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     private(set) var archivePath: String?
@@ -140,7 +140,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private let promiseQueue: OperationQueue = {
         let q = OperationQueue(); q.maxConcurrentOperationCount = 1; return q
     }()
-    // Finder'a sürükleme oturumu (soru bir kez sorulur, öğeler tek seferde çıkartılır)
+    // Drag-to-Finder session (the question is asked once, the items are extracted in one go)
     private var dragNodes: [Node] = []
     private var dragDecision: Bool? = nil
     private var dragTempDir: String? = nil
@@ -310,7 +310,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         window?.toolbarStyle = .expanded
     }
 
-    // MARK: Arşiv yükleme
+    // MARK: Archive loading
 
     func open(_ path: String) {
         archivePath = path
@@ -321,7 +321,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func reload() {
         guard let path = archivePath else { return }
         guard let info = Ops.listInteractive(archive: path, password: &password) else {
-            // açılamadı: pencereyi boş bırak
+            // could not be opened: leave the window empty
             if self.info == nil { archivePath = nil }
             updateStatus()
             return
@@ -340,7 +340,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_EXPAND"] != nil {
             outline.expandItem(nil, expandChildren: true)
         }
-        if let sort = ProcessInfo.processInfo.environment["MACRAR_DEBUG_SORT"] {   // örn. size:desc
+        if let sort = ProcessInfo.processInfo.environment["MACRAR_DEBUG_SORT"] {   // e.g. size:desc
             let parts = sort.split(separator: ":")
             outline.sortDescriptors = [NSSortDescriptor(key: String(parts[0]), ascending: parts.count < 2 || parts[1] != "desc")]
         }
@@ -353,7 +353,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         if let dest = ProcessInfo.processInfo.environment["MACRAR_DEBUG_DRAG"] { simulateDrag(to: dest) }
     }
 
-    /// Hata ayıklama: ilk üst düzey öğeleri Finder'a sürüklenmiş gibi hedefe yazar
+    /// Debugging: writes the first top-level items to the destination as if dragged to Finder
     private func simulateDrag(to dest: String) {
         let nodes = Array(root.children.prefix(2))
         guard !nodes.isEmpty else { return }
@@ -414,13 +414,13 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         statusLabel.stringValue = parts.joined(separator: "   •   ")
     }
 
-    // MARK: Seçim yardımcıları
+    // MARK: Selection helpers
 
     private func selectedNodes() -> [Node] {
         outline.selectedRowIndexes.compactMap { outline.item(atRow: $0) as? Node }
     }
 
-    /// Seçili düğümlerin arşiv yolları (alt öğeleri zaten kapsayan klasörler sadeleştirilir)
+    /// Archive paths of the selected nodes (folders that already cover their children are collapsed)
     private func selectedPaths() -> [String] { Self.paths(for: selectedNodes()) }
 
     private static func paths(for nodes: [Node]) -> [String] {
@@ -428,7 +428,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         return nodes.filter { n in !dirs.contains { n.path.hasPrefix($0) } }.map { $0.path }
     }
 
-    // MARK: Eylemler
+    // MARK: Actions
 
     @objc func openArchive(_ sender: Any?) {
         let files = Dialogs.chooseFiles(title: loc.t("panel_open_archive_title"), prompt: loc.t("open"), archivesOnly: true)
@@ -557,14 +557,14 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         }
     }
 
-    // MARK: Görünüm eylemleri
+    // MARK: View actions
 
     @objc func expandAll(_ sender: Any?) { outline.expandItem(nil, expandChildren: true) }
     @objc func collapseAll(_ sender: Any?) { outline.collapseItem(nil, collapseChildren: true) }
     @objc func refresh(_ sender: Any?) { reload() }
     @objc func revealArchive(_ sender: Any?) { if let p = archivePath { Ops.revealInFinder(p) } }
 
-    // MARK: Hızlı Bakış
+    // MARK: Quick Look
 
     @objc func quickLook(_ sender: Any?) {
         if let panel = QLPreviewPanel.shared(), panel.isVisible { panel.orderOut(nil); return }
@@ -598,7 +598,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         outline.selectAll(nil)
     }
 
-    // MARK: Doğrulama
+    // MARK: Validation
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         validate(item.action)
@@ -779,7 +779,7 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
         applyFilter()
     }
 
-    // Sürükle-bırak: arşiv dosyası bırakıldığında aç, diğer dosyaları arşive ekle
+    // Drag and drop: open a dropped archive file, add other files to the archive
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
         guard info.draggingSource as? NSOutlineView !== outlineView else { return [] }
         guard let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL], !urls.isEmpty else { return [] }
@@ -808,7 +808,7 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
         }
     }
 
-    // Arşivden Finder'a sürükleme (dosya vaadi)
+    // Dragging from the archive to Finder (file promises)
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
         dragNodes = draggedItems.compactMap { $0 as? Node }
         dragDecision = nil
@@ -844,7 +844,7 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
             let nodes = dragNodes.isEmpty ? [node] : dragNodes
             let destFolder = url.deletingLastPathComponent()
 
-            // Oturum başına bir kez sor
+            // Ask once per session
             if dragDecision == nil {
                 let list = nodes.prefix(6).map { $0.name }.joined(separator: ", ") + (nodes.count > 6 ? " …" : "")
                 let destName = destFolder.lastPathComponent
@@ -870,7 +870,7 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
                 return
             }
 
-            // İlk öğe: sürüklenen tüm öğeleri tek seferde geçici klasöre çıkart
+            // First item: extract all dragged items to a temporary folder in one go
             let tmp = TempDirs.make("drag")
             dragTempDir = tmp
             dragExtracted = true
@@ -882,7 +882,7 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
         }
 
         sem.wait()
-        // Son vaat tamamlanınca geçici klasörü temizle
+        // Clean up the temporary folder once the last promise is fulfilled
         dragPending -= 1
         if dragPending <= 0, let tmp = dragTempDir {
             try? FileManager.default.removeItem(atPath: tmp)
@@ -892,13 +892,13 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
     }
 }
 
-// MARK: - Hızlı Bakış veri kaynağı
+// MARK: - Quick Look data source
 
 extension ArchiveWindowController: QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { previewURLs.count }
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! { previewURLs[index] as NSURL }
     func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
-        // Ok tuşlarını listeye ilet (Finder davranışı)
+        // Forward arrow keys to the list (Finder behaviour)
         if event.type == .keyDown, let ch = event.charactersIgnoringModifiers?.unicodeScalars.first,
            ch == UnicodeScalar(NSUpArrowFunctionKey) || ch == UnicodeScalar(NSDownArrowFunctionKey) {
             outline.keyDown(with: event)

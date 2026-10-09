@@ -1,8 +1,8 @@
 import AppKit
 
 #if APPSTORE
-/// App Store sürümü: Finder sağ tık menüsündeki komutlar uygulamanın kendi Servisleri ile sağlanır
-/// (sandbox içinde ~/Library/Services'e yazılamaz). Tanımlar Info.plist → NSServices içinde.
+/// App Store edition: the commands in Finder's context menu come from the app's own Services
+/// (~/Library/Services is not writable inside the sandbox). They are defined in Info.plist → NSServices.
 final class ServiceProvider: NSObject {
     private func paths(_ pboard: NSPasteboard) -> [String] {
         let urls = pboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []

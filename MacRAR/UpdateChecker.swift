@@ -1,7 +1,7 @@
 #if !APPSTORE
 import AppKit
 
-/// GitHub Releases üzerinden yeni sürüm denetimi (anonim API, kimlik bilgisi yok).
+/// Checks GitHub Releases for a new version (anonymous API, no credentials).
 enum UpdateChecker {
     static let repo = "mstcvk/MacRAR"
     static let releasesPage = URL(string: "https://github.com/mstcvk/MacRAR/releases/latest")!
@@ -14,7 +14,7 @@ enum UpdateChecker {
         return Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
-    /// Uygulama açılışında: günde en fazla bir kez, sessizce.
+    /// At app launch: at most once a day, silently.
     static func checkAutomatically() {
         if ProcessInfo.processInfo.environment["MACRAR_NO_UPDATE_CHECK"] != nil { return }
         let last = UserDefaults.standard.double(forKey: lastCheckKey)
@@ -22,7 +22,7 @@ enum UpdateChecker {
         check(manual: false)
     }
 
-    /// Menüden: sonucu her durumda bildirir.
+    /// From the menu: always reports the result.
     static func check(manual: Bool) {
         var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -66,7 +66,7 @@ enum UpdateChecker {
         let alert = NSAlert()
         alert.messageText = loc.t("update_available_title", latest)
         var info = loc.t("update_available_message", currentVersion)
-        // Markdown işaretlerini sadeleştir, ilk satırları göster
+        // Simplify the Markdown markup, show the first lines
         let lines = notes.components(separatedBy: "\n").map { line -> String in
             var l = line.trimmingCharacters(in: .whitespaces)
             while l.hasPrefix("#") { l.removeFirst() }

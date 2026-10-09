@@ -1,12 +1,12 @@
 import Foundation
 
-/// İnternetten gelen bir arşivin karantina bilgisini (com.apple.quarantine) çıkartılan öğelere aktarır.
-/// Aktarılmazsa arşivdeki uygulama ve betikler Gatekeeper denetimine takılmadan çalışabilir
-/// (Windows'taki CVE-2025-0411'in macOS karşılığı). Arşiv İzlencesi de aynı şekilde davranır.
+/// Carries the quarantine information (com.apple.quarantine) of an archive downloaded from the internet over to the extracted items.
+/// Without it, apps and scripts inside the archive could run without passing the Gatekeeper check
+/// (the macOS counterpart of CVE-2025-0411 on Windows). Archive Utility behaves the same way.
 enum Quarantine {
     private static let attr = "com.apple.quarantine"
 
-    /// Dosyanın karantina değeri; yoksa nil
+    /// The file's quarantine value; nil if none
     static func value(of path: String) -> Data? {
         let size = getxattr(path, attr, nil, 0, 0, 0)
         guard size > 0 else { return nil }
@@ -15,12 +15,12 @@ enum Quarantine {
         return n > 0 ? data.prefix(n) : nil
     }
 
-    /// `dest` içinde bu çıkartmada yazılan her öğeye (`since` sonrası değişenlere) karantina değerini uygular.
-    /// tops: arşivin üst düzey adları; önceden var olan klasörlerin içine yazılan dosyaları da bulmak için.
-    /// Sembolik bağlar izlenmez, böylece hedef klasörün dışına çıkılmaz.
+    /// Applies the quarantine value to every item this extraction wrote in `dest` (those changed after `since`).
+    /// tops: the archive's top-level names, so files written into folders that already existed are found too.
+    /// Symbolic links are not followed, so the walk never leaves the destination folder.
     static func apply(_ value: Data, dest: String, tops: [String], since: Date) {
         let fm = FileManager.default
-        let limit = since.timeIntervalSince1970 - 2   // HFS+/FAT zaman damgaları saniye hassasiyetinde
+        let limit = since.timeIntervalSince1970 - 2   // HFS+/FAT timestamps have one-second precision
         func info(_ p: String) -> (changed: Bool, isDir: Bool)? {
             var st = stat()
             guard lstat(p, &st) == 0 else { return nil }
@@ -31,7 +31,7 @@ enum Quarantine {
             _ = value.withUnsafeBytes { setxattr(p, attr, $0.baseAddress, value.count, 0, XATTR_NOFOLLOW) }
         }
 
-        // Üst düzey adlar + yeniden adlandırılarak (-aou) çıkan yeni öğeler
+        // Top-level names + new items extracted under a new name (-aou)
         var roots = Set(tops)
         for name in (try? fm.contentsOfDirectory(atPath: dest)) ?? [] {
             if info((dest as NSString).appendingPathComponent(name))?.changed == true { roots.insert(name) }

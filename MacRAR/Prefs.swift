@@ -1,6 +1,6 @@
 import AppKit
 
-/// Kullanıcı ayarları (UserDefaults)
+/// User settings (UserDefaults)
 enum Prefs {
     private static let d = UserDefaults.standard
     static var defaultFormat: ArchiveFormat {
@@ -30,11 +30,11 @@ enum Prefs {
         get { d.object(forKey: "CheckUpdates") == nil ? true : d.bool(forKey: "CheckUpdates") }
         set { d.set(newValue, forKey: "CheckUpdates") }
     }
-    /// "" = sistem dili, "tr", "en"
+    /// "" = system language, "tr", "en"
     static var language: String { get { d.string(forKey: "Language") ?? "" } set { d.set(newValue, forKey: "Language") } }
 }
 
-/// Ayarlar penceresi (⌘,)
+/// Settings window (⌘,)
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
     private let formatPopup = NSPopUpButton()

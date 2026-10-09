@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// "Hangi dosyalar bu uygulamayla açılsın?" penceresi: ilk açılışta bir kez, sonra menüden.
+/// "Which files should open with this app?" window: once on first launch, then from the menu.
 enum Associations {
     struct Group {
         let title: String
@@ -12,7 +12,7 @@ enum Associations {
 
     static var groups: [Group] {
         [
-            // macOS her tür için ayrı onay ister: seçili gelenler en yaygın 4 türle sınırlı
+            // macOS asks for a separate confirmation per type: the preselected ones are limited to the 4 most common types
             Group(title: "RAR", exts: ["rar"], defaultOn: true, warning: nil),
             Group(title: "ZIP", exts: ["zip"], defaultOn: true, warning: nil),
             Group(title: "7z", exts: ["7z"], defaultOn: true, warning: nil),
@@ -43,14 +43,14 @@ enum Associations {
         return out
     }
 
-    /// Bu türün şu anki varsayılan uygulamasının adı
+    /// Name of the current default app for this type
     static func currentHandler(for exts: [String]) -> String {
         guard let t = types(for: exts).first, let url = NSWorkspace.shared.urlForApplication(toOpen: t) else { return loc.t("assoc_current_none") }
         if url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL { return AppInfo.name }
         return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
     }
 
-    /// İlk açılışta (bir kez) göster
+    /// Show on first launch (once)
     static func promptIfFirstLaunch() {
         if alreadyShown { return }
         UserDefaults.standard.set(true, forKey: shownKey)
@@ -104,17 +104,17 @@ enum Associations {
         alert.addButton(withTitle: loc.t("assoc_make_default"))
         alert.addButton(withTitle: loc.t("assoc_not_now"))
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] == "show" {
-            // ekran görüntüsü için pencereyi açık bırak
+            // keep the window open for the screenshot
         }
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
-        // Zaten bu uygulamaya ait türler için yeniden onay isteme
+        // Do not ask again for types this app already owns
         let chosen = boxes.filter { $0.0.state == .on }.flatMap { types(for: $0.1.exts) }.filter { !isMine($0) }
         if chosen.isEmpty { return true }
         apply(chosen)
         return true
     }
 
-    /// Seçilen türler için varsayılan uygulama yap; sonucu bildir
+    /// Make this app the default for the selected types; report the result
     static func apply(_ types: [UTType], quiet: Bool = false, completion: ((Int, [String]) -> Void)? = nil) {
         var ok = 0
         var failed: [String] = []

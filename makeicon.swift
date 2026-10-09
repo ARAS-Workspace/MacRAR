@@ -1,14 +1,14 @@
 import AppKit
 
-// Kullanım: swift makeicon.swift çıktı.png
-// Tema: koyu mor zemin üzerinde izometrik, üst üste istiflenmiş paralel plakalar (arşiv katmanları) + altın kilit rozeti
+// Usage: swift makeicon.swift output.png
+// Theme: isometric stack of parallel slabs (archive layers) on a dark purple background + gold lock badge
 let out = CommandLine.arguments[1]
 let size: CGFloat = 1024
 let img = NSImage(size: NSSize(width: size, height: size))
 img.lockFocus()
 let ctx = NSGraphicsContext.current!.cgContext
 
-// macOS stili yuvarlatılmış kare
+// macOS-style rounded square
 let inset: CGFloat = size * 0.1
 let rect = NSRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset)
 let squircle = NSBezierPath(roundedRect: rect, xRadius: rect.width * 0.225, yRadius: rect.width * 0.225)
@@ -20,11 +20,11 @@ ctx.saveGState()
 squircle.addClip()
 NSGradient(colors: [NSColor(calibratedRed: 0.30, green: 0.16, blue: 0.48, alpha: 1),
                     NSColor(calibratedRed: 0.11, green: 0.06, blue: 0.22, alpha: 1)])!.draw(in: rect, angle: -90)
-// yumuşak üst parıltı
+// soft top glow
 NSGradient(colors: [NSColor(white: 1, alpha: 0.10), NSColor(white: 1, alpha: 0)])!
     .draw(in: NSRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2), angle: -90)
 
-// İzometrik plaka: üst yüz eşkenar dörtgen, altında sol ve sağ yan yüzler
+// Isometric slab: rhombus top face, left and right side faces below it
 func slab(cx: CGFloat, cy: CGFloat, w: CGFloat, t: CGFloat, top: NSColor, left: NSColor, right: NSColor) {
     let h = w * 0.5
     let T = NSPoint(x: cx, y: cy + h), R = NSPoint(x: cx + w, y: cy), B = NSPoint(x: cx, y: cy - h), L = NSPoint(x: cx - w, y: cy)
@@ -34,7 +34,7 @@ func slab(cx: CGFloat, cy: CGFloat, w: CGFloat, t: CGFloat, top: NSColor, left: 
     left.setFill(); leftFace.fill()
     right.setFill(); rightFace.fill()
     top.setFill(); topFace.fill()
-    // ince kenar ışığı
+    // thin edge highlight
     NSColor(white: 1, alpha: 0.22).setStroke(); topFace.lineWidth = 3; topFace.stroke()
 }
 
@@ -43,14 +43,14 @@ let w = rect.width * 0.33
 let thickness = rect.width * 0.075
 let gap = rect.width * 0.115
 let baseY = rect.minY + rect.height * 0.30
-// alttan üste: koyudan açığa
+// bottom to top: dark to light
 let palette: [(NSColor, NSColor, NSColor)] = [
     (NSColor(calibratedRed: 0.42, green: 0.30, blue: 0.86, alpha: 1), NSColor(calibratedRed: 0.27, green: 0.18, blue: 0.62, alpha: 1), NSColor(calibratedRed: 0.20, green: 0.12, blue: 0.48, alpha: 1)),
     (NSColor(calibratedRed: 0.55, green: 0.38, blue: 0.95, alpha: 1), NSColor(calibratedRed: 0.36, green: 0.23, blue: 0.72, alpha: 1), NSColor(calibratedRed: 0.27, green: 0.16, blue: 0.56, alpha: 1)),
     (NSColor(calibratedRed: 0.70, green: 0.52, blue: 1.00, alpha: 1), NSColor(calibratedRed: 0.47, green: 0.31, blue: 0.82, alpha: 1), NSColor(calibratedRed: 0.36, green: 0.22, blue: 0.66, alpha: 1)),
     (NSColor(calibratedRed: 0.86, green: 0.74, blue: 1.00, alpha: 1), NSColor(calibratedRed: 0.60, green: 0.44, blue: 0.92, alpha: 1), NSColor(calibratedRed: 0.46, green: 0.31, blue: 0.78, alpha: 1)),
 ]
-// plakaların altına yumuşak gölge
+// soft shadow under the slabs
 ctx.saveGState()
 let sh = NSShadow(); sh.shadowBlurRadius = 40; sh.shadowOffset = NSSize(width: 0, height: -18); sh.shadowColor = NSColor(white: 0, alpha: 0.45); sh.set()
 for (i, c) in palette.enumerated() {
@@ -59,7 +59,7 @@ for (i, c) in palette.enumerated() {
 ctx.restoreGState()
 ctx.restoreGState()
 
-// Altın kilit rozeti (şifreli arşiv desteği)
+// Gold lock badge (encrypted archive support)
 let badgeR = size * 0.105
 let bc = NSPoint(x: rect.maxX - badgeR * 1.05, y: rect.maxY - badgeR * 1.05)
 ctx.saveGState()

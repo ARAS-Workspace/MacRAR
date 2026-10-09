@@ -1,6 +1,6 @@
 import AppKit
 
-/// Uygulama kimliği (GitHub sürümü "MacRAR", App Store sürümü "Easy Mac Archiver")
+/// App identity (GitHub edition "MacRAR", App Store edition "Easy Mac Archiver")
 enum AppInfo {
     static let name: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "MacRAR"
     static var isAppStore: Bool {
@@ -10,7 +10,7 @@ enum AppInfo {
         return false
         #endif
     }
-    /// Kullanıcının gerçek ev klasörü (sandbox içinde NSHomeDirectory() uygulama kabını döndürür)
+    /// The user's real home folder (inside the sandbox NSHomeDirectory() returns the app container)
     static let realHome: String = {
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir { return String(cString: dir) }
         return NSHomeDirectory()
@@ -24,8 +24,8 @@ enum AppInfo {
     }
 }
 
-/// RARLAB "RAR for macOS" aracı. Lisansı gereği uygulamayla dağıtılmaz; kullanıcı kendisi indirir.
-/// App Store sürümünde hiç kullanılmaz (Apple kuralı 2.5.2).
+/// RARLAB's "RAR for macOS" tool. Its licence does not allow shipping it with the app; the user downloads it.
+/// Never used in the App Store edition (Apple guideline 2.5.2).
 enum RarTools {
     static let downloadPage = URL(string: "https://www.rarlab.com/download.htm")!
     static var installDir: String { (AppInfo.supportDir as NSString).appendingPathComponent("rar") }
@@ -44,7 +44,7 @@ enum RarTools {
 
     static var available: Bool { rarURL != nil }
 
-    /// "RAR 7.23" gibi; çalışmazsa nil
+    /// e.g. "RAR 7.23"; nil if it does not run
     static var version: String? {
         guard let url = rarURL else { return nil }
         let p = Process()
@@ -62,7 +62,7 @@ enum RarTools {
         return nil
     }
 
-    /// RAR yoksa kullanıcıyı indirme ve seçme adımlarına yönlendirir. true → artık kullanılabilir.
+    /// Without RAR, walks the user through downloading and choosing it. true → now available.
     @discardableResult
     static func ensureAvailable() -> Bool {
         if available { return true }
@@ -156,7 +156,7 @@ enum RarTools {
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: rar)
         let sfx = (installDir as NSString).appendingPathComponent("default.sfx")
         if fm.fileExists(atPath: sfx) { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sfx) }
-        // Kullanıcının kendi seçtiği araç: indirme karantinasını kaldır
+        // A tool the user chose themselves: remove the download quarantine
         let x = Process()
         x.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
         x.arguments = ["-dr", "com.apple.quarantine", installDir]

@@ -3,12 +3,12 @@ import Foundation
 // MARK: - Model
 
 enum ArchiveKind {
-    case rar        // okuma 7zz, yazma (isteğe bağlı) kullanıcının RAR aracı
+    case rar        // read with 7zz, write (optional) with the user's RAR tool
     case other      // 7zz (zip, 7z, tar, gz, xz, bz2, zst, iso, cab, ...)
 }
 
 struct ArchiveEntry {
-    var name: String            // arşiv içindeki tam yol
+    var name: String            // full path inside the archive
     var isDirectory: Bool
     var size: Int64 = 0
     var packedSize: Int64 = 0
@@ -29,7 +29,7 @@ struct ArchiveInfo {
     var details: String
     var entries: [ArchiveEntry]
     var headersEncrypted: Bool = false
-    /// tar.gz / tar.xz gibi: dış katman 7zz ile açılıp iç tar'a aktarılır
+    /// Like tar.gz / tar.xz: the outer layer is opened with 7zz and piped into the inner tar
     var tarCompressed: Bool { Formats.isTarCompressed(path) }
 
     var hasEncryptedFiles: Bool { headersEncrypted || entries.contains { $0.encrypted } }
@@ -45,10 +45,10 @@ struct ArchiveInfo {
         }
         return out
     }
-    /// Dosya ekleme / silme desteklenir mi?
+    /// Are adding / deleting files supported?
     var supportsModification: Bool {
         if tarCompressed { return false }
-        if kind == .rar { return !AppInfo.isAppStore }   // GitHub sürümünde RAR aracı istenir
+        if kind == .rar { return !AppInfo.isAppStore }   // the GitHub edition asks for the RAR tool
         return true
     }
 }
@@ -65,7 +65,7 @@ struct RarResult {
     }
     var notArchive: Bool { output.contains("is not RAR archive") || output.contains("Cannot open the file as archive") }
 
-    /// Kullanıcıya gösterilecek kısa hata metni
+    /// Short error text to show the user
     var errorSummary: String {
         let lines = output.components(separatedBy: "\n")
             .map { $0.replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespaces) }
@@ -86,10 +86,10 @@ enum RarTool { case rar, sevenZip }
 
 typealias Stage = (tool: RarTool, args: [String])
 
-// MARK: - Biçim bilgisi
+// MARK: - Format info
 
 enum Formats {
-    /// Uygulamanın açabildiği uzantılar
+    /// Extensions the app can open
     static let openable: Set<String> = [
         "rar", "zip", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2", "xz", "txz", "zst", "tzst", "lz4", "lzma", "tlz", "z",
         "cab", "arj", "lzh", "lha", "cpio", "iso", "wim", "swm", "esd", "deb", "rpm", "jar", "war", "ear", "apk", "ipa",
@@ -145,20 +145,20 @@ enum RarRunner {
         }
     }
 
-    /// (eski) unrar şifre argümanı: "-p-" = şifre sorma
+    /// (legacy) unrar password argument: "-p-" = do not ask for a password
     static func passwordArg(_ pw: String?, encryptHeaders: Bool = false) -> String {
         guard let pw, !pw.isEmpty else { return "-p-" }
         return (encryptHeaders ? "-hp" : "-p") + pw
     }
 
-    /// rar (a / d) için şifre argümanları. DİKKAT: rar, "-p-" verilince "-" karakterini şifre olarak kullanır;
-    /// bu yüzden şifre yoksa hiçbir anahtar verilmez.
+    /// Password arguments for rar (a / d). CAUTION: given "-p-", rar uses the "-" character as the password;
+    /// so no switch at all is passed when there is no password.
     static func rarPasswordArgs(_ pw: String?, encryptHeaders: Bool = false) -> [String] {
         guard let pw, !pw.isEmpty else { return [] }
         return [(encryptHeaders ? "-hp" : "-p") + pw]
     }
 
-    /// 7zz için şifre argümanı ("-p" tek başına: boş şifre, etkileşimli sorma yok)
+    /// Password argument for 7zz ("-p" alone: empty password, no interactive prompt)
     static func passwordArg7z(_ pw: String?) -> String {
         guard let pw, !pw.isEmpty else { return "-p" }
         return "-p" + pw
@@ -177,12 +177,12 @@ enum RarRunner {
         return p
     }
 
-    /// Eşzamanlı çalıştırır, tüm çıktıyı toplar.
+    /// Runs synchronously, collects all output.
     static func run(_ tool: RarTool, _ args: [String], cwd: String? = nil) -> RarResult {
         runStages([(tool, args)], cwd: cwd)
     }
 
-    /// Birbirine borulanmış aşamaları eşzamanlı çalıştırır; son aşamanın çıktısı ve çıkış kodu döner.
+    /// Runs the piped stages synchronously; returns the last stage's output and exit code.
     static func runStages(_ stages: [Stage], cwd: String? = nil) -> RarResult {
         var processes: [Process] = []
         var prevOut: Pipe? = nil
@@ -217,7 +217,7 @@ enum RarRunner {
         case error(RarResult)
     }
 
-    /// Tüm biçimler (RAR dahil) 7zz ile okunur
+    /// All formats (RAR included) are read with 7zz
     static func listStages(_ path: String, password: String?) -> [Stage] {
         if Formats.isTarCompressed(path) {
             return [(.sevenZip, ["x", "-so", passwordArg7z(password), "--", path]),
@@ -234,16 +234,16 @@ enum RarRunner {
         return .ok(parse7zListing(r.output, path: path, kind: Formats.kind(of: path)))
     }
 
-    // MARK: 7zz l -slt ayrıştırma
+    // MARK: Parsing 7zz l -slt
 
     static func parse7zListing(_ out: String, path: String, kind: ArchiveKind = .other) -> ArchiveInfo {
         let lines = out.components(separatedBy: "\n")
-        // Son "----------" satırından sonrası girdiler; öncesi arşiv başlık blokları
+        // Lines after the last "----------" are the entries; before it are the archive header blocks
         let sepIndex = lines.lastIndex { $0.trimmingCharacters(in: .whitespaces) == "----------" }
         let headerLines = sepIndex.map { Array(lines[..<$0]) } ?? lines
         let entryLines = sepIndex.map { Array(lines[($0 + 1)...]) } ?? []
 
-        // Başlık: son "Type =" değeri asıl arşiv türüdür (split/gzip gibi dış katmanlar önce gelir)
+        // Header: the last "Type =" value is the actual archive type (outer layers such as split/gzip come first)
         var type = ""
         var solid = false
         var volumes = 0
@@ -315,12 +315,12 @@ enum RarRunner {
     }
 }
 
-// MARK: - Streaming job (ilerleme takibi)
+// MARK: - Streaming job (progress tracking)
 
 final class RarJob {
     enum Event {
-        case file(String)       // yeni dosya işleniyor
-        case progress(Int)      // yüzde (toplam)
+        case file(String)       // a new file is being processed
+        case progress(Int)      // percentage (overall)
     }
 
     private var processes: [Process] = []
@@ -329,7 +329,7 @@ final class RarJob {
     private var buffer = Data()
     private var output = ""
     private(set) var cancelled = false
-    var onEvent: ((Event) -> Void)?   // ana kuyrukta çağrılır
+    var onEvent: ((Event) -> Void)?   // called on the main queue
 
     private static let verbs = ["Extracting", "Adding", "Testing", "Updating", "Creating", "Deleting", "Compressing", "Fresh", "Calculating"]
     private static let percentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})%"#)
@@ -341,7 +341,7 @@ final class RarJob {
         start(stages: [(tool, args)], cwd: cwd, completion: completion)
     }
 
-    /// Aşamalar birbirine borulanır; yalnızca son aşamanın çıktısı izlenir.
+    /// The stages are piped together; only the last stage's output is monitored.
     func start(stages: [Stage], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
         guard let lastStage = stages.last else { return }
         monitoredTool = lastStage.tool
@@ -405,22 +405,22 @@ final class RarJob {
             output += Self.lastSegment(line, keepAll: true) + "\n"
             parse(Self.lastSegment(line))
         }
-        // Satır sonu gelmeden geri-silme (\u{8}) ile güncellenen ilerleme: yalnızca en son durumu oku
+        // Progress updated with backspaces (\u{8}) before a newline arrives: read only the latest state
         if !buffer.isEmpty {
             let tail = String(decoding: buffer.suffix(512), as: UTF8.self)
             parse(Self.lastSegment(tail))
-            // Uzun süren tek dosyada tampon şişmesin: son geri-silme dizisinden öncesini at
+            // Keep the buffer from growing on a long single file: drop everything before the last backspace run
             if buffer.count > 64 * 1024, let cut = buffer.lastIndex(of: 0x08) {
                 buffer.removeSubrange(buffer.startIndex...cut)
             }
         }
     }
 
-    /// Geri-silme ile üst üste yazılmış bir satırın ekranda görünen son hali
+    /// What a line overwritten with backspaces finally shows on screen
     private static func lastSegment(_ s: String, keepAll: Bool = false) -> String {
         let parts = s.components(separatedBy: "\u{8}").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         if keepAll {
-            // Günlük için: tekrar eden yüzde parçalarını at, anlamlı metni koru
+            // For the log: drop the repeated percentage fragments, keep the meaningful text
             let meaningful = parts.filter { $0.trimmingCharacters(in: .whitespaces).range(of: #"^\d{1,3}%( \d+)?$"#, options: .regularExpression) == nil }
             return meaningful.joined(separator: " ")
         }
@@ -447,7 +447,7 @@ final class RarJob {
                 pct = Int(ns.substring(with: m.range(at: 1)))
             }
             if line.contains("ERROR") || line.hasSuffix("--") || line.contains(" Open ") {
-                // hata satırları ve "Open --" gibi bilgi satırları dosya değil
+                // error lines and info lines such as "Open --" are not files
             } else if let m = Self.sevenNameRegex.firstMatch(in: line, range: full) {
                 var name = ns.substring(with: m.range(at: 2)).trimmingCharacters(in: .whitespaces)
                 if name.hasSuffix("/") { name.removeLast() }
@@ -461,7 +461,7 @@ final class RarJob {
             }
             var candidate: String? = nil
             if line.hasPrefix("... ") {
-                candidate = String(line.dropFirst(4))        // parça değişiminden sonra devam eden dosya
+                candidate = String(line.dropFirst(4))        // file continued after a volume change
             } else {
                 for verb in Self.verbs where line.hasPrefix(verb + " ") {
                     let rest = String(line.dropFirst(verb.count)).trimmingCharacters(in: .whitespaces)
@@ -487,9 +487,9 @@ final class RarJob {
     }
 }
 
-// MARK: - Yardımcılar
+// MARK: - Helpers
 
-/// Oturum boyunca oluşturulan geçici klasörler; çıkışta temizlenir
+/// Temporary folders created during the session; removed on quit
 enum TempDirs {
     private static var created: [String] = []
     private static let lock = NSLock()

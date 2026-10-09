@@ -5,9 +5,9 @@ let delegate = AppDelegate()
 AppDelegate.shared = delegate
 app.delegate = delegate
 
-// Komut satırı argümanları (Finder hızlı eylemleri "open -n -a MacRAR --args --komut dosya..." ile çağırır)
+// Command-line arguments (Finder Quick Actions call "open -n -a MacRAR --args --command file...")
 var args = Array(CommandLine.arguments.dropFirst())
-// macOS'un eklediği -psn_... / -NSDocumentRevisionsDebugMode gibi argümanları ayıkla
+// Drop arguments macOS adds, such as -psn_... / -NSDocumentRevisionsDebugMode
 args.removeAll { $0.hasPrefix("-psn_") || $0 == "-NSDocumentRevisionsDebugMode" || $0 == "YES" }
 
 if let flagIndex = args.firstIndex(where: { $0.hasPrefix("--") }) {

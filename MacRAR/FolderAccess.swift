@@ -1,12 +1,12 @@
 import AppKit
 
-/// App Store (sandbox) sürümünde klasör izinleri: kullanıcı bir klasörü bir kez seçer, güvenlik kapsamlı
-/// yer imi olarak saklanır. GitHub sürümünde her şey serbesttir, bu tür hiçbir şey sormaz.
+/// Folder permissions in the App Store (sandboxed) edition: the user picks a folder once and it is kept as a
+/// security-scoped bookmark. In the GitHub edition everything is allowed and this type never asks.
 enum FolderAccess {
     private static let key = "FolderBookmarks"
     private static var active: [URL] = []
 
-    /// Açılışta kayıtlı izinleri etkinleştir
+    /// Activate the saved permissions at launch
     static func restore() {
         #if APPSTORE
         let datas = UserDefaults.standard.array(forKey: key) as? [Data] ?? []
@@ -44,7 +44,7 @@ enum FolderAccess {
         return true
     }
 
-    /// Gerekiyorsa izin ister. false → kullanıcı vazgeçti.
+    /// Asks for permission if needed. false → the user cancelled.
     @discardableResult
     static func ensure(_ dir: String, write: Bool) -> Bool {
         #if APPSTORE
@@ -67,7 +67,7 @@ enum FolderAccess {
         #endif
     }
 
-    /// Ayarlar'dan: ana klasöre bir kez izin ver
+    /// From Settings: grant the home folder once
     static func grantHome() {
         #if APPSTORE
         let panel = NSOpenPanel()

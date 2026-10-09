@@ -1,9 +1,9 @@
 import AppKit
 
-/// Tüm arşiv işlemleri: hem pencereden hem de Finder hızlı eylemlerinden kullanılır.
+/// All archive operations: used both from the window and from the Finder Quick Actions.
 enum Ops {
 
-    // MARK: Ortak iş çalıştırıcı (ilerleme penceresiyle)
+    // MARK: Shared job runner (with progress window)
 
     static func runJob(title: String, stages: [Stage], cwd: String? = nil,
                        host: NSWindow?, totalFiles: Int?, stripPrefix: String? = nil,
@@ -21,13 +21,13 @@ enum Ops {
                 if name != lastName {
                     lastName = name
                     fileIndex += 1
-                    // Yüzde bilgisi gelmeyen boru hattı işlemlerinde dosya sayısına göre ilerle
+                    // For pipeline jobs that report no percentage, advance by file count
                     if !sawPercent, let total = totalFiles, total > 0 {
                         panel.setFraction(Double(min(fileIndex, total)) / Double(total))
                     }
                 }
             case .progress(let pct):
-                // rar/unrar/7zz yüzdesi arşivin toplam ilerlemesidir
+                // The rar/unrar/7zz percentage is the overall progress of the archive
                 sawPercent = true
                 panel.setFraction(Double(pct) / 100.0)
             }
@@ -48,9 +48,9 @@ enum Ops {
 
     private static func name(_ path: String) -> String { (path as NSString).lastPathComponent }
 
-    // MARK: Listeleme (şifre döngüsüyle)
+    // MARK: Listing (with password loop)
 
-    /// Arşivi listeler; gerekirse şifre sorar. İptalde nil döner.
+    /// Lists the archive; asks for a password if needed. Returns nil on cancel.
     static func listInteractive(archive: String, password: inout String?) -> ArchiveInfo? {
         let folder = (archive as NSString).deletingLastPathComponent
         if Formats.isMultiVolume(archive) || !FileManager.default.isReadableFile(atPath: archive) {
@@ -60,7 +60,7 @@ enum Ops {
         while true {
             switch RarRunner.list(archive, password: password) {
             case .ok(var info):
-                if wrong { info.headersEncrypted = true }   // şifre olmadan listelenemedi
+                if wrong { info.headersEncrypted = true }   // could not be listed without a password
                 return info
             case .wrongPassword:
                 guard let pw = Dialogs.askPassword(archiveName: name(archive), wrong: wrong) else { return nil }
@@ -77,9 +77,9 @@ enum Ops {
         }
     }
 
-    // MARK: Çıkartma
+    // MARK: Extraction
 
-    /// Çıkartılacak öğeler arasında şifreli olan var mı? (names nil → tüm arşiv)
+    /// Are any of the items to extract encrypted? (names nil → whole archive)
     static func needsPassword(info: ArchiveInfo, names: [String]?) -> Bool {
         if info.headersEncrypted { return true }
         guard let names else { return info.hasEncryptedFiles }
@@ -103,7 +103,7 @@ enum Ops {
         return [(.sevenZip, args)]
     }
 
-    /// names: nil ise tüm arşiv. completion(success, kullanılan şifre)
+    /// names: nil means the whole archive. completion(success, password used)
     static func extract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
                         host: NSWindow?, quiet: Bool = false, completion: @escaping (Bool, String?) -> Void) {
         guard FolderAccess.ensure(FolderAccess.existingAncestor(of: dest), write: true) else { completion(false, password); return }
@@ -112,7 +112,7 @@ enum Ops {
             guard let p = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
             pw = p
         }
-        // Üzerine yazma kontrolü
+        // Overwrite check
         let tops = topLevelNames(info: info, names: names)
         let existing = tops.filter { FileManager.default.fileExists(atPath: (dest as NSString).appendingPathComponent($0)) }
         var mode: OverwriteArg = .overwrite
@@ -151,7 +151,7 @@ enum Ops {
             completion(true, password)
         }
         runJob(title: loc.t("progress_extracting", name(info.path)), stages: stages, host: host, totalFiles: count, stripPrefix: dest) { r in
-            // Yarım kalan çıkartmalar dahil, yazılan her öğe arşivin karantinasını alır (sonuç işlenmeden, açılmadan önce)
+            // Every item written, including by an interrupted extraction, gets the archive's quarantine (before the result is handled or anything is opened)
             guard let quarantine else { finish(r); return }
             let tops = topLevelNames(info: info, names: names)
             DispatchQueue.global(qos: .userInitiated).async {
@@ -196,7 +196,7 @@ enum Ops {
         }
     }
 
-    // MARK: Sıkıştırma
+    // MARK: Compression
 
     static func compress(items: [String], options: CompressOptions, host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
         var o = options
@@ -206,7 +206,7 @@ enum Ops {
             let alert = NSAlert()
             alert.messageText = loc.t("compress_exists_title", name(o.archivePath))
             if o.format.supportsAppend {
-                // Mevcut arşiv şifreli mi? (şifresiz listeleme denemesi)
+                // Is the existing archive encrypted? (try listing without a password)
                 var existingEncrypted = false
                 switch RarRunner.list(o.archivePath, password: nil) {
                 case .ok(let ex): existingEncrypted = ex.hasEncryptedFiles
@@ -276,7 +276,7 @@ enum Ops {
         }
     }
 
-    // MARK: Mevcut arşive dosya ekleme / silme
+    // MARK: Adding files to / deleting from an existing archive
 
     static func add(info: ArchiveInfo, items: [String], password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void) {
         guard info.supportsModification else {
@@ -342,22 +342,22 @@ enum Ops {
         }
     }
 
-    // MARK: Hedef klasör yardımcıları
+    // MARK: Destination folder helpers
 
     static func folderNamedAfterArchive(_ archive: String) -> String {
         let ns = archive as NSString
         var base = (ns.deletingPathExtension as NSString).lastPathComponent
-        // çok parçalı arşivlerde "ad.part1" → "ad", "ad.7z.001" → "ad"
+        // multi-volume archives: "name.part1" → "name", "name.7z.001" → "name"
         if let r = base.range(of: #"\.part\d+$"#, options: [.regularExpression, .caseInsensitive]) { base.removeSubrange(r) }
         if ns.pathExtension.range(of: #"^\d{3}$"#, options: .regularExpression) != nil {
             base = (base as NSString).deletingPathExtension
         }
-        // ad.tar.gz → ad
+        // name.tar.gz → name
         if base.lowercased().hasSuffix(".tar") { base = String(base.dropLast(4)) }
         return (ns.deletingLastPathComponent as NSString).appendingPathComponent(base)
     }
 
-    /// Çıkartılacak üst düzey adlar (names nil → tüm arşiv)
+    /// Top-level names to extract (names nil → whole archive)
     static func topLevelNames(info: ArchiveInfo, names: [String]?) -> [String] {
         guard let names else { return info.topLevelNames }
         var seen = Set<String>()
@@ -371,7 +371,7 @@ enum Ops {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
-    /// Çıkartma sonrası: çıkan üst düzey öğeleri Finder'da seçer (yoksa hedef klasörü)
+    /// After extraction: selects the extracted top-level items in Finder (or the destination folder if none)
     static func revealExtracted(info: ArchiveInfo, names: [String]?, dest: String) {
         guard Prefs.revealAfterExtract else { return }
         let urls = topLevelNames(info: info, names: names).map { URL(fileURLWithPath: (dest as NSString).appendingPathComponent($0)) }

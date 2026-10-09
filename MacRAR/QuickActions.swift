@@ -1,13 +1,13 @@
 #if !APPSTORE
 import Foundation
 
-/// Finder sağ tık menüsündeki "Hızlı Eylemler" için ~/Library/Services altına .workflow paketleri üretir.
+/// Generates .workflow bundles under ~/Library/Services for the "Quick Actions" in Finder's context menu.
 enum QuickActions {
     struct Action {
-        let name: String        // menüde görünen ad
-        let flag: String?       // nil → arşivi uygulamada aç
-        let topLevel: Bool      // true → Finder sağ tık menüsünde doğrudan (Servis); false → "Hızlı Eylemler" alt menüsü
-        let fileTypes: [String] // hangi seçimlerde görünsün (UTI)
+        let name: String        // name shown in the menu
+        let flag: String?       // nil → open the archive in the app
+        let topLevel: Bool      // true → directly in Finder's context menu (Service); false → "Quick Actions" submenu
+        let fileTypes: [String] // which selections it appears for (UTI)
     }
 
     static let archiveTypes = [
@@ -19,12 +19,12 @@ enum QuickActions {
 
     static var actions: [Action] {
         [
-            // Üst seviye (Servis)
+            // Top level (Service)
             Action(name: loc.t("quick_action_open"), flag: nil, topLevel: true, fileTypes: archiveTypes),
             Action(name: loc.t("quick_action_extract_here"), flag: "--extract-here", topLevel: true, fileTypes: archiveTypes),
             Action(name: loc.t("quick_action_extract_to_folder"), flag: "--extract-folder", topLevel: true, fileTypes: archiveTypes),
             Action(name: loc.t("quick_action_compress"), flag: "--compress-dialog", topLevel: true, fileTypes: anyType),
-            // Hızlı Eylemler alt menüsü
+            // Quick Actions submenu
             Action(name: loc.t("quick_action_extract_to"), flag: "--extract-to", topLevel: false, fileTypes: archiveTypes),
             Action(name: loc.t("quick_action_test"), flag: "--test", topLevel: false, fileTypes: archiveTypes),
             Action(name: loc.t("quick_action_quick_compress"), flag: "--compress", topLevel: false, fileTypes: anyType),
@@ -35,13 +35,13 @@ enum QuickActions {
         (NSHomeDirectory() as NSString).appendingPathComponent("Library/Services")
     }
 
-    /// Tüm eylemleri kurar, kurulan sayısını döner.
+    /// Installs all actions, returns how many were installed.
     @discardableResult
     static func installAll() -> Int {
         let appPath = Bundle.main.bundlePath
         let fm = FileManager.default
         try? fm.createDirectory(atPath: servicesDir, withIntermediateDirectories: true)
-        // Eski sürümleri temizle
+        // Remove old versions
         if let items = try? fm.contentsOfDirectory(atPath: servicesDir) {
             for i in items where i.hasPrefix("RAR • ") || i.hasPrefix("MacRAR • ") || i.hasPrefix("MacRAR ile ") || i.hasPrefix("MacRAR: ")
                 || i.hasPrefix("Open with MacRAR") || i.hasPrefix("Compress with MacRAR") {
@@ -64,7 +64,7 @@ enum QuickActions {
         return count
     }
 
-    /// pbs tercihlerinde servisleri etkin işaretler (macOS yeni eklenenleri kapalı tutabiliyor)
+    /// Marks the services enabled in the pbs preferences (macOS may keep newly added ones disabled)
     private static func enableInFinder(_ names: [String]) {
         let domain = "pbs" as CFString
         var status = (CFPreferencesCopyAppValue("NSServicesStatus" as CFString, domain) as? [String: Any]) ?? [:]
@@ -118,8 +118,8 @@ enum QuickActions {
     }
 
     private static func infoPlist(action: Action) -> String {
-        // NSIconName / NSBackgroundColorName bulunan servisler Finder'da "Hızlı Eylemler" alt menüsüne gider;
-        // bulunmayanlar doğrudan sağ tık menüsünde listelenir.
+        // Services that have NSIconName / NSBackgroundColorName go to Finder's "Quick Actions" submenu;
+        // the others are listed directly in the context menu.
         let quickKeys = action.topLevel ? "" : """
                     <key>NSBackgroundColorName</key>
                     <string>background</string>
