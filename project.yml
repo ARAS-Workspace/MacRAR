@@ -1,0 +1,140 @@
+name: MacRAR
+options:
+  bundleIdPrefix: com.arasworkspace
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+targets:
+
+  # ── Main App ──────────────────────────────────────────────
+
+  MacRAR:
+    type: application
+    platform: macOS
+    sources:
+      - path: MacRAR
+        excludes:
+          - "**/.DS_Store"
+    scheme: {}
+    settings:
+      base:
+        ARCHS: "$(ARCHS_STANDARD)"
+        ENABLE_HARDENED_RUNTIME: YES
+        PRODUCT_NAME: MacRAR
+        PRODUCT_BUNDLE_IDENTIFIER: com.arasworkspace.MacRAR
+        INFOPLIST_FILE: MacRAR/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MacRAR/MacRAR.entitlements
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: GZUHTM7439
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.4.2"
+        CURRENT_PROJECT_VERSION: 7
+      configs:
+        Debug:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
+        Release:
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+    info:
+      path: MacRAR/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: MacRAR
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleLocalizations:
+          - en
+          - tr
+        LSApplicationCategoryType: public.app-category.utilities
+        NSHighResolutionCapable: true
+        NSHumanReadableCopyright: "© 2026 Mesut Çevik · github.com/mstcvk/MacRAR"
+        NSPrincipalClass: NSApplication
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: RAR Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.rarlab.rar-archive
+          - CFBundleTypeName: Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.zip-archive
+              - org.7-zip.7-zip-archive
+              - public.tar-archive
+              - org.gnu.gnu-zip-archive
+              - org.gnu.gnu-zip-tar-archive
+              - public.bzip2-archive
+              - org.tukaani.xz-archive
+              - public.archive
+              - com.arasworkspace.MacRAR.archive
+              - com.microsoft.cab-archive
+              - public.iso-image
+              - com.sun.java-archive
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.rarlab.rar-archive
+            UTTypeDescription: RAR Archive
+            UTTypeConformsTo:
+              - public.data
+              - public.archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - rar
+                - r00
+                - r01
+                - r02
+                - r03
+              public.mime-type:
+                - application/vnd.rar
+                - application/x-rar-compressed
+          - UTTypeIdentifier: com.arasworkspace.MacRAR.archive
+            UTTypeDescription: Archive
+            UTTypeConformsTo:
+              - public.data
+              - public.archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - 7z
+                - zst
+                - tzst
+                - lz4
+                - lzma
+                - tlz
+                - cab
+                - arj
+                - lzh
+                - lha
+                - cpio
+                - wim
+                - swm
+                - esd
+                - deb
+                - rpm
+                - xar
+                - zipx
+                - "001"
+                - tbz
+                - tbz2
+                - txz
+                - tgz
+                - br
+                - uue
+                - squashfs
+                - cramfs
+                - vhd
+                - vhdx
+                - vmdk
+                - qcow2
+                - chm
+                - msi
+                - nupkg
+    entitlements:
+      path: MacRAR/MacRAR.entitlements
+      properties:
+        # Developer ID distribution outside the Mac App Store. The
+        # Finder Quick Actions are written to ~/Library/Services and
+        # RAR creation runs the user's own RARLAB `rar`, neither of
+        # which the sandbox permits.
+        com.apple.security.app-sandbox: false

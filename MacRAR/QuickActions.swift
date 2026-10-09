@@ -11,7 +11,7 @@ enum QuickActions {
     }
 
     static let archiveTypes = [
-        "com.rarlab.rar-archive", "com.mesut.macrar.archive", "public.zip-archive", "org.7-zip.7-zip-archive",
+        "com.rarlab.rar-archive", "com.arasworkspace.MacRAR.archive", "public.zip-archive", "org.7-zip.7-zip-archive",
         "public.tar-archive", "org.gnu.gnu-zip-archive", "org.gnu.gnu-zip-tar-archive", "public.bzip2-archive",
         "org.tukaani.xz-archive", "public.archive", "com.microsoft.cab-archive", "public.iso-image", "com.sun.java-archive",
     ]
