@@ -1,0 +1,44 @@
+name: MacRAR - Build Validation
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions: {}
+
+jobs:
+  build:
+    name: Unsigned Build + Tests (macOS)
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Verify SevenZipKit checksum
+        run: (cd Libraries/SevenZipKit && shasum -a 256 -c CHECKSUM.sha256)
+
+      - name: Install XcodeGen and SwiftLint
+        run: brew install xcodegen swiftlint
+
+      - name: Generate Xcode project
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          # Info.plist is generated from project.yml and committed; the two must agree.
+          git diff --exit-code -- MacRAR/Info.plist
+
+      - name: SwiftLint
+        run: swiftlint lint --strict --quiet
+
+      - name: Build and test (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme "MacRAR" \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcpretty --color
