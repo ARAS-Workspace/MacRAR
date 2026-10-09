@@ -3,15 +3,15 @@ import AppKit
 
 /// Checks GitHub Releases for a new version (anonymous API, no credentials).
 enum UpdateChecker {
-    static let repo = "mstcvk/MacRAR"
-    static let releasesPage = URL(string: "https://github.com/mstcvk/MacRAR/releases/latest")!
+    static let repo = "ARAS-Workspace/MacRAR"
+    static let releasesPage = URL(string: "https://github.com/ARAS-Workspace/MacRAR/releases/latest")!
     private static let lastCheckKey = "UpdateLastCheck"
     private static let skipKey = "UpdateSkippedVersion"
     private static let interval: TimeInterval = 24 * 3600
 
     static var currentVersion: String {
         if let v = ProcessInfo.processInfo.environment["MACRAR_DEBUG_VERSION"] { return v }
-        return Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        return AppInfo.version
     }
 
     /// At app launch: at most once a day, silently.
@@ -37,7 +37,7 @@ enum UpdateChecker {
                     return
                 }
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
-                let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+                let latest = version(fromTag: tag)
                 let pageURL = (json["html_url"] as? String).flatMap(URL.init(string:)) ?? releasesPage
                 let notes = (json["body"] as? String) ?? ""
                 if isNewer(latest, than: currentVersion) {
@@ -50,15 +50,34 @@ enum UpdateChecker {
         }.resume()
     }
 
+    /// The version a release tag names: "mac-v1.4.2+ARAS.Patch.1" (what .github/scripts/release.sh pushes),
+    /// "v1.4.2" or "1.4.2".
+    static func version(fromTag tag: String) -> String {
+        for prefix in ["mac-v", "v"] where tag.hasPrefix(prefix) {
+            return String(tag.dropFirst(prefix.count))
+        }
+        return tag
+    }
+
+    /// Orders "1.4.2+ARAS.Patch.2" after "1.4.2+ARAS.Patch.1" and "1.4.3+ARAS.Patch.1" after both:
+    /// the original release first, then the patch round, which semver's build metadata leaves unordered.
     static func isNewer(_ version: String, than other: String) -> Bool {
-        let pa = version.split(separator: ".").map { Int($0) ?? 0 }
-        let pb = other.split(separator: ".").map { Int($0) ?? 0 }
-        for i in 0..<max(pa.count, pb.count) {
-            let mine = i < pa.count ? pa[i] : 0
-            let theirs = i < pb.count ? pb[i] : 0
-            if mine != theirs { return mine > theirs }
+        let mine = orderKey(version), theirs = orderKey(other)
+        for i in 0..<max(mine.count, theirs.count) {
+            let lhs = i < mine.count ? mine[i] : 0
+            let rhs = i < theirs.count ? theirs[i] : 0
+            if lhs != rhs { return lhs > rhs }
         }
         return false
+    }
+
+    /// Three release components, then the patch round (0 when the version has none).
+    private static func orderKey(_ version: String) -> [Int] {
+        let parts = version.split(separator: "+", maxSplits: 1)
+        var release = (parts.first ?? "").split(separator: ".").map { Int($0) ?? 0 }
+        while release.count < 3 { release.append(0) }
+        let round = parts.count > 1 ? parts[1].split(separator: ".").last.flatMap { Int($0) } ?? 0 : 0
+        return Array(release.prefix(3)) + [round]
     }
 
     private static func present(latest: String, page: URL, notes: String) {
