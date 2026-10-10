@@ -1,4 +1,5 @@
-# Tools fetch-rar.sh downloads for the tests; only the script and this file are committed
+# What fetch-rar.sh downloads and generate-large-files.sh makes for the tests; only the scripts and this file are committed
 *
 !.gitignore
 !fetch-rar.sh
+!generate-large-files.sh

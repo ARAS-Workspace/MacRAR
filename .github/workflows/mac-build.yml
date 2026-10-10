@@ -33,6 +33,11 @@ jobs:
         # A cached copy is checked by its SHA-256 and kept; a missing or different one is downloaded again.
         run: External/fetch-rar.sh
 
+      - name: Generate the large test files
+        # Incompressible files of 256 MiB, the same on every machine and pinned by SHA-256, into External/ (ignored by
+        # git); quicker to make than to restore from the cache
+        run: External/generate-large-files.sh
+
       - name: Install XcodeGen and SwiftLint
         run: brew install xcodegen swiftlint
 
