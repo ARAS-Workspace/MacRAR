@@ -424,25 +424,22 @@ extension PasswordTests {
         }
     }
 
-    /// A refused password should leave nothing at the destination. 7-Zip writes RAR and ZIP items, empty, and the
-    /// folders of 7z ones, before it finds the password wrong; an archive whose names are locked is refused before
-    /// anything is written.
-    func testARefusedPasswordLeavesNothingBehindIsAKnownIssue() throws {
+    /// A refused password leaves nothing at the destination: the password is found on the smallest encrypted file before
+    /// anything is written. 7-Zip used to begin RAR and ZIP items, empty, and the folders of 7z ones, before it found the
+    /// password wrong; an archive whose names are locked is refused before anything is written anyway.
+    func testARefusedPasswordLeavesNothingBehind() throws {
         for lock in locks where !lock.namesToo {
             let archive = try make(lock, "pw", in: "refused-\(lock)")
             let info = try XCTUnwrap(open(archive, typing: "pw").info)
             XCTAssertFalse(try extract(info, password: "wrong", into: "refused-\(lock)-out").ok, "\(lock)")
-            let left = try FileManager.default.subpathsOfDirectory(atPath: workspace.path("refused-\(lock)-out"))
-            XCTExpectFailure("\(lock): the items begun before the password was refused are left") {
-                XCTAssertEqual(left, [], "\(lock)")
-            }
+            XCTAssertEqual(try FileManager.default.subpathsOfDirectory(atPath: workspace.path("refused-\(lock)-out")), [], "\(lock)")
         }
     }
 
-    /// Answering Overwrite and then giving a wrong password should leave the file that was to be replaced as it was;
-    /// for RAR and ZIP, 7-Zip empties it before it finds the password wrong, and once the question that follows is
-    /// cancelled the file is lost. 7z checks first.
-    func testARefusedPasswordKeepsTheFileItWouldReplaceIsAKnownIssue() throws {
+    /// Answering Overwrite and then giving a wrong password leaves the file that was to be replaced as it was. For RAR and
+    /// ZIP, 7-Zip used to empty it before it found the password wrong, and once the question that follows was cancelled
+    /// the file was lost.
+    func testARefusedPasswordKeepsTheFileItWouldReplace() throws {
         let mine = Data("kendi dosyam\n".utf8)
         for lock in locks where !lock.namesToo {
             let archive = try make(lock, "pw", in: "kept-\(lock)")
@@ -452,14 +449,8 @@ extension PasswordTests {
             try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "overwrite"]) {
                 XCTAssertFalse(try extract(info, password: "wrong", into: "kept-\(lock)-out").ok, "\(lock)")
             }
-            let kept = FileManager.default.contents(atPath: "\(destination)/a.txt")
-            if lock == .sevenZipFiles {
-                XCTAssertEqual(kept, mine)
-            } else {
-                XCTExpectFailure("\(lock): the wrong password empties the file Overwrite was to replace") {
-                    XCTAssertEqual(kept, mine, "\(lock)")
-                }
-            }
+            XCTAssertEqual(FileManager.default.contents(atPath: "\(destination)/a.txt"), mine, "\(lock)")
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: destination), ["a.txt"], "\(lock)")
         }
     }
 }

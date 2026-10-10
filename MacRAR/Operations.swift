@@ -108,10 +108,26 @@ enum Ops {
     static func extract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
                         host: NSWindow?, quiet: Bool = false, completion: @escaping (Bool, String?) -> Void) {
         var pw = password
-        if needsPassword(info: info, names: names), pw == nil {
+        let encrypted = needsPassword(info: info, names: names)
+        if encrypted, pw == nil {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
             pw = entered
         }
+        let write = { (password: String?) in
+            extract(info: info, names: names, dest: dest, checkedPassword: password, host: host, quiet: quiet, completion: completion)
+        }
+        // The archive's own password is found before anything is written: 7-Zip begins RAR and ZIP items before it finds
+        // a password wrong, which emptied a file Overwrite was to replace and left the others behind, empty. Encrypted
+        // names were already checked when the archive was listed.
+        guard let typed = pw, encrypted, !info.headersEncrypted else { write(pw); return }
+        findPassword(typed, of: info, host: host) { found in
+            guard let found else { completion(false, pw); return }
+            write(found)
+        }
+    }
+
+    private static func extract(info: ArchiveInfo, names: [String]?, dest: String, checkedPassword pw: String?,
+                                host: NSWindow?, quiet: Bool, completion: @escaping (Bool, String?) -> Void) {
         // Overwrite check
         let tops = topLevelNames(info: info, names: names)
         let existing = tops.filter { FileManager.default.fileExists(atPath: (dest as NSString).appendingPathComponent($0)) }
@@ -350,7 +366,7 @@ enum Ops {
         runJob(title: loc.t("progress_checking_password", name(info.path)), operation: operation, host: host) { result in
             try? FileManager.default.removeItem(atPath: scratch)
             if result.cancelled { completion(nil); return }
-            // Anything but a refused password, such as a damaged file, is the add's to report
+            // Anything but a refused password, such as a damaged file, is the operation's to report
             guard result.wrongPassword else { completion(password); return }
             guard let next = Ops.password(after: password, archive: info.path) else { completion(nil); return }
             findPassword(next, of: info, host: host, completion: completion)
