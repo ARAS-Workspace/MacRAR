@@ -19,13 +19,11 @@ final class DeclaredTypesTests: XCTestCase {
 
     /// Upstream 1.4.3 (533ce7e): the pieces of an old-style RAR set run from x.r00 to x.r99, and the declaration
     /// stopped at x.r03, so on a Mac where no other app declares the rest Finder took x.r04 … for unknown files.
-    func testEveryOldStyleRarVolumeIsDeclaredIsAKnownIssue() throws {
+    func testEveryOldStyleRarVolumeIsDeclared() throws {
         let declared = extensions(try declaration("com.rarlab.rar-archive"))
         XCTAssertTrue(declared.contains("rar"))
         let volumes = Set((0...99).map { String(format: "r%02d", $0) })
-        XCTExpectFailure("only r00 to r03 are declared") {
-            XCTAssertEqual(volumes.subtracting(declared), [], "not declared")
-        }
+        XCTAssertEqual(volumes.subtracting(declared), [], "not declared")
     }
 
     /// The app's own type, for the formats the system has none for, is a declaration of its own that the Archive
