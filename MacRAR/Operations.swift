@@ -246,10 +246,21 @@ enum Ops {
         runSteps(steps, index: 0, archive: options.archivePath, cwd: cwd, host: host, completion: completion)
     }
 
+    /// The file a finished compression wrote under the archive's name, which the callers reveal in Finder and open. A
+    /// split archive has none: rar writes name.part1.rar (part01, part001… as the count grows, and the first one is
+    /// .sfx when self-extracting), 7-Zip name.7z.001 or name.zip.001. Their first volume stands in.
+    static func firstVolume(of archive: String) -> String {
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: archive) else { return archive }
+        let ns = archive as NSString
+        let rarVolumes = (0..<4).map { "\(ns.deletingPathExtension).part\(String(repeating: "0", count: $0))1.\(ns.pathExtension)" }
+        return ([archive + ".001"] + rarVolumes).first { fm.fileExists(atPath: $0) } ?? archive
+    }
+
     // swiftlint:disable:next function_parameter_count
     private static func runSteps(_ steps: [CompressOptions.Step], index: Int, archive: String, cwd: String,
                                  host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
-        guard index < steps.count else { completion(true, archive); return }
+        guard index < steps.count else { completion(true, firstVolume(of: archive)); return }
         let step = steps[index]
         let suffix = steps.count > 1 ? " (\(index + 1)/\(steps.count))" : ""
         let title = "\(step.title): \(name(archive))\(suffix)"

@@ -290,20 +290,32 @@ final class RARTests: XCTestCase {
         XCTAssertEqual(workspace.contents("tool.sfx")?.prefix(4), Data([0xCF, 0xFA, 0xED, 0xFE]), "no longer self-extracting")
     }
 
-    /// Ops.compress reports the file it wrote, which the Create Archive dialog reveals in Finder.
+    /// Ops.compress reports the file it wrote, which the callers reveal in Finder and open.
     func testCompressReportsTheSfxItWrote() {
         var options = CompressOptions(archivePath: workspace.path("made.rar"))
         options.format = .rar5
         options.sfx = true
-        let done = expectation(description: "compressed")
-        var reported: (ok: Bool, path: String)?
-        Ops.compress(items: workspace.sources, options: options, host: nil) { ok, path in
-            reported = (ok, path)
-            done.fulfill()
-        }
-        wait(for: [done], timeout: 120)
-        XCTAssertEqual(reported?.ok, true)
-        XCTAssertEqual(reported?.path, workspace.path("made.sfx"))
+        let made = compress(workspace.sources, options)
+        XCTAssertTrue(made.ok)
+        XCTAssertEqual(made.path, workspace.path("made.sfx"))
         XCTAssertTrue(workspace.exists("made.sfx"))
+    }
+
+    /// A split RAR has no file under its own name; Ops.compress reports its first volume, .sfx when self-extracting.
+    func testCompressReportsTheFirstRarVolume() throws {
+        let fm = FileManager.default
+        for (sfx, first) in [(false, "split.part1.rar"), (true, "split.part1.sfx")] {
+            var options = CompressOptions(archivePath: workspace.path("split.rar"))
+            options.format = .rar5
+            options.volumeSize = "300k"
+            options.sfx = sfx
+            let made = compress(workspace.sources, options)
+            XCTAssertTrue(made.ok, first)
+            XCTAssertEqual(made.path, workspace.path(first))
+            XCTAssertNotNil(info(made.path), first)
+            for volume in try fm.contentsOfDirectory(atPath: workspace.root.path) where volume.hasPrefix("split.") {
+                try fm.removeItem(atPath: workspace.path(volume))
+            }
+        }
     }
 }
