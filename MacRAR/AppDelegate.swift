@@ -276,34 +276,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Keeps only the first part of multi-volume archives (name.part2.rar, name.7z.002 etc. are skipped)
-    static func dedupeVolumes(_ paths: [String]) -> [String] {
-        // swiftlint:disable:next force_try
-        let regex = try! NSRegularExpression(
-            pattern: #"^(.*)\.(?:part(\d+)\.rar|(?:7z|zip|rar|tar|bin)\.(\d{3}))$"#, options: .caseInsensitive)
-        var best: [String: (Int, String)] = [:]
-        var order: [String] = []
-        var result: [String] = []
-        for path in paths {
-            let ns = path as NSString
-            if let m = regex.firstMatch(in: path, range: NSRange(location: 0, length: ns.length)) {
-                let base = ns.substring(with: m.range(at: 1))
-                let numRange = m.range(at: 2).location != NSNotFound ? m.range(at: 2) : m.range(at: 3)
-                let num = Int(ns.substring(with: numRange)) ?? 0
-                if let cur = best[base] {
-                    if num < cur.0 { best[base] = (num, path) }
-                } else {
-                    best[base] = (num, path)
-                    order.append(base)
-                }
-            } else {
-                result.append(path)
-            }
-        }
-        for key in order { if let v = best[key] { result.append(v.1) } }
-        return result
-    }
-
     private func processArchives(_ archives: [String], dest: @escaping (String) -> String, index: Int = 0) {
         guard index < archives.count else { finishCommand(); return }
         let archive = archives[index]

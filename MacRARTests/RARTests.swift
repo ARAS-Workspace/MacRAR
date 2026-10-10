@@ -158,29 +158,25 @@ final class RARTests: XCTestCase {
 
     /// Upstream 1.4.3 (533ce7e): the pieces of an old-style set chosen together in Finder were each extracted as an
     /// archive. x.r00, first in Finder's order, fails with "Headers Error" and leaves the file it began empty, and
-    /// x.rar then finds that file in the way; the set should be extracted once, from x.rar.
-    func testOldStyleVolumesChosenTogetherAreExtractedOnceIsAKnownIssue() throws {
+    /// x.rar then found that file in the way; the set is extracted once, from x.rar.
+    func testOldStyleVolumesChosenTogetherAreExtractedOnce() throws {
         let pieces = try makeOldStyleSet("old")
         let exit = try launchApp(["--extract-folder"] + pieces)
         XCTAssertEqual(exit.status, 0, exit.output)
-        XCTExpectFailure("each piece is extracted as an archive of its own") {
-            XCTAssertFalse(exit.output.contains("ERROR"), exit.output)
-            assertSourcesExtracted(into: "old")
-        }
+        XCTAssertFalse(exit.output.contains("ERROR"), exit.output)
+        assertSourcesExtracted(into: "old")
     }
 
     /// Later volumes chosen without the first, which sits beside them: the set is read from its first volume. Read
-    /// on their own they fail with "Headers Error".
-    func testLaterVolumesChosenAloneAreReadFromTheFirstIsAKnownIssue() throws {
+    /// on their own they failed with "Headers Error".
+    func testLaterVolumesChosenAloneAreReadFromTheFirst() throws {
         try makeRar("vol.rar", ["-v300k"])
         _ = try makeOldStyleSet("old")
         let tested = try launchApp(["--test", workspace.path("vol.part2.rar"), workspace.path("vol.part3.rar")])
         let extracted = try launchApp(["--extract-folder", workspace.path("old.r00"), workspace.path("old.r01")])
-        try XCTExpectFailure("later volumes are read as archives of their own") {
-            XCTAssertTrue(tested.output.contains(try english("test_passed_title")), tested.output)
-            XCTAssertFalse(extracted.output.contains("ERROR"), extracted.output)
-            XCTAssertEqual(workspace.contents("old/sub/b.bin"), workspace.contents("src/sub/b.bin"))
-        }
+        XCTAssertTrue(tested.output.contains(try english("test_passed_title")), tested.output)
+        XCTAssertFalse(extracted.output.contains("ERROR"), extracted.output)
+        assertSourcesExtracted(into: "old")
     }
 
     func testSolidArchiveIsReportedSolid() throws {
