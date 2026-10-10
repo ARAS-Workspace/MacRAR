@@ -313,6 +313,10 @@ enum Ops {
             Dialogs.error(loc.t("not_supported_title"), loc.t("add_tar_compressed_unsupported"))
             completion(false, password); return
         }
+        if let problem = addProblem(items, into: info) {
+            Dialogs.error(loc.t("add_failed_title"), problem)
+            completion(false, password); return
+        }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
         var pw = password
         if info.hasEncryptedFiles, pw == nil {

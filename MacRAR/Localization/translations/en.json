@@ -190,6 +190,7 @@
   "not_supported_title": "Not supported",
   "add_tar_compressed_unsupported": "Files cannot be added to tar.gz / tar.xz archives. Create a new archive instead.",
   "add_failed_title": "Adding failed",
+  "add_folder_holds_archive": "“%@” holds this archive. While adding the folder, 7-Zip would also write a copy of the archive into itself. Add the items inside the folder instead.",
   "delete_tar_compressed_unsupported": "Entries cannot be deleted from tar.gz / tar.xz archives.",
   "delete_failed_title": "Deletion failed",
   "default_app_failed_title": "Could not set the default application",

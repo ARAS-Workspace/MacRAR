@@ -190,6 +190,7 @@
   "not_supported_title": "Desteklenmiyor",
   "add_tar_compressed_unsupported": "tar.gz / tar.xz türü arşivlere dosya eklenemez. Yeni bir arşiv oluşturun.",
   "add_failed_title": "Ekleme başarısız",
+  "add_folder_holds_archive": "“%@” klasörü bu arşivi içeriyor. 7-Zip klasörü eklerken arşivin bir kopyasını kendi içine de yazardı. Bunun yerine klasörün içindeki öğeleri ekleyin.",
   "delete_tar_compressed_unsupported": "tar.gz / tar.xz türü arşivlerden dosya silinemez.",
   "delete_failed_title": "Silme başarısız",
   "default_app_failed_title": "Varsayılan uygulama ayarlanamadı",

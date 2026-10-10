@@ -148,22 +148,37 @@ final class ArchiveWindowTests: XCTestCase {
         XCTAssertEqual(Ops.itemsToAdd([note], into: decomposed), [note])
     }
 
-    /// The folder that holds the open archive, added to it by a drop or Add Files: 7-Zip packs a copy of the archive
-    /// along with the folder's other items, and rar leaves it out. The archive should never end up inside itself.
-    func testAFolderHoldingTheOpenArchiveIsNotPackedIntoItIsAKnownIssue() throws {
+    /// The folder that holds the open archive, however deep, added to it by a drop or Add Files: 7-Zip packed a copy
+    /// of the archive into itself along with the folder, so for 7z and ZIP the folder is refused with an explanation
+    /// and the archive is left as it was. rar leaves the archive out, so RAR takes the folder.
+    func testAFolderHoldingTheOpenArchiveIsNotPackedIntoIt() throws {
+        let turkish = "kutu ğüş".precomposedStringWithCanonicalMapping
         for format in formats {
-            let folder = try workspace.makeDirectory("box-\(format)")
-            let archive = try makeArchive("box-\(format)/in.\(format)", of: [workspace.path("src/a.txt")])
-            try Data("n\n".utf8).write(to: workspace.url("box-\(format)/n.txt"))
+            try workspace.makeComposedDirectory("\(turkish) \(format)/iç")
+            let folder = workspace.path("\(turkish) \(format)")
+            let archive = try makeArchive("\(turkish) \(format)/iç/in.\(format)", of: [workspace.path("src/a.txt")])
+            try Data("n\n".utf8).write(to: URL(fileURLWithPath: folder).appendingPathComponent("n.txt"))
             guard case .ok(let info) = ArchiveReader.list(archive, password: nil) else { return XCTFail("\(format) did not list") }
-            _ = finished { Ops.add(info: info, items: [folder], password: nil, host: nil, completion: $0) }
-            let inside = "box-\(format)/in.\(format)"
+            let before = names(in: archive)
+            // The folder as Foundation spells it, decomposed (NFD), while the disk has it composed
+            let dropped = folder.decomposedStringWithCanonicalMapping
+            let added = finished { Ops.add(info: info, items: [dropped], password: nil, host: nil, completion: $0) }
+            let after = names(in: archive)
+            XCTAssertFalse(after.contains { $0.hasSuffix("in.\(format)") }, "\(format): the archive was packed into itself")
             if format == "rar" {
-                XCTAssertFalse(names(in: archive).contains(inside), "rar packed the archive into itself")
+                XCTAssertTrue(added, "rar refused the folder")
+                XCTAssertNil(Ops.addProblem([dropped], into: info))
+                XCTAssertTrue(after.contains("\(turkish) \(format)/n.txt"), "\(after)")
             } else {
-                XCTExpectFailure("\(format): 7-Zip packs a copy of the archive into itself") {
-                    XCTAssertFalse(names(in: archive).contains(inside), "\(format): \(names(in: archive))")
-                }
+                XCTAssertFalse(added, "\(format): the folder was added")
+                XCTAssertEqual(after, before, format)
+                XCTAssertEqual(Ops.addProblem([workspace.path("src/a.txt"), dropped], into: info),
+                               loc.t("add_folder_holds_archive", "\(turkish) \(format)"))
+                XCTAssertNil(Ops.addProblem([workspace.path("src")], into: info), "\(format): a folder beside it was refused")
+                // A link to the folder: 7-Zip follows it and packs the archive all the same
+                let link = workspace.path("link \(format)")
+                try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: folder)
+                XCTAssertNotNil(Ops.addProblem([link], into: info), "\(format): a link to the folder was taken")
             }
         }
     }
