@@ -42,28 +42,6 @@ enum Ops {
 
     private static func name(_ path: String) -> String { (path as NSString).lastPathComponent }
 
-    // MARK: Passwords
-
-    /// The password as earlier versions handed it to rar and 7zz, decomposed, the way Process passes arguments: an
-    /// archive they locked with a password holding letters such as ü or ş opens only with those bytes. Nil when the
-    /// password has no such letter or already is that form. (Swift compares strings by meaning, so the scalars decide.)
-    static func decomposedForm(of password: String?) -> String? {
-        guard let password else { return nil }
-        let decomposed = password.decomposedStringWithCanonicalMapping
-        return decomposed.unicodeScalars.elementsEqual(password.unicodeScalars) ? nil : decomposed
-    }
-
-    /// What to try once `password` is refused: its decomposed form first, then what the user enters. Nil on cancel.
-    private static func password(after password: String?, archive: String) -> String? {
-        decomposedForm(of: password) ?? Dialogs.askPassword(archiveName: name(archive), wrong: true)
-    }
-
-    /// 7-Zip writes ZIP only with a password of printable ASCII, space to DEL; any other letter, such as ü or ş, made it
-    /// fail with "E_INVALIDARG", so that is explained before anything is written.
-    static func zipTakes(password: String?) -> Bool {
-        password?.unicodeScalars.allSatisfy { (0x20..<0x80).contains($0.value) } ?? true
-    }
-
     // MARK: Listing (with password loop)
 
     /// Lists the archive; asks for a password if needed. Returns nil on cancel.
@@ -217,8 +195,8 @@ enum Ops {
         // A self-extracting RAR is written as name.sfx: the checks below and the reported path are about that file
         options.archivePath = options.writtenPath
         if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
-        if options.format == .zip, !zipTakes(password: options.password) {
-            Dialogs.error(loc.t("compress_failed_title"), loc.t("zip_password_not_ascii"))
+        if let problem = passwordProblem(options.password, format: options.format) {
+            Dialogs.error(loc.t("compress_failed_title"), problem)
             completion(false, options.archivePath); return
         }
         if !options.format.isRar, options.format.supportsVolumes, options.volumeBytes == nil {
@@ -351,25 +329,6 @@ enum Ops {
         findPassword(typed, of: info, host: host) { found in
             guard let found else { completion(false, pw); return }
             write(items, into: info, password: found, host: host, completion: completion)
-        }
-    }
-
-    /// The form of `password` that opens the archive's encrypted files, found by extracting the smallest of them to a
-    /// scratch folder: the password, its decomposed form, then what the user enters, until one does. Nil on cancel.
-    private static func findPassword(_ password: String, of info: ArchiveInfo, host: NSWindow?, completion: @escaping (String?) -> Void) {
-        guard let sample = info.entries.filter({ $0.encrypted && !$0.isDirectory }).min(by: { $0.size < $1.size }) else {
-            completion(password); return
-        }
-        let scratch = TempDirs.make("password")
-        let operation = SevenZipBridge.Operation.extract(archive: info.path, destination: scratch, items: [sample.name],
-                                                         overwrite: .overwrite, password: password)
-        runJob(title: loc.t("progress_checking_password", name(info.path)), operation: operation, host: host) { result in
-            try? FileManager.default.removeItem(atPath: scratch)
-            if result.cancelled { completion(nil); return }
-            // Anything but a refused password, such as a damaged file, is the operation's to report
-            guard result.wrongPassword else { completion(password); return }
-            guard let next = Ops.password(after: password, archive: info.path) else { completion(nil); return }
-            findPassword(next, of: info, host: host, completion: completion)
         }
     }
 

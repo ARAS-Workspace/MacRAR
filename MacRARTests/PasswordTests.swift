@@ -72,9 +72,9 @@ final class PasswordTests: XCTestCase {
             }
         }
 
-        /// ZIP takes a password of printable ASCII only, which the app explains (Ops.zipTakes), and with AES, which the
-        /// app always uses for ZIP, of 99 characters at most (testAZipPasswordOverNinetyNineCharactersIsAKnownIssue)
-        func takes(_ password: String) -> Bool { self != .zip || (Ops.zipTakes(password: password) && password.count <= 99) }
+        /// Whether the format can lock an archive with the password so that it opens as typed; the app explains why not
+        /// before anything is written (Ops.passwordProblem, testPasswordsAFormatCannotTakeAreExplained)
+        func takes(_ password: String) -> Bool { Ops.passwordProblem(password, format: format) == nil }
     }
 
     /// The locks this Mac can make: the RAR ones need RARLAB's rar (External/fetch-rar.sh).
@@ -379,47 +379,52 @@ extension PasswordTests {
         }
     }
 
-    /// rar counts the 127 characters it uses in Unicode scalars, 7-Zip, like WinRAR on Windows, in UTF-16 units, where an
-    /// emoji takes two. With an emoji among the first 127 characters and more than 127 units in them, rar locks the
-    /// archive with more of the password than 7-Zip ever reads, and the app cannot open what it made; such a password
-    /// should be explained before anything is written.
-    func testARarPasswordWhoseFirst127CharactersTakeMoreUnitsIsAKnownIssue() throws {
-        let tool = ["-RarPath", try XCTUnwrap(rar, "RARLAB's rar is not fetched").url.path]
-        let file = workspace.path("src/a.txt")
-        for (password, readable) in [(String(repeating: "🔐", count: 63), true), (String(repeating: "🔐", count: 64), false),
-                                     (String(repeating: "a", count: 126) + "🔐", false)] {
-            let context = "\(password.unicodeScalars.count) characters, \(password.utf16.count) UTF-16 units"
-            let settings = ["MACRAR_DEBUG_FORMAT": "rar", "MACRAR_DEBUG_PASSWORD": password]
+    /// A password a format cannot take so that the archive opens as typed is explained before anything is written, in
+    /// the app's own words, where 7-Zip stopped with "E_INVALIDARG" or rar locked an archive the app could not open:
+    /// ZIP with AES takes 99 characters at most; rar uses the first 127 characters, counted in Unicode scalars, while
+    /// 7-Zip and WinRAR on Windows count UTF-16 units, an emoji taking two. A password on either side of each limit goes
+    /// through the second copy of the app, as a Quick Action runs it.
+    func testPasswordsAFormatCannotTakeAreExplained() throws {
+        struct Limit {
+            let lock: Lock
+            let password: String
+            /// The en.json key of the explanation, nil for a password the format takes
+            let explained: String?
+        }
+        let emoji = "🔐"
+        var limits = [
+            Limit(lock: .zip, password: String(repeating: "a", count: 99), explained: nil),
+            Limit(lock: .zip, password: String(repeating: "a", count: 100), explained: "zip_password_too_long"),
+            Limit(lock: .zip, password: "şifre", explained: "zip_password_not_ascii"),
+        ]
+        if rar != nil {
+            limits += [
+                Limit(lock: .rarFiles, password: String(repeating: emoji, count: 63), explained: nil),
+                Limit(lock: .rarFiles, password: String(repeating: emoji, count: 64), explained: "rar_password_emoji_counted_twice"),
+                Limit(lock: .rarNames, password: String(repeating: "a", count: 126) + emoji, explained: "rar_password_emoji_counted_twice"),
+                Limit(lock: .rarNames, password: String(repeating: "a", count: 127) + emoji, explained: nil),
+            ]
+        }
+        for (index, limit) in limits.enumerated() {
+            let (lock, password, explained) = (limit.lock, limit.password, limit.explained)
+            let context = "\(lock), \(password.unicodeScalars.count) characters, \(password.utf16.count) UTF-16 units"
+            let folder = try workspace.makeDirectory("limits-\(index)")
+            let file = "\(folder)/a.txt"
+            try FileManager.default.copyItem(atPath: workspace.path("src/a.txt"), toPath: file)
+            let archive = "\(folder)/a.\(lock.format.ext)"
+            var settings = ["MACRAR_DEBUG_FORMAT": lock.format.ext, "MACRAR_DEBUG_PASSWORD": password]
+            if lock.namesToo { settings["MACRAR_DEBUG_ENCNAMES"] = "1" }
+            let tool = lock.format.isRar ? ["-RarPath", try XCTUnwrap(rar).url.path] : []
             let made = try launchApp(tool + ["--compress", file], environment: settings)
             XCTAssertEqual(made.status, 0, "\(context): \(made.output)")
-            let archive = workspace.path("src/a.rar")
-            if readable {
+            if let explained {
+                XCTAssertTrue(made.output.contains("\(try english("compress_failed_title")): \(try english(explained))"),
+                              "\(context): \(made.output)")
+                XCTAssertFalse(FileManager.default.fileExists(atPath: archive), "\(context): the archive was written")
+                XCTAssertFalse(lock.takes(password), context)
+            } else {
                 XCTAssertTrue(opensWhole(archive, with: password), context)
-            } else {
-                XCTExpectFailure("\(context): rar locks the archive with characters 7-Zip does not read") {
-                    XCTAssertFalse(workspace.exists("src/a.rar"), "\(context): the archive was written")
-                }
-            }
-            try? FileManager.default.removeItem(atPath: archive)
-        }
-    }
-
-    /// The app always uses AES for a ZIP password, and 7-Zip takes 99 characters at most for it: a longer one stops
-    /// with "E_INVALIDARG" where it should be explained before anything is written, as a password beyond ASCII is.
-    func testAZipPasswordOverNinetyNineCharactersIsAKnownIssue() throws {
-        let file = workspace.path("src/a.txt")
-        for length in [99, 100] {
-            let password = String(repeating: "a", count: length)
-            let made = try launchApp(["--compress", file], environment: ["MACRAR_DEBUG_FORMAT": "zip", "MACRAR_DEBUG_PASSWORD": password])
-            if length == 99 {
-                XCTAssertEqual(made.status, 0, made.output)
-                XCTAssertTrue(opensWhole(workspace.path("src/a.zip"), with: password))
-                try FileManager.default.removeItem(atPath: workspace.path("src/a.zip"))
-            } else {
-                XCTAssertFalse(workspace.exists("src/a.zip"))
-                try XCTExpectFailure("a ZIP password over 99 characters ends in E_INVALIDARG instead of the explanation") {
-                    XCTAssertTrue(made.output.contains(try english("zip_password_not_ascii")), made.output)
-                }
+                XCTAssertTrue(lock.takes(password), context)
             }
         }
     }
