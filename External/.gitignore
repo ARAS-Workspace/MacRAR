@@ -1,0 +1,4 @@
+# Tools fetch-rar.sh downloads for the tests; only the script and this file are committed
+*
+!.gitignore
+!fetch-rar.sh

@@ -1,18 +1,10 @@
 import XCTest
 @testable import MacRAR
 
-/// Runs a second copy of the app with a command-line mode, as a Finder Quick Action does, and checks what
-/// it leaves behind. MACRAR_DEBUG_CONFIRM prints the alerts that report a result, and the argument domain
-/// keeps the result from being revealed in Finder. --set-default and --install-quick-actions change the
-/// user's LaunchServices and Finder settings, so only their parsing and the workflows are tested
-/// (LaunchArgumentsTests, QuickActionsTests).
+/// Runs a second copy of the app with a command-line mode, as a Finder Quick Action does (launchApp), and checks
+/// what it leaves behind. --set-default and --install-quick-actions change the user's LaunchServices and Finder
+/// settings, so only their parsing and the workflows are tested (LaunchArgumentsTests, QuickActionsTests).
 final class CommandLineModeTests: XCTestCase {
-    private struct Exit {
-        let status: Int32
-        let output: String
-        let seconds: TimeInterval
-    }
-
     private var workspace: Workspace!
 
     override func setUpWithError() throws {
@@ -23,42 +15,10 @@ final class CommandLineModeTests: XCTestCase {
         workspace = nil
     }
 
-    private func launchApp(_ arguments: [String], environment: [String: String] = [:],
-                           file: StaticString = #filePath, line: UInt = #line) throws -> Exit {
-        let process = Process()
-        process.executableURL = try XCTUnwrap(Bundle.main.executableURL)
-        process.arguments = ["-RevealAfterExtract", "NO", "-RevealAfterCompress", "NO"] + arguments
-        // A fresh environment: the test host's XCTest variables would load the tests into the copy as well
-        process.environment = [
-            "HOME": NSHomeDirectory(), "TMPDIR": NSTemporaryDirectory(), "PATH": "/usr/bin:/bin",
-            "MACRAR_LANG": "en", "MACRAR_NO_UPDATE_CHECK": "1", "MACRAR_DEBUG_CONFIRM": "1",
-        ].merging(environment) { $1 }
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        let finished = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in finished.signal() }
-        let started = Date()
-        try process.run()
-        if finished.wait(timeout: .now() + 60) == .timedOut {
-            process.terminate()
-            process.waitUntilExit()
-            XCTFail("MacRAR \(arguments.joined(separator: " ")) did not finish", file: file, line: line)
-        }
-        let output = String(bytes: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        return Exit(status: process.terminationStatus, output: output, seconds: Date().timeIntervalSince(started))
-    }
-
     private func makeZip(level: Int32 = -1) -> String {
         let archive = workspace.path("sample.zip")
         update(archive, workspace.sources, SevenZipBridge.UpdateOptions(format: "zip", level: level))
         return archive
-    }
-
-    private func english(_ key: String) throws -> String {
-        let url = try XCTUnwrap(Bundle.main.url(forResource: "en", withExtension: "json", subdirectory: "translations"))
-        let table = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: url))
-        return try XCTUnwrap(table[key], key)
     }
 
     func testExtractHere() throws {

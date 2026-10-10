@@ -21,6 +21,10 @@ jobs:
       - name: Verify SevenZipKit checksum
         run: (cd Libraries/SevenZipKit && shasum -a 256 -c CHECKSUM.sha256)
 
+      - name: Fetch rar for the RAR tests
+        # RARLAB's rar, pinned and checksummed, into External/ (ignored by git); the tests use it, the app never ships it
+        run: External/fetch-rar.sh
+
       - name: Install XcodeGen and SwiftLint
         run: brew install xcodegen swiftlint
 
