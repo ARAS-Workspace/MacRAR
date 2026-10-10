@@ -139,6 +139,50 @@ final class RARTests: XCTestCase {
         assertSourcesExtracted(into: "out")
     }
 
+    /// A set named the old way, x.rar, x.r00, x.r01 …, in the order Finder lists it. rar 7 no longer names volumes
+    /// so (-vn is gone): the set is a split archive's x.partN.rar volumes copied under those names, which 7-Zip reads
+    /// the same.
+    private func makeOldStyleSet(_ name: String) throws -> [String] {
+        try makeRar("\(name)-split.rar", ["-v300k"])
+        let parts = try FileManager.default.contentsOfDirectory(atPath: workspace.root.path)
+            .filter { $0.hasPrefix("\(name)-split.part") }.sorted()
+        XCTAssertGreaterThan(parts.count, 2, "\(parts)")
+        var pieces: [String] = []
+        for (index, part) in parts.enumerated() {
+            let piece = workspace.path(index == 0 ? "\(name).rar" : String(format: "\(name).r%02d", index - 1))
+            try FileManager.default.copyItem(atPath: workspace.path(part), toPath: piece)
+            pieces.append(piece)
+        }
+        return pieces.sorted()
+    }
+
+    /// Upstream 1.4.3 (533ce7e): the pieces of an old-style set chosen together in Finder were each extracted as an
+    /// archive. x.r00, first in Finder's order, fails with "Headers Error" and leaves the file it began empty, and
+    /// x.rar then finds that file in the way; the set should be extracted once, from x.rar.
+    func testOldStyleVolumesChosenTogetherAreExtractedOnceIsAKnownIssue() throws {
+        let pieces = try makeOldStyleSet("old")
+        let exit = try launchApp(["--extract-folder"] + pieces)
+        XCTAssertEqual(exit.status, 0, exit.output)
+        XCTExpectFailure("each piece is extracted as an archive of its own") {
+            XCTAssertFalse(exit.output.contains("ERROR"), exit.output)
+            assertSourcesExtracted(into: "old")
+        }
+    }
+
+    /// Later volumes chosen without the first, which sits beside them: the set is read from its first volume. Read
+    /// on their own they fail with "Headers Error".
+    func testLaterVolumesChosenAloneAreReadFromTheFirstIsAKnownIssue() throws {
+        try makeRar("vol.rar", ["-v300k"])
+        _ = try makeOldStyleSet("old")
+        let tested = try launchApp(["--test", workspace.path("vol.part2.rar"), workspace.path("vol.part3.rar")])
+        let extracted = try launchApp(["--extract-folder", workspace.path("old.r00"), workspace.path("old.r01")])
+        try XCTExpectFailure("later volumes are read as archives of their own") {
+            XCTAssertTrue(tested.output.contains(try english("test_passed_title")), tested.output)
+            XCTAssertFalse(extracted.output.contains("ERROR"), extracted.output)
+            XCTAssertEqual(workspace.contents("old/sub/b.bin"), workspace.contents("src/sub/b.bin"))
+        }
+    }
+
     func testSolidArchiveIsReportedSolid() throws {
         let info = try XCTUnwrap(info(try makeRar("solid.rar", ["-s"])))
         XCTAssertTrue(info.isSolid, info.details)
