@@ -69,6 +69,20 @@ final class ArchiveReaderTests: XCTestCase {
         XCTAssertTrue(info.hasEncryptedFiles)
     }
 
+    /// The kind follows what 7-Zip finds inside, not the name: a ZIP named .rar is changed through 7-Zip, not rar.
+    func testKindFollowsTheContent() throws {
+        let archive = workspace.path("named.rar")
+        update(archive, workspace.sources, SevenZipBridge.UpdateOptions(format: "zip"))
+        let info = try XCTUnwrap(info(archive))
+        XCTAssertEqual(info.type.lowercased(), "zip")
+        XCTAssertEqual(info.kind, .other)
+
+        XCTAssertEqual(ArchiveReader.kind(type: "Rar5", path: "/a/x.sfx"), .rar)
+        XCTAssertEqual(ArchiveReader.kind(type: "Rar", path: "/a/x.exe"), .rar)
+        XCTAssertEqual(ArchiveReader.kind(type: "7z", path: "/a/x.rar"), .other)
+        XCTAssertEqual(ArchiveReader.kind(type: "", path: "/a/x.r01"), .rar)
+    }
+
     func testNotAnArchiveIsReportedAsSuch() {
         guard case .error(let result) = ArchiveReader.list(workspace.path("src/a.txt"), password: nil) else {
             return XCTFail("a text file listed")

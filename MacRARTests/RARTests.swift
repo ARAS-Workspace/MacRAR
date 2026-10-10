@@ -74,6 +74,9 @@ final class RARTests: XCTestCase {
         return result ?? RarResult(code: -1, output: "rar did not finish")
     }
 
+    /// The SFX module RARLAB ships beside rar.
+    private var sfxModule: String { rar.url.deletingLastPathComponent().appendingPathComponent("default.sfx").path }
+
     /// The switches the Create Archive dialog's choices become.
     private func rarSwitches(_ options: CompressOptions) throws -> [String] {
         guard case .rar(let args) = try XCTUnwrap(options.buildSteps(items: workspace.sources).first).work else {
@@ -254,8 +257,7 @@ final class RARTests: XCTestCase {
         options.format = .rar5
         options.sfx = true
         let args = try rarSwitches(options)
-        let module = rar.url.deletingLastPathComponent().appendingPathComponent("default.sfx").path
-        XCTAssertTrue(args.contains("-sfx" + module), "\(args)")
+        XCTAssertTrue(args.contains("-sfx" + sfxModule), "\(args)")
         let result = runRarJob(args)
         XCTAssertTrue(result.ok, result.output)
 
@@ -267,6 +269,25 @@ final class RARTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(info(written)).details, "RAR 5")
         XCTAssertEqual(try extract(written, into: "out").code, .ok)
         assertSourcesExtracted(into: "out")
+    }
+
+    /// A self-extracting archive is RAR by its content, so adding to and deleting from it go to rar, which keeps it
+    /// self-extracting; by its .sfx name it went to 7-Zip, which cannot write RAR.
+    func testSelfExtractingArchiveIsChangedThroughRar() throws {
+        let archive = try makeRar("tool.sfx", ["-sfx" + sfxModule])
+        try Data("added\n".utf8).write(to: workspace.url("added.txt"))
+        let added = workspace.path("added.txt")
+
+        let before = try XCTUnwrap(info(archive))
+        XCTAssertEqual(before.kind, .rar)
+        XCTAssertTrue(finished { Ops.add(info: before, items: [added], password: nil, host: nil, completion: $0) })
+        let afterAdding = try XCTUnwrap(info(archive))
+        XCTAssertTrue(finished { Ops.delete(info: afterAdding, names: ["a.txt"], password: nil, host: nil, completion: $0) })
+
+        let names = try XCTUnwrap(info(archive)).entries.map(\.name)
+        XCTAssertTrue(names.contains("added.txt"), "\(names)")
+        XCTAssertFalse(names.contains("a.txt"), "\(names)")
+        XCTAssertEqual(workspace.contents("tool.sfx")?.prefix(4), Data([0xCF, 0xFA, 0xED, 0xFE]), "no longer self-extracting")
     }
 
     /// Ops.compress reports the file it wrote, which the Create Archive dialog reveals in Finder.

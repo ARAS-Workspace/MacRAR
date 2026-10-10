@@ -181,6 +181,16 @@ enum ArchiveReader {
         return f
     }()
 
+    /// RAR by what 7-Zip found inside ("Rar", "Rar5"), not by the name: a self-extracting x.sfx is RAR and goes to rar
+    /// for adding and deleting, a ZIP named x.rar is not. The name decides only when 7-Zip names no type.
+    static func kind(type: String, path: String) -> ArchiveKind {
+        switch type.lowercased() {
+        case "rar", "rar5": return .rar
+        case "": return Formats.kind(of: path)
+        default: return .other
+        }
+    }
+
     private static func info(from listing: SevenZipBridge.Listing, path: String) -> ArchiveInfo {
         let entries = listing.items.map { item -> ArchiveEntry in
             let name = item.path.hasSuffix("/") ? String(item.path.dropLast()) : item.path
@@ -211,7 +221,8 @@ enum ArchiveReader {
         if listing.solid { parts.append("solid") }
         if listing.volumes > 1 { parts.append("\(listing.volumes) volume") }
 
-        var info = ArchiveInfo(path: path, kind: Formats.kind(of: path), details: parts.joined(separator: ", "), entries: entries)
+        var info = ArchiveInfo(
+            path: path, kind: kind(type: listing.type, path: path), details: parts.joined(separator: ", "), entries: entries)
         info.headersEncrypted = listing.headersEncrypted
         info.type = listing.type
         info.tarCompressed = tarCompressed
