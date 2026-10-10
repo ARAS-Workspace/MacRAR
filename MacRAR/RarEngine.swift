@@ -136,17 +136,6 @@ enum Formats {
         let name = (path as NSString).lastPathComponent
         return name.range(of: #"\.part\d+\.rar$|\.\d{3}$|\.r\d\d$|\.z\d\d$"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
-
-    static func isTarCompressed(_ path: String) -> Bool {
-        let lower = (path as NSString).lastPathComponent.lowercased()
-        let ext = (lower as NSString).pathExtension
-        if ["tgz", "tbz", "tbz2", "txz", "tzst", "tlz"].contains(ext) { return true }
-        for suffix in [".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst", ".tar.lz4", ".tar.z", ".tar.lzma", ".tar.lz", ".tar.br"]
-        where lower.hasSuffix(suffix) {
-            return true
-        }
-        return false
-    }
 }
 
 // MARK: - Listing
