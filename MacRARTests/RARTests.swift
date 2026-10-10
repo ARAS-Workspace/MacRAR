@@ -85,18 +85,6 @@ final class RARTests: XCTestCase {
         return args
     }
 
-    /// An operation such as Ops.add run to its completion.
-    private func finished(_ operation: (@escaping (Bool, String?) -> Void) -> Void) -> Bool {
-        let done = expectation(description: "operation finished")
-        var succeeded = false
-        operation { ok, _ in
-            succeeded = ok
-            done.fulfill()
-        }
-        wait(for: [done], timeout: 120)
-        return succeeded
-    }
-
     // MARK: Reading what rar makes
 
     func testRar5IsListedExtractedAndTested() throws {

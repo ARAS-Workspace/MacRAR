@@ -10,7 +10,10 @@ enum Dialogs {
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
 
     static func askPassword(archiveName: String, wrong: Bool = false) -> String? {
-        if let dbg = ProcessInfo.processInfo.environment["MACRAR_DEBUG_PASSWORD"], !wrong { return dbg == "__cancel__" ? nil : dbg }
+        // Debugging: MACRAR_DEBUG_PASSWORD answers the first prompt, MACRAR_DEBUG_PASSWORD_RETRY the one after a wrong password
+        if let answer = ProcessInfo.processInfo.environment[wrong ? "MACRAR_DEBUG_PASSWORD_RETRY" : "MACRAR_DEBUG_PASSWORD"] {
+            return answer == "__cancel__" ? nil : answer
+        }
         activate()
         let alert = NSAlert()
         alert.messageText = wrong ? loc.t("password_wrong_title") : loc.t("password_required_title")
@@ -63,6 +66,14 @@ enum Dialogs {
     enum OverwriteMode { case overwrite, rename, skip, cancel }
 
     static func askOverwrite(existing: [String], dest: String) -> OverwriteMode {
+        // Debugging: MACRAR_DEBUG_OVERWRITE=overwrite|rename|skip|cancel answers the question
+        switch ProcessInfo.processInfo.environment["MACRAR_DEBUG_OVERWRITE"] {
+        case "overwrite": return .overwrite
+        case "rename": return .rename
+        case "skip": return .skip
+        case "cancel": return .cancel
+        default: break
+        }
         activate()
         let alert = NSAlert()
         alert.messageText = loc.t("overwrite_title")
