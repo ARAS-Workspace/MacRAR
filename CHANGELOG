@@ -7,6 +7,75 @@ Each entry is one patch round on top of an original release, versioned
 in the original project.
 
 
+v1.4.2+ARAS.Patch.3 - 2026-10-10
+--------------------------------
+
+TR:
+ - RAR arşivine dosya ekleme ve RAR arşivinden silme yeniden
+   çalışıyor. rar, Finder'dan açılan uygulamanın çalışma dizininde
+   (/) geçici arşivini oluşturamayıp "Cannot create __rar_….rartemp"
+   ile duruyordu; artık arşivin klasöründe çalışıyor.
+ - Kendiliğinden açılan (SFX) RAR arşivleri oluşturulabiliyor. rar'ın
+   yanındaki default.sfx kullanılıyor ve arşiv, rar'ın yazdığı x.sfx
+   adıyla oluşturuluyor, gösteriliyor ve bildiriliyor; Arşiv Oluştur
+   penceresi de SFX seçilince .sfx adını gösteriyor.
+ - Bir arşivin RAR olup olmadığı adından değil içeriğinden
+   anlaşılıyor: SFX bir arşive dosya ekleme ve silme rar ile, .rar
+   adlı bir ZIP'e ise 7-Zip ile yapılıyor.
+ - Parçalı bir arşiv oluşturulunca Finder'da gösterilen ve açılan
+   dosya ilk parça oluyor (x.part1.rar, x.7z.001); önceden var olmayan
+   x.rar açılmaya çalışılıyordu.
+ - Aynı adla parçalı bir set zaten varsa yeni parçalı arşiv için önce
+   soruluyor ve boş bir ad seçiliyor. rar eski setin ilk parçalarının
+   üzerine yazıp kalanları bırakıyor, 7-Zip ise hata veriyordu.
+ - RAR aracı kurulurken seçilen dosyanın RARLAB'ın rar'ı olduğu,
+   karantinası kaldırılmadan önce denetleniyor; araç kurulmadan önce
+   bir kez çalıştırılıyor ve başarısız bir kurulum mevcut aracı
+   silmiyor.
+ - Geliştirme: Mac App Store sürümünün hiç derlenmeyen kodu
+   kaldırıldı; kullanıcıya görünen bir değişiklik yok.
+ - Geliştirme: RAR testleri RARLAB'ın gerçek rar'ıyla çalışıyor.
+   External/fetch-rar.sh sabitlenmiş sürümü indirip SHA-256 ile
+   doğruluyor; CI onu önbellekte tutuyor ve her çalışmada yeniden
+   doğruluyor. CI artık Swift uyarılarını da hata sayıyor.
+ - Geliştirme: çıkartılan dosyaların arşivin karantinasını taşıması,
+   var olan dosyalar için sorulan soru ve yanlış şifrede yeniden sorma
+   artık testlerle korunuyor; kullanılmayan bir yardımcı kaldırıldı.
+   Test sayısı 57 -> 90.
+
+EN:
+ - Adding to and deleting from a RAR archive work again. rar could not
+   create its temporary archive in the working directory of an app
+   Finder opens (/) and stopped with "Cannot create __rar_….rartemp";
+   it now runs in the archive's folder.
+ - Self-extracting (SFX) RAR archives can be created. The default.sfx
+   beside rar is used, and the archive is created, revealed and
+   reported as the x.sfx rar writes; the Create Archive dialog shows
+   the .sfx name once SFX is chosen.
+ - Whether an archive is RAR comes from its content, not its name: a
+   self-extracting archive is added to and deleted from through rar,
+   a ZIP named .rar through 7-Zip.
+ - Once a split archive is written, the file revealed in Finder and
+   opened is its first volume (x.part1.rar, x.7z.001); the app used to
+   try to open an x.rar that did not exist.
+ - When a split set of the same name already exists, creating a new
+   split archive asks first and picks a free name. rar wrote over the
+   first old volumes and left the rest, and 7-Zip failed.
+ - Installing the RAR tool checks that the chosen file is RARLAB's rar
+   before its quarantine comes off, runs it once before it is put in
+   place, and a failed install keeps the tool already installed.
+ - Development: the Mac App Store edition's code, which was never
+   compiled, is gone; nothing changes for users.
+ - Development: the RAR tests run against RARLAB's real rar.
+   External/fetch-rar.sh downloads the pinned release and checks it by
+   SHA-256; CI keeps it in its cache and checks it again on every run,
+   and now treats Swift warnings as errors.
+ - Development: tests now guard that extracted items carry the
+   archive's quarantine, the question asked about existing items and
+   asking again after a wrong password; an unused helper is gone.
+   57 -> 90 tests.
+
+
 v1.4.2+ARAS.Patch.2 - 2026-10-10
 --------------------------------
 
