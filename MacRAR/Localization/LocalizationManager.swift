@@ -2,11 +2,22 @@ import Foundation
 
 let loc = LocalizationManager.shared
 
-final class LocalizationManager: Sendable {
+/// The interface language and its strings, read from translations/<language>.json, following phantom-wg's
+/// LocalizationManager. Setting `current` saves the choice, loads the new strings and posts `didChange`; the menus,
+/// open windows and Finder Quick Actions observe it and apply the language at once. The notification stands in
+/// for SwiftUI's observation, which these AppKit views on macOS 13 do not have.
+final class LocalizationManager: @unchecked Sendable {
 
     enum Language: String, CaseIterable, Identifiable, Sendable {
         case tr, en
         var id: String { rawValue }
+
+        var flag: String {
+            switch self {
+            case .tr: return "\u{1F1F9}\u{1F1F7}"
+            case .en: return "\u{1F1FA}\u{1F1F8}"
+            }
+        }
 
         var displayName: String {
             switch self {
@@ -21,29 +32,49 @@ final class LocalizationManager: Sendable {
     }
 
     static let shared = LocalizationManager()
+    static let didChange = Notification.Name("LocalizationManagerDidChange")
+    static let defaultsKey = "Language"
 
-    let current: Language
-    private let strings: [String: String]
+    private let defaults: UserDefaults
+    private let lock = NSLock()
+    private var language: Language
+    private var strings: [String: String]
 
-    init() {
-        current = Self.resolveLanguage()
-        strings = Self.loadStrings(for: current)
+    var current: Language {
+        get { lock.withLock { language } }
+        set {
+            guard newValue != current else { return }
+            let loaded = Self.loadStrings(for: newValue)
+            lock.withLock {
+                language = newValue
+                strings = loaded
+            }
+            defaults.set(newValue.rawValue, forKey: Self.defaultsKey)
+            NotificationCenter.default.post(name: Self.didChange, object: self)
+        }
+    }
+
+    init(defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.defaults = defaults
+        language = Self.resolveLanguage(defaults: defaults, environment: environment)
+        strings = Self.loadStrings(for: language)
     }
 
     func t(_ key: String) -> String {
-        strings[key] ?? key
+        lock.withLock { strings[key] } ?? key
     }
 
     func t(_ key: String, _ args: CVarArg...) -> String {
-        let template = strings[key] ?? key
-        return String(format: template, arguments: args)
+        String(format: t(key), arguments: args)
     }
 
-    private static func resolveLanguage() -> Language {
-        if let forced = ProcessInfo.processInfo.environment["MACRAR_LANG"] {
+    /// MACRAR_LANG, then the saved choice, then the app's preferred localization (which follows the per-app
+    /// language in System Settings).
+    private static func resolveLanguage(defaults: UserDefaults, environment: [String: String]) -> Language {
+        if let forced = environment["MACRAR_LANG"] {
             return Language(identifier: forced)
         }
-        if let saved = UserDefaults.standard.string(forKey: "Language"), !saved.isEmpty {
+        if let saved = defaults.string(forKey: defaultsKey), !saved.isEmpty {
             return Language(identifier: saved)
         }
         if let preferred = Bundle.main.preferredLocalizations.first {

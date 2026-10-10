@@ -57,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         buildMenu()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
         launched = true
         FolderAccess.restore()
         #if APPSTORE
@@ -101,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #if !APPSTORE
         // Finder context-menu commands: install silently if not yet installed for this install (path + version)
         let stamp = Bundle.main.bundlePath + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
-        if UserDefaults.standard.string(forKey: "QuickActionsInstalledFor") != stamp, Bundle.main.bundlePath.hasPrefix("/Applications/") {
+        if UserDefaults.standard.string(forKey: "QuickActionsInstalledFor") != stamp, QuickActions.ownedByThisCopy {
             QuickActions.installAll()
             UserDefaults.standard.set(stamp, forKey: "QuickActionsInstalledFor")
         }
@@ -468,6 +470,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: Menu
+
+    /// A language change: the menus are rebuilt and the Finder Quick Actions take their new names.
+    @objc private func languageDidChange() {
+        buildMenu()
+        #if !APPSTORE
+        if QuickActions.ownedByThisCopy { QuickActions.relocalize() }
+        #endif
+    }
 
     // swiftlint:disable:next function_body_length
     private func buildMenu() {

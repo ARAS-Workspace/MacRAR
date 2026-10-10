@@ -31,6 +31,10 @@ enum QuickActions {
         ]
     }
 
+    /// Only the copy in /Applications installs and renames the Finder Quick Actions; a copy elsewhere, such as the
+    /// test host, leaves the user's ~/Library/Services alone.
+    static var ownedByThisCopy: Bool { Bundle.main.bundlePath.hasPrefix("/Applications/") }
+
     static var servicesDir: String {
         (NSHomeDirectory() as NSString).appendingPathComponent("Library/Services")
     }
@@ -42,13 +46,9 @@ enum QuickActions {
         let appPath = Bundle.main.bundlePath
         let fm = FileManager.default
         try? fm.createDirectory(atPath: directory, withIntermediateDirectories: true)
-        // Remove old versions
-        if let items = try? fm.contentsOfDirectory(atPath: directory) {
-            for item in items
-            where item.hasPrefix("RAR • ") || item.hasPrefix("MacRAR • ") || item.hasPrefix("MacRAR ile ") || item.hasPrefix("MacRAR: ")
-                || item.hasPrefix("Open with MacRAR") || item.hasPrefix("Compress with MacRAR") {
-                try? fm.removeItem(atPath: (directory as NSString).appendingPathComponent(item))
-            }
+        // Remove old versions, in either language
+        for item in installed(in: directory) {
+            try? fm.removeItem(atPath: (directory as NSString).appendingPathComponent(item))
         }
         var count = 0
         for action in actions {
@@ -66,6 +66,23 @@ enum QuickActions {
             refreshServices()
         }
         return count
+    }
+
+    /// After a language change: rewrites the installed actions under their new names, if they call this copy of the app.
+    static func relocalize(in directory: String = servicesDir, registerWithFinder: Bool = true) {
+        let appPath = xmlEscape(Bundle.main.bundlePath)
+        let callsThisApp = installed(in: directory).contains { item in
+            let workflow = (directory as NSString).appendingPathComponent("\(item)/Contents/document.wflow")
+            return (try? String(contentsOfFile: workflow, encoding: .utf8))?.contains(appPath) ?? false
+        }
+        if callsThisApp { installAll(in: directory, registerWithFinder: registerWithFinder) }
+    }
+
+    /// The workflows this app has written, under their English or Turkish names.
+    private static func installed(in directory: String) -> [String] {
+        let prefixes = ["RAR • ", "MacRAR • ", "MacRAR ile ", "MacRAR: ", "Open with MacRAR", "Compress with MacRAR"]
+        let items = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+        return items.filter { item in prefixes.contains { item.hasPrefix($0) } }
     }
 
     /// Marks the services enabled in the pbs preferences (macOS may keep newly added ones disabled)

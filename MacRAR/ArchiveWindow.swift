@@ -137,7 +137,9 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private let outline = ArchiveOutlineView()
     private let scroll = NSScrollView()
     private let statusLabel = NSTextField(labelWithString: "")
-    private let emptyLabel = NSTextField(wrappingLabelWithString: loc.t("window_empty_hint"))
+    private let emptyLabel = NSTextField(wrappingLabelWithString: "")
+    private lazy var openButton = NSButton(title: "", target: self, action: #selector(openArchive(_:)))
+    private lazy var newButton = NSButton(title: "", target: self, action: #selector(newArchive(_:)))
     private let emptyView = EmptyStateView()
     private var sortKey = "name"
     private var sortAscending = true
@@ -173,7 +175,10 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         window.delegate = self
         buildUI()
         buildToolbar()
+        applyLanguage()
         window.center()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -193,12 +198,12 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
             column.headerCell.alignment = align
             return column
         }
-        outline.addTableColumn(col(Self.nameCol, loc.t("column_name"), width: 320, min: 160))
+        outline.addTableColumn(col(Self.nameCol, "", width: 320, min: 160))
         outline.addTableColumn(col(Self.lockCol, "🔒", width: 28, min: 28, align: .center))
-        outline.addTableColumn(col(Self.sizeCol, loc.t("column_size"), width: 90, align: .right))
-        outline.addTableColumn(col(Self.packedCol, loc.t("column_packed"), width: 90, align: .right))
-        outline.addTableColumn(col(Self.ratioCol, loc.t("column_ratio"), width: 55, align: .right))
-        outline.addTableColumn(col(Self.dateCol, loc.t("column_modified"), width: 140))
+        outline.addTableColumn(col(Self.sizeCol, "", width: 90, align: .right))
+        outline.addTableColumn(col(Self.packedCol, "", width: 90, align: .right))
+        outline.addTableColumn(col(Self.ratioCol, "", width: 55, align: .right))
+        outline.addTableColumn(col(Self.dateCol, "", width: 140))
         outline.addTableColumn(col(Self.crcCol, "CRC32", width: 80))
         for column in outline.tableColumns where column.identifier != Self.lockCol && column.identifier != Self.crcCol {
             column.sortDescriptorPrototype = NSSortDescriptor(key: column.identifier.rawValue, ascending: true)
@@ -220,7 +225,6 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         outline.doubleAction = #selector(doubleClicked)
         outline.registerForDraggedTypes([.fileURL])
         outline.setDraggingSourceOperationMask(.copy, forLocal: false)
-        outline.menu = buildContextMenu()
 
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
@@ -236,10 +240,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         emptyLabel.alignment = .center
         emptyLabel.textColor = .tertiaryLabelColor
         emptyLabel.font = .systemFont(ofSize: 15)
-        let openBtn = NSButton(title: loc.t("action_open_archive"), target: self, action: #selector(openArchive(_:)))
-        let newBtn = NSButton(title: loc.t("window_empty_new_archive"), target: self, action: #selector(newArchive(_:)))
-        openBtn.bezelStyle = .rounded; newBtn.bezelStyle = .rounded
-        let btnRow = NSStackView(views: [openBtn, newBtn]); btnRow.spacing = 12
+        openButton.bezelStyle = .rounded; newButton.bezelStyle = .rounded
+        let btnRow = NSStackView(views: [openButton, newButton]); btnRow.spacing = 12
         let emptyStack = NSStackView(views: [emptyLabel, btnRow])
         emptyStack.orientation = .vertical; emptyStack.alignment = .centerX; emptyStack.spacing = 18
         emptyStack.translatesAutoresizingMaskIntoConstraints = false
@@ -279,6 +281,26 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
             emptyView.bottomAnchor.constraint(equalTo: scroll.bottomAnchor),
         ])
         updateStatus()
+    }
+
+    /// Every text in the window: set when it is built and again whenever the language changes.
+    private func applyLanguage() {
+        let columnTitles: [NSUserInterfaceItemIdentifier: String] = [
+            Self.nameCol: loc.t("column_name"), Self.sizeCol: loc.t("column_size"), Self.packedCol: loc.t("column_packed"),
+            Self.ratioCol: loc.t("column_ratio"), Self.dateCol: loc.t("column_modified"),
+        ]
+        for (id, title) in columnTitles { outline.tableColumn(withIdentifier: id)?.title = title }
+        outline.headerView?.needsDisplay = true
+        outline.menu = buildContextMenu()
+        emptyLabel.stringValue = loc.t("window_empty_hint")
+        openButton.title = loc.t("action_open_archive")
+        newButton.title = loc.t("window_empty_new_archive")
+        window?.toolbar?.items.forEach(localize)
+        updateStatus()
+    }
+
+    @objc private func languageDidChange() {
+        applyLanguage()
     }
 
     private func buildContextMenu() -> NSMenu {
@@ -665,42 +687,57 @@ extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
     ) -> NSToolbarItem? {
         if id == ToolbarItemID.search {
             let s = NSSearchToolbarItem(itemIdentifier: id)
-            s.label = loc.t("search_label")
-            s.searchField.placeholderString = loc.t("search_placeholder")
+            localize(s)
             s.searchField.target = self
             s.searchField.action = #selector(searchChanged(_:))
             s.searchField.sendsSearchStringImmediately = true
             s.searchField.sendsWholeSearchString = false
             return s
         }
-        // swiftlint:disable:next large_tuple
-        let specs: [NSToolbarItem.Identifier: (String, String, Selector, String)] = [
-            ToolbarItemID.open: (loc.t("open"), "folder", #selector(openArchive), loc.t("toolbar_open_tooltip")),
-            ToolbarItemID.newArchive: (loc.t("toolbar_compress"), "doc.zipper", #selector(newArchive), loc.t("toolbar_compress_tooltip")),
-            ToolbarItemID.extractTo: (
-                loc.t("toolbar_extract"), "square.and.arrow.down", #selector(extractTo), loc.t("toolbar_extract_tooltip")
-            ),
-            ToolbarItemID.extractHere: (
-                loc.t("toolbar_extract_here"), "arrow.down.doc", #selector(extractHere), loc.t("toolbar_extract_here_tooltip")
-            ),
-            ToolbarItemID.extractFolder: (
-                loc.t("toolbar_extract_folder"), "folder.badge.plus", #selector(extractToFolder), loc.t("toolbar_extract_folder_tooltip")
-            ),
-            ToolbarItemID.test: (loc.t("toolbar_test"), "checkmark.shield", #selector(testArchive), loc.t("toolbar_test_tooltip")),
-            ToolbarItemID.add: (loc.t("add"), "plus.rectangle.on.folder", #selector(addFiles), loc.t("toolbar_add_tooltip")),
-            ToolbarItemID.delete: (loc.t("delete"), "trash", #selector(deleteSelected), loc.t("toolbar_delete_tooltip")),
-            ToolbarItemID.info: (loc.t("toolbar_info"), "info.circle", #selector(showInfo), loc.t("toolbar_info_tooltip")),
+        let buttons: [NSToolbarItem.Identifier: (symbol: String, action: Selector)] = [
+            ToolbarItemID.open: ("folder", #selector(openArchive)),
+            ToolbarItemID.newArchive: ("doc.zipper", #selector(newArchive)),
+            ToolbarItemID.extractTo: ("square.and.arrow.down", #selector(extractTo)),
+            ToolbarItemID.extractHere: ("arrow.down.doc", #selector(extractHere)),
+            ToolbarItemID.extractFolder: ("folder.badge.plus", #selector(extractToFolder)),
+            ToolbarItemID.test: ("checkmark.shield", #selector(testArchive)),
+            ToolbarItemID.add: ("plus.rectangle.on.folder", #selector(addFiles)),
+            ToolbarItemID.delete: ("trash", #selector(deleteSelected)),
+            ToolbarItemID.info: ("info.circle", #selector(showInfo)),
         ]
-        guard let (label, symbol, sel, tip) = specs[id] else { return nil }
+        guard let button = buttons[id] else { return nil }
         let item = NSToolbarItem(itemIdentifier: id)
-        item.label = label
-        item.paletteLabel = label
-        item.toolTip = tip
-        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+        item.image = NSImage(systemSymbolName: button.symbol, accessibilityDescription: nil)
         item.target = self
-        item.action = sel
+        item.action = button.action
         item.isBordered = true
+        localize(item)
         return item
+    }
+
+    /// The label, tooltip and placeholder of a toolbar item in the current language.
+    private func localize(_ item: NSToolbarItem) {
+        if let search = item as? NSSearchToolbarItem {
+            search.label = loc.t("search_label")
+            search.searchField.placeholderString = loc.t("search_placeholder")
+            return
+        }
+        let texts: [NSToolbarItem.Identifier: (label: String, tip: String)] = [
+            ToolbarItemID.open: (loc.t("open"), loc.t("toolbar_open_tooltip")),
+            ToolbarItemID.newArchive: (loc.t("toolbar_compress"), loc.t("toolbar_compress_tooltip")),
+            ToolbarItemID.extractTo: (loc.t("toolbar_extract"), loc.t("toolbar_extract_tooltip")),
+            ToolbarItemID.extractHere: (loc.t("toolbar_extract_here"), loc.t("toolbar_extract_here_tooltip")),
+            ToolbarItemID.extractFolder: (loc.t("toolbar_extract_folder"), loc.t("toolbar_extract_folder_tooltip")),
+            ToolbarItemID.test: (loc.t("toolbar_test"), loc.t("toolbar_test_tooltip")),
+            ToolbarItemID.add: (loc.t("add"), loc.t("toolbar_add_tooltip")),
+            ToolbarItemID.delete: (loc.t("delete"), loc.t("toolbar_delete_tooltip")),
+            ToolbarItemID.info: (loc.t("toolbar_info"), loc.t("toolbar_info_tooltip")),
+        ]
+        guard let text = texts[item.itemIdentifier] else { return }
+        item.label = text.label
+        item.paletteLabel = text.label
+        item.toolTip = text.tip
+        item.image?.accessibilityDescription = text.label
     }
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool { validate(item.action) }
 }

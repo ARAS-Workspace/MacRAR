@@ -9,6 +9,11 @@ final class QuickActionsTests: XCTestCase {
         }
     }
 
+    /// The language tests switch the host's language; the host must not rename the user's real Quick Actions.
+    func testTheTestHostDoesNotOwnTheQuickActions() {
+        XCTAssertFalse(QuickActions.ownedByThisCopy, Bundle.main.bundlePath)
+    }
+
     func testInstallWritesAWorkflowPerAction() throws {
         let workspace = try Workspace()
         let directory = try workspace.makeDirectory("Services")

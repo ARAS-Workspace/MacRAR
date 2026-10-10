@@ -216,8 +216,6 @@
   "prefs_reveal_after_compress": "Reveal the new archive in Finder",
   "prefs_check_updates": "Check GitHub for updates once a day",
   "prefs_label_language": "Language:",
-  "prefs_system_language": "System language",
-  "prefs_language_note": "Language changes take effect after relaunching the app.",
   "prefs_label_folders": "Folders:",
   "prefs_folders_none": "No folders granted yet (Downloads is always available).",
   "prefs_folders_count": "Access granted to %d folder(s).",
