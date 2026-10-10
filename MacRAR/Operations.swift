@@ -386,8 +386,16 @@ enum Ops {
         }
         switch info.kind {
         case .rar:
-            let args = ["d", "-y"] + RarRunner.passwordSwitch(pw) + ["--", info.path] + names
-            runRar(title: title, args: args, password: pw, cwd: folder, host: host, completion: finish)
+            // A deletion that matched nothing used to report success while every item stayed
+            guard let list = try? RarRunner.nameList(names) else {
+                Dialogs.error(loc.t("delete_failed_title"), loc.t("unknown_error"))
+                completion(false, pw); return
+            }
+            let args = ["d", "-y", "-scfl"] + RarRunner.passwordSwitch(pw) + ["--", info.path, list.argument]
+            runRar(title: title, args: args, password: pw, cwd: folder, host: host) { result in
+                try? FileManager.default.removeItem(atPath: list.folder)
+                finish(result)
+            }
         case .other:
             let operation = SevenZipBridge.Operation.delete(archive: info.path, items: names, password: pw,
                                                             encryptHeaders: info.headersEncrypted)

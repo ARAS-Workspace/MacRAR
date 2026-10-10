@@ -383,10 +383,42 @@ final class RARTests: XCTestCase {
         }
     }
 
+}
+
+// MARK: - Names, passwords and large files
+
+extension RARTests {
+    /// Deleting takes the names the archive window lists, byte for byte as the archive holds them. rar got them as
+    /// arguments, which Process hands over decomposed, so a name stored with letters such as ü or ş composed matched
+    /// nothing: nothing was deleted, and the deletion reported success. A folder goes with everything in it, and a name
+    /// with spaces at either end is the name it is; 7z, which gets the names as they are, does the same.
+    func testDeletingFindsItemsWithTurkishNames() throws {
+        for relative in ["pack/Klasör ğ/iç/d.txt", "pack/Klasör ğ/üst.txt", "pack/ boşluk .txt", "pack/çalışma.txt", "pack/a.txt"] {
+            try workspace.writeComposed(Data("\(relative)\n".utf8), to: relative)
+        }
+        let doomed = ["pack/Klasör ğ", "pack/ boşluk .txt", "pack/çalışma.txt"]
+        for format in [ArchiveFormat.rar5, .sevenZip] {
+            var options = CompressOptions(archivePath: workspace.path("names.\(format.ext)"))
+            options.format = format
+            XCTAssertTrue(compress([workspace.path("pack")], options).ok, format.ext)
+            let before = try XCTUnwrap(info(options.archivePath))
+            // The names the window lists, as the archive holds them: composed, read from the disk
+            let names = doomed.compactMap { wanted in before.entries.first { $0.name == wanted }?.name }
+            XCTAssertEqual(names.count, doomed.count, "\(format.ext): \(before.entries.map(\.name))")
+            XCTAssertTrue(names.contains { $0.unicodeScalars.contains("\u{011F}") }, "\(format.ext): the names are not stored composed")
+
+            XCTAssertTrue(finished { Ops.delete(info: before, names: names, password: nil, host: nil, completion: $0) }, format.ext)
+            let left = Set(try XCTUnwrap(info(options.archivePath)).entries.map(\.name))
+            XCTAssertEqual(left, ["pack", "pack/a.txt"], format.ext)
+        }
+        let temporary = try FileManager.default.contentsOfDirectory(atPath: NSTemporaryDirectory())
+        XCTAssertEqual(temporary.filter { $0.hasPrefix("rar-names-") }, [], "the name list was left")
+    }
+
     // MARK: Passwords
 
     /// A password with Turkish letters, composed, as typing gives it.
-    private let typed = "Şifre İğüöçı"
+    private var typed: String { "Şifre İğüöçı" }
 
     private func scalars(_ text: String?) -> [Unicode.Scalar]? { text.map { Array($0.unicodeScalars) } }
 

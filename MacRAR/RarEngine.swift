@@ -232,6 +232,17 @@ enum RarRunner {
     /// same.
     static let addArguments = ["a", "-ep1", "-y"]
 
+    /// Names inside an archive, written for rar to read with "-scfl @list": UTF-8, one a line, byte for byte as the archive
+    /// holds them. Given as arguments they reached rar decomposed, as Process passes them, so a name stored with letters
+    /// such as ü or ş composed matched nothing. The list's argument, and the folder to remove once rar is done.
+    static func nameList(_ names: [String]) throws -> (argument: String, folder: String) {
+        let folder = TempDirs.make("rar-names")
+        let list = (folder as NSString).appendingPathComponent("names.txt")
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        try Data(names.map { $0 + "\n" }.joined().utf8).write(to: URL(fileURLWithPath: list))
+        return ("@" + list, folder)
+    }
+
     static func makeProcess(_ args: [String], cwd: String?) -> Process {
         let process = Process()
         process.executableURL = RarTools.rarURL ?? URL(fileURLWithPath: "/nonexistent/rar")
