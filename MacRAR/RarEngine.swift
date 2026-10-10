@@ -244,28 +244,142 @@ enum RarRunner {
     }
 }
 
+// MARK: - RAR tool output
+
+/// What rar prints while it works, read into progress events however the bytes arrive. rar rewrites the end of a line
+/// with backspaces: "Adding <file>" is followed on the same line by its percentages ("  0%", "  1%"…) and the line ends
+/// only with "OK", while the pipe hands over whatever rar has written so far. The text before a line's first backspace
+/// names the file and its last piece is the percentage. The percentage never goes back while the same file is named
+/// (rar sweeps a packed file's share once more); a new name, such as the recovery record, counts on its own.
+struct RarOutput {
+    /// The finished lines as they ended up on screen, without the percentages: what a failed run reports
+    private(set) var log = ""
+    /// The line rar is still writing
+    private var line = Data()
+    private var file: String?
+    private var percent = -1
+
+    private static let verbs = [
+        "Extracting", "Adding", "Testing", "Updating", "Creating", "Deleting", "Compressing", "Fresh", "Calculating",
+    ]
+    // swiftlint:disable force_try
+    private static let percentRegex = try! NSRegularExpression(pattern: #"^(\d{1,3})%( \d+)?$"#)
+    private static let tailRegex = try! NSRegularExpression(pattern: #"\s*(\d{1,3}%|OK|Failed|CRC failed)\s*$"#)
+    // swiftlint:enable force_try
+
+    /// The events in `data`, read after everything that came before it.
+    mutating func read(_ data: Data) -> [RarJob.Event] {
+        line.append(data)
+        var events: [RarJob.Event] = []
+        while let newline = line.firstIndex(of: 0x0A) {
+            let text = Self.text(line[line.startIndex..<newline])
+            line.removeSubrange(line.startIndex...newline)
+            log += Self.screen(text) + "\n"
+            events += parse(text, finished: true)
+        }
+        guard !line.isEmpty else { return events }
+        events += parse(Self.text(line), finished: false)
+        // A long run rewrites the percentage many times: keep the start of the line, which names the file, and the latest
+        // state
+        if line.count > 64 * 1024, let first = line.firstIndex(of: 0x08), let last = line.lastIndex(of: 0x08), first < last {
+            line.removeSubrange(line.index(after: first)...last)
+        }
+        return events
+    }
+
+    /// The end of the output: a line rar left without a newline goes to the log as well.
+    mutating func finish() {
+        guard !line.isEmpty else { return }
+        log += Self.screen(Self.text(line))
+        line.removeAll()
+    }
+
+    private mutating func parse(_ text: String, finished: Bool) -> [RarJob.Event] {
+        let pieces = Self.pieces(of: text)
+        guard let head = pieces.first else { return [] }
+        var events: [RarJob.Event] = []
+        let rewritten = text.contains("\u{8}")
+        // A name is whole once something follows it: rar pads it with the spaces its percentage writes over
+        if finished || rewritten || text.hasSuffix("    "),
+           let named = Self.name(in: head, endsWithStatus: finished && !rewritten), !continues(named) {
+            file = named.name
+            percent = -1
+            events.append(.file(named.name))
+        }
+        // The latest percentage, also when the line has already ended with OK
+        if let value = pieces.reversed().lazy.compactMap(Self.percentage).first, value > percent {
+            percent = value
+            events.append(.progress(value))
+        }
+        return events
+    }
+
+    /// Whether a line names the file already named: the same name, or the file going on in the next volume, which rar
+    /// names without its folder
+    private func continues(_ named: (name: String, nextVolume: Bool)) -> Bool {
+        guard let file else { return false }
+        return file == named.name || (named.nextVolume && file.hasSuffix("/" + named.name))
+    }
+
+    /// The file a line names before its first backspace: "Adding <file>", or "... <file>" when a file goes on in the
+    /// next volume. None for the archive itself ("Creating archive", "Deleting from") or any other line. A line that
+    /// ends with its status instead of rewriting it ("Adding <file>  OK", from older rar versions) loses that status;
+    /// otherwise a name may well end with "100%" or "OK" itself.
+    private static func name(in head: String, endsWithStatus: Bool) -> (name: String, nextVolume: Bool)? {
+        let text = head.trimmingCharacters(in: .whitespaces)
+        var candidate: String?
+        let nextVolume = text.hasPrefix("... ")
+        if nextVolume {
+            candidate = String(text.dropFirst(4))
+        } else if let verb = verbs.first(where: { text.hasPrefix($0 + " ") }) {
+            let rest = text.dropFirst(verb.count).trimmingCharacters(in: .whitespaces)
+            guard !rest.hasPrefix("from "), !rest.hasPrefix("archive ") else { return nil }
+            candidate = rest
+        }
+        guard var name = candidate else { return nil }
+        while endsWithStatus, let match = tailRegex.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) {
+            name = (name as NSString).substring(to: match.range.location)
+        }
+        name = name.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : (name, nextVolume)
+    }
+
+    private static func percentage(in piece: String) -> Int? {
+        let text = piece.trimmingCharacters(in: .whitespaces)
+        guard let match = percentRegex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        return Int(text[range])
+    }
+
+    /// A line cut where rar wrote backspaces, without the empty pieces
+    private static func pieces(of text: String) -> [String] {
+        text.components(separatedBy: "\u{8}").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    /// What a line finally shows, without the percentages it went through
+    private static func screen(_ text: String) -> String {
+        pieces(of: text).filter { percentage(in: $0) == nil }.joined(separator: " ")
+    }
+
+    private static func text(_ bytes: Data) -> String {
+        // swiftlint:disable:next optional_data_string_conversion
+        String(decoding: bytes, as: UTF8.self)
+    }
+}
+
 // MARK: - RAR tool job (progress tracking)
 
 final class RarJob {
-    enum Event {
+    enum Event: Equatable {
         case file(String)       // a new file is being processed
         case progress(Int)      // percentage (overall)
     }
 
     private var process: Process?
     private let queue = DispatchQueue(label: "macrar.job")
-    private var buffer = Data()
-    private var output = ""
+    private var reader = RarOutput()
     private(set) var cancelled = false
     var onEvent: ((Event) -> Void)?   // called on the main queue
-
-    private static let verbs = [
-        "Extracting", "Adding", "Testing", "Updating", "Creating", "Deleting", "Compressing", "Fresh", "Calculating",
-    ]
-    // swiftlint:disable force_try
-    private static let percentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})%"#)
-    private static let tailRegex = try! NSRegularExpression(pattern: #"\s*(\d{1,3}%|OK|Failed|CRC failed)\s*$"#)
-    // swiftlint:enable force_try
 
     func start(_ args: [String], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
         let process = RarRunner.makeProcess(args, cwd: cwd)
@@ -284,8 +398,8 @@ final class RarJob {
             guard let self else { return }
             self.queue.async {
                 self.consume(rest)
-                self.flushPartial()
-                let result = RarResult(code: proc.terminationStatus, output: self.output, cancelled: self.cancelled)
+                self.reader.finish()
+                let result = RarResult(code: proc.terminationStatus, output: self.reader.log, cancelled: self.cancelled)
                 DispatchQueue.main.async { completion(result) }
             }
         }
@@ -303,83 +417,9 @@ final class RarJob {
     }
 
     private func consume(_ data: Data) {
-        buffer.append(data)
-        while let nl = buffer.firstIndex(of: 0x0A) {
-            let lineData = buffer[buffer.startIndex..<nl]
-            buffer.removeSubrange(buffer.startIndex...nl)
-            // swiftlint:disable:next optional_data_string_conversion
-            let line = String(decoding: lineData, as: UTF8.self)
-            output += Self.lastSegment(line, keepAll: true) + "\n"
-            parse(Self.lastSegment(line))
-        }
-        // Progress updated with backspaces (\u{8}) before a newline arrives: read only the latest state
-        if !buffer.isEmpty {
-            // swiftlint:disable:next optional_data_string_conversion
-            let tail = String(decoding: buffer.suffix(512), as: UTF8.self)
-            parse(Self.lastSegment(tail))
-            // Keep the buffer from growing on a long single file: drop everything before the last backspace run
-            if buffer.count > 64 * 1024, let cut = buffer.lastIndex(of: 0x08) {
-                buffer.removeSubrange(buffer.startIndex...cut)
-            }
-        }
-    }
-
-    /// What a line overwritten with backspaces finally shows on screen
-    private static func lastSegment(_ s: String, keepAll: Bool = false) -> String {
-        let parts = s.components(separatedBy: "\u{8}").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        if keepAll {
-            // For the log: drop the repeated percentage fragments, keep the meaningful text
-            let meaningful = parts.filter {
-                $0.trimmingCharacters(in: .whitespaces).range(of: #"^\d{1,3}%( \d+)?$"#, options: .regularExpression) == nil
-            }
-            return meaningful.joined(separator: " ")
-        }
-        return parts.last ?? ""
-    }
-
-    private func flushPartial() {
-        if !buffer.isEmpty {
-            // swiftlint:disable:next optional_data_string_conversion
-            output += String(decoding: buffer, as: UTF8.self).replacingOccurrences(of: "\u{8}", with: "")
-            buffer.removeAll()
-        }
-    }
-
-    private func parse(_ raw: String) {
-        let line = raw.replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespaces)
-        guard !line.isEmpty else { return }
-        var pct: Int?
-        var fileName: String?
-
-        let ns = line as NSString
-        let full = NSRange(location: 0, length: ns.length)
-        if let m = Self.percentRegex.matches(in: line, range: full).last {
-            pct = Int(ns.substring(with: m.range(at: 1)))
-        }
-        var candidate: String?
-        if line.hasPrefix("... ") {
-            candidate = String(line.dropFirst(4))        // file continued after a volume change
-        } else {
-            for verb in Self.verbs where line.hasPrefix(verb + " ") {
-                let rest = String(line.dropFirst(verb.count)).trimmingCharacters(in: .whitespaces)
-                if rest.hasPrefix("from ") || rest.hasPrefix("archive ") { break }
-                candidate = rest
-                break
-            }
-        }
-        if let candidate {
-            var name = candidate.trimmingCharacters(in: .whitespaces)
-            while let m = Self.tailRegex.firstMatch(in: name, range: NSRange(location: 0, length: (name as NSString).length)) {
-                name = (name as NSString).substring(to: m.range.location)
-            }
-            fileName = name.trimmingCharacters(in: .whitespaces)
-        }
-
-        guard fileName != nil || pct != nil, let onEvent else { return }
-        DispatchQueue.main.async {
-            if let f = fileName, !f.isEmpty { onEvent(.file(f)) }
-            if let pct { onEvent(.progress(pct)) }
-        }
+        let events = reader.read(data)
+        guard !events.isEmpty, let onEvent else { return }
+        DispatchQueue.main.async { events.forEach(onEvent) }
     }
 }
 

@@ -61,12 +61,13 @@ final class RARTests: XCTestCase {
         }
     }
 
-    /// rar switches run the way the operations run them, through RarJob.
-    private func runRarJob(_ args: [String]) -> RarResult {
+    /// rar switches run the way the operations run them, through RarJob, with what it reports along the way.
+    private func runRarJob(_ args: [String], cwd: String? = nil, onEvent: ((RarJob.Event) -> Void)? = nil) -> RarResult {
         let job = RarJob()
+        job.onEvent = onEvent
         let done = expectation(description: "rar finished")
         var result: RarResult?
-        job.start(args) { outcome in
+        job.start(args, cwd: cwd) { outcome in
             result = outcome
             done.fulfill()
         }
@@ -375,6 +376,28 @@ final class RARTests: XCTestCase {
             for volume in try fm.contentsOfDirectory(atPath: workspace.root.path) where volume.hasPrefix("split.") {
                 try fm.removeItem(atPath: workspace.path(volume))
             }
+        }
+    }
+
+    /// The large files packed the way the Create Archive dialog has rar pack them: the progress names each file as rar
+    /// takes it and reaches 100%, and what 7-Zip extracts again is what went in.
+    func testLargeFilesAreNamedWhileRarPacksThem() throws {
+        let files = try LargeFiles.locate()
+        var options = CompressOptions(archivePath: workspace.path("large.rar"))
+        options.format = .rar5
+        guard case .rar(let args) = try XCTUnwrap(options.buildSteps(items: files).first).work else {
+            throw XCTSkip("expected rar switches")
+        }
+        var events: [RarJob.Event] = []
+        let result = runRarJob(args, cwd: workspace.root.path) { events.append($0) }
+        XCTAssertTrue(result.ok, result.output)
+        XCTAssertEqual(events.compactMap { if case .file(let name) = $0 { return name } else { return nil } }, files)
+        XCTAssertEqual(events.last, .progress(100))
+
+        XCTAssertEqual(try extract(options.archivePath, into: "out").code, .ok)
+        for file in files {
+            let name = (file as NSString).lastPathComponent
+            XCTAssertEqual(try LargeFiles.digest(workspace.path("out/\(name)")), try LargeFiles.digest(file), name)
         }
     }
 }
