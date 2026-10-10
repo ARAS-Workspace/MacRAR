@@ -307,6 +307,8 @@ enum Ops {
     // MARK: Adding files to / deleting from an existing archive
 
     static func add(info: ArchiveInfo, items: [String], password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void) {
+        let items = itemsToAdd(items, into: info.path)
+        guard !items.isEmpty else { completion(false, password); return }
         guard info.supportsModification else {
             Dialogs.error(loc.t("not_supported_title"), loc.t("add_tar_compressed_unsupported"))
             completion(false, password); return

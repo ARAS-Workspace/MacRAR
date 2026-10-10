@@ -867,15 +867,18 @@ extension ArchiveWindowController: NSOutlineViewDataSource, NSOutlineViewDelegat
         let paths = urls.map { $0.path }
         let archives = paths.filter { AppDelegate.isArchive($0) }
         let others = paths.filter { !AppDelegate.isArchive($0) }
-        if self.info == nil || others.isEmpty {
-            for archive in archives { AppDelegate.shared.openArchive(archive, reuse: self.info == nil ? self : nil) }
-            if !others.isEmpty, self.info == nil {
-                AppDelegate.shared.compressWithDialog(items: others, host: window) { [weak self] path in
-                    if let self, let path { AppDelegate.shared.openArchive(path, reuse: self) }
-                }
+        // Onto an open archive, a drop with anything but archives in it goes in whole: the archives among the items
+        // are added too, not left out without a word
+        if info != nil, !others.isEmpty {
+            DispatchQueue.main.async { [weak self] in self?.addItems(paths) }
+            return
+        }
+        // Archives alone open in windows of their own; other items dropped onto the empty window are compressed
+        for archive in archives { AppDelegate.shared.openArchive(archive, reuse: info == nil ? self : nil) }
+        if !others.isEmpty {
+            AppDelegate.shared.compressWithDialog(items: others, host: window) { [weak self] path in
+                if let self, let path { AppDelegate.shared.openArchive(path, reuse: self) }
             }
-        } else {
-            DispatchQueue.main.async { [weak self] in self?.addItems(others) }
         }
     }
 

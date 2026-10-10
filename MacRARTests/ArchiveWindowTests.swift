@@ -93,8 +93,8 @@ final class ArchiveWindowTests: XCTestCase {
     // MARK: Drops
 
     /// Upstream 1.4.3 (533ce7e): archives dropped onto an open archive together with other items were left out
-    /// without a word, while the rest went in; every dropped item should go in.
-    func testFilesAndArchivesDroppedTogetherAreAllAddedIsAKnownIssue() throws {
+    /// without a word, while the rest went in; every dropped item goes in.
+    func testFilesAndArchivesDroppedTogetherAreAllAdded() throws {
         let extra = try makeArchive("extra.zip", of: [workspace.path("src/a.txt")])
         try Data("note\n".utf8).write(to: workspace.url("note.txt"))
         let turkish = "öğrenci notu.txt".precomposedStringWithCanonicalMapping
@@ -104,9 +104,7 @@ final class ArchiveWindowTests: XCTestCase {
             target.handleDrop([URL(fileURLWithPath: extra), workspace.url("note.txt"), workspace.url(turkish)])
             XCTAssertTrue(eventually { names(target).contains("note.txt") }, "\(format): nothing was added")
             XCTAssertTrue(names(target).contains(turkish), "\(format): \(names(target))")
-            XCTExpectFailure("\(format): an archive dropped with other items is left out") {
-                XCTAssertTrue(names(target).contains("extra.zip"), "\(format): \(names(target))")
-            }
+            XCTAssertTrue(names(target).contains("extra.zip"), "\(format): \(names(target))")
         }
     }
 
@@ -134,6 +132,20 @@ final class ArchiveWindowTests: XCTestCase {
             XCTAssertFalse(names(target).contains("own.\(format)"), "\(format): the archive was packed into itself")
             XCTAssertEqual(run(.test(archive: archive, password: nil)).code, .ok, format)
         }
+    }
+
+    /// The archive is known among the items by the file it is, not by how its path is spelled: a name with Turkish
+    /// letters in the other Unicode form, or a link to it, is left out as well.
+    func testTheArchiveIsLeftOutOfItsOwnItemsHoweverItIsNamed() throws {
+        let name = "öğrenci arşivi.7z".precomposedStringWithCanonicalMapping
+        try workspace.writeComposed(Data(), to: name)
+        let archive = workspace.path(name)
+        let decomposed = workspace.path(name.decomposedStringWithCanonicalMapping)
+        let link = workspace.path("link.7z")
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: archive)
+        let note = workspace.path("src/a.txt")
+        XCTAssertEqual(Ops.itemsToAdd([archive, decomposed, link, note], into: archive), [note])
+        XCTAssertEqual(Ops.itemsToAdd([note], into: decomposed), [note])
     }
 
     /// The folder that holds the open archive, added to it by a drop or Add Files: 7-Zip packs a copy of the archive
