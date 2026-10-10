@@ -1,0 +1,82 @@
+MacRAR
+
+WinRAR-style archive manager for macOS. Independent distribution by
+ARAS-Workspace of MacRAR by Mesut Çevik (github.com/mstcvk/MacRAR).
+Each entry is one patch round on top of an original release, versioned
+<original release>+ARAS.Patch.<n>; the original releases are listed
+in the original project.
+
+
+v1.4.2+ARAS.Patch.1 - 2026-10-10
+--------------------------------
+
+TR:
+ - ARAS-Workspace dağıtımının ilk sürümü; Mesut Çevik'in MacRAR 1.4.2
+   sürümüne dayanır. Paket kimliği com.mesut.macrar ->
+   com.arasworkspace.MacRAR olduğu için macOS bunu yeni bir uygulama
+   olarak görür: özgün uygulamanın ayarları ve dosya
+   ilişkilendirmeleri taşınmaz, ilk açılışta ilişkilendirmeler yeniden
+   sorulur.
+ - 7-Zip, paketle gelen 7zz programı yerine uygulamaya kütüphane
+   olarak gömüldü: SevenZipKit, ARAS-Workspace/7zip
+   mac-v26.04+MacRAR.Patch.1 sürümündeki 7-Zip 26.04. Listeleme,
+   çıkartma, test, oluşturma, ekleme ve silme uygulamanın içinde
+   çalışır; RAR arşivleri yine 7-Zip ile okunur.
+ - Sıkıştırılmış tar arşivleri (tar.gz, tar.xz, tar.bz2, ...)
+   kütüphane tarafından içlerindeki tar olarak açılır; iki süreçli
+   boru hattı kaldırıldı.
+ - İlerleme penceresi yalnızca 0,3 saniyeden uzun süren işlemlerde
+   açılır; kısa işlemler doğrudan sonuca geçer.
+ - Bölünmüş arşivlerin parça boyutu arşiv oluşturulmadan önce
+   denetlenir; 7-Zip'in kabul etmeyeceği bir boyut, başarısız bir
+   işlem yerine bir uyarıyla karşılanır.
+ - Özgün tasarımdan Icon Composer ile yeni uygulama ikonu: kilit
+   rozeti maske tarafından kırpılmaması için köşenin içine alındı ve
+   SF Symbols kullanılmadan çizildi.
+ - Hakkında penceresi dağıtım sürümünü (1.4.2+ARAS.Patch.1) gösterir;
+   güncelleme denetimi mstcvk/MacRAR yerine ARAS-Workspace/MacRAR
+   sürümlerini okur. Mesut Çevik'in telif hakkı, lisansı ve Hakkında
+   penceresindeki atıflar değişmedi.
+ - Sürümler; Apple Silicon ve Intel için ayrı ayrı Developer ID ile
+   imzalanmış, notarize edilmiş ve damgalanmış DMG'ler olarak
+   mac-v etiketlerinden CI ile üretilir. Özgün projenin betikleri ve
+   Mac App Store sürümünün (Easy Mac Archiver) paketlemesi bu
+   dağıtımda yer almaz.
+ - Geliştirme: XcodeGen project.yml, İngilizce kaynak kodu,
+   translations/en.json ve tr.json'da İngilizce ve Türkçe metinler,
+   katı modda SwiftLint ve CI'ın main'e her push'ta çalıştırdığı,
+   uygulama içinde koşan XCTest paketi (37 test).
+
+EN:
+ - First release of the ARAS-Workspace distribution, based on MacRAR
+   1.4.2 by Mesut Çevik. Bundle id com.mesut.macrar ->
+   com.arasworkspace.MacRAR, so macOS sees a new app: the original's
+   settings and file associations are not carried over, and the
+   first launch asks for the associations again.
+ - 7-Zip is built into the app as a library instead of the bundled
+   7zz program: SevenZipKit, 7-Zip 26.04 from ARAS-Workspace/7zip
+   mac-v26.04+MacRAR.Patch.1. Listing, extracting, testing, creating,
+   adding and deleting run inside the app; RAR archives are still
+   read by 7-Zip.
+ - Compressed tar archives (tar.gz, tar.xz, tar.bz2, ...) are opened
+   by the library as the tar inside them; the two-process pipeline
+   is gone.
+ - The progress window opens only for operations that run longer
+   than 0.3 s; quick operations go straight to their result.
+ - The split volume size is checked before the archive is created; a
+   size 7-Zip would reject gets a message instead of a failed run.
+ - New app icon made in Icon Composer from the original design: the
+   lock badge moves inside the corner so the mask no longer clips it,
+   and is drawn without SF Symbols.
+ - About shows the distribution version, 1.4.2+ARAS.Patch.1, and the
+   update check reads ARAS-Workspace/MacRAR releases instead of
+   mstcvk/MacRAR. Mesut Çevik's copyright, licence and About credits
+   are unchanged.
+ - Releases are separate Developer ID-signed, notarized and stapled
+   DMGs for Apple Silicon and Intel, built by CI from mac-v tags. The
+   original's scripts and its Mac App Store edition (Easy Mac
+   Archiver) packaging are not part of this distribution.
+ - Development: XcodeGen project.yml, English sources with the
+   English and Turkish texts in translations/en.json and tr.json,
+   SwiftLint in strict mode, and a hosted XCTest suite (37 tests)
+   that CI runs on every push to main.
