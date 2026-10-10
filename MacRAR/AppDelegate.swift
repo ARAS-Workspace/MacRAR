@@ -205,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         let wc: ArchiveWindowController
+        var created = false
         if let reuse, reuse.info == nil {
             wc = reuse
         } else if let empty = windows.first(where: { $0.info == nil && $0.archivePath == nil }) {
@@ -212,11 +213,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             wc = ArchiveWindowController()
             windows.append(wc)
+            created = true
         }
         wc.showWindow(nil)
         wc.window?.makeKeyAndOrderFront(nil)
         wc.open(path)
-        if wc.info == nil, windows.count > 1 { wc.close() }
+        // A file that does not open closes only the window made for it; the empty window the user had stays
+        if wc.info == nil, created, windows.count > 1 { wc.close() }
     }
 
     /// Shows the options window and compresses. completion(path of the created archive / nil)

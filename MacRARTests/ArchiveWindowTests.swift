@@ -188,7 +188,7 @@ final class ArchiveWindowTests: XCTestCase {
     /// A file that does not open, from Finder, dropped onto the empty window or locked with a password the user does
     /// not give, leaves the empty window the user had. Upstream 1.4.3 (533ce7e) found the window closed whenever
     /// another one was open.
-    func testAFailedOpenKeepsTheEmptyWindowTheUserHadIsAKnownIssue() throws {
+    func testAFailedOpenKeepsTheEmptyWindowTheUserHad() throws {
         let broken = workspace.path("broken.rar")
         try Data(repeating: 0x41, count: 4096).write(to: URL(fileURLWithPath: broken))
         var locked = SevenZipBridge.UpdateOptions(format: "7z", password: "pw")
@@ -207,9 +207,7 @@ final class ArchiveWindowTests: XCTestCase {
         for (attempt, open) in attempts {
             let empty = app.windows.first { $0.info == nil && $0.archivePath == nil } ?? app.showEmptyWindow()
             open(empty)
-            XCTExpectFailure("\(attempt): the empty window is closed") {
-                XCTAssertTrue(app.windows.contains { $0 === empty } && empty.window?.isVisible == true, attempt)
-            }
+            XCTAssertTrue(app.windows.contains { $0 === empty } && empty.window?.isVisible == true, attempt)
             XCTAssertTrue(app.windows.contains { $0 === shown } && shown.info != nil, "\(attempt): the archive window changed")
         }
     }
@@ -233,5 +231,16 @@ final class ArchiveWindowTests: XCTestCase {
         XCTAssertEqual(app.windows.count, 1)
         XCTAssertNil(app.windows.first?.info)
         XCTAssertEqual(app.windows.first?.window?.isVisible, true)
+    }
+
+    /// A file that does not open as the app starts leaves the app its window: the one made for the file is the only
+    /// window, and closing it would quit the app. A second copy opens the file and, with MACRAR_SNAPSHOT, saves its
+    /// visible windows and quits.
+    func testAFileThatDoesNotOpenAtLaunchLeavesAWindow() throws {
+        let broken = workspace.path("broken.rar")
+        try Data(repeating: 0x41, count: 4096).write(to: URL(fileURLWithPath: broken))
+        let exit = try launchApp([broken], environment: ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "2"])
+        XCTAssertEqual(exit.status, 0, exit.output)
+        XCTAssertTrue(workspace.exists("shot-0.png"), "the copy had no window left: \(exit.output)")
     }
 }
