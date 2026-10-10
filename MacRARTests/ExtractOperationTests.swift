@@ -78,12 +78,12 @@ final class ExtractOperationTests: XCTestCase {
     func testAWrongPasswordIsAskedAgain() throws {
         let hidden = workspace.path("hidden.7z")
         _ = try makeArchive("hidden.7z", password: "pw", encryptHeaders: true)
-        try withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "pw"]) {
+        withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "pw"]) {
             var password: String?
             XCTAssertNotNil(Ops.listInteractive(archive: hidden, password: &password))
             XCTAssertEqual(password, "pw")
         }
-        try withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__"]) {
+        withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__"]) {
             var password: String?
             XCTAssertNil(Ops.listInteractive(archive: hidden, password: &password))
         }
