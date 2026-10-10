@@ -242,6 +242,7 @@
   "rar_tool_install_failed_title": "RAR aracı kurulamadı",
   "rar_tool_err_unreadable": "Dosya açılamadı. Bozuk ya da farklı bir dosya olabilir.",
   "rar_tool_err_not_found": "Seçilen yerde “rar” programı bulunamadı. RARLAB'dan indirdiğiniz “RAR for macOS” dosyasını seçin.",
+  "rar_tool_err_not_rarlab": "Seçilen “rar”, RARLAB'ın RAR for macOS aracı değil. rarlab.com'dan indirilen “RAR for macOS” dosyasını seçin.",
   "rar_tool_err_wrong_arch": "RAR aracı bu Mac'te çalışmadı. Mac'inize uygun sürümü (Apple Silicon için ARM, Intel için x64) indirdiğinizden emin olun.",
   "update_check_failed_title": "Güncelleme denetlenemedi",
   "update_check_failed_message": "GitHub'a ulaşılamadı. İnternet bağlantınızı kontrol edin.",

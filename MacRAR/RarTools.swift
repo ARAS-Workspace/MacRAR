@@ -116,52 +116,86 @@ enum RarTools {
         var errorDescription: String? { message }
     }
 
-    static func install(from url: URL) throws {
+    /// Installs the RAR tool the user chose (RARLAB's tar.gz, its rar folder or the rar program) into `directory`. The
+    /// tool is checked before its download quarantine comes off and run once in a staging folder afterwards; one that
+    /// fails either check is not installed, and the tool already there stays.
+    static func install(from url: URL, into directory: String = installDir) throws {
         let fm = FileManager.default
         var sourceDir: String?
-        var tmp: String?
         let lower = url.lastPathComponent.lowercased()
         if lower.hasSuffix(".tar.gz") || lower.hasSuffix(".tgz") {
             let tempDir = TempDirs.make("rar-install")
+            defer { try? fm.removeItem(atPath: tempDir) }
             try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
-            tmp = tempDir
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
             process.arguments = ["-xzf", url.path, "-C", tempDir]
             process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
             try process.run(); process.waitUntilExit()
             guard process.terminationStatus == 0 else { throw InstallError(message: loc.t("rar_tool_err_unreadable")) }
-            sourceDir = findRarDir(in: tempDir)
+            guard let found = findRarDir(in: tempDir) else { throw InstallError(message: loc.t("rar_tool_err_not_found")) }
+            try installChecked(from: found, into: directory)
+            return
         } else if isDirectoryPath(url.path) {
             sourceDir = findRarDir(in: url.path)
         } else if url.lastPathComponent == "rar" {
             sourceDir = url.deletingLastPathComponent().path
         }
-        defer { if let tmp { try? fm.removeItem(atPath: tmp) } }
-        guard let src = sourceDir else {
-            throw InstallError(message: loc.t("rar_tool_err_not_found"))
+        guard let src = sourceDir else { throw InstallError(message: loc.t("rar_tool_err_not_found")) }
+        try installChecked(from: src, into: directory)
+    }
+
+    private static func installChecked(from src: String, into directory: String) throws {
+        let fm = FileManager.default
+        guard looksLikeRarlabRar(at: (src as NSString).appendingPathComponent("rar")) else {
+            throw InstallError(message: loc.t("rar_tool_err_not_rarlab"))
         }
-        try? fm.removeItem(atPath: installDir)
-        try fm.createDirectory(atPath: installDir, withIntermediateDirectories: true)
+        let staged = directory + ".installing-" + UUID().uuidString
+        defer { try? fm.removeItem(atPath: staged) }
+        try fm.createDirectory(atPath: staged, withIntermediateDirectories: true)
         for name in ["rar", "default.sfx", "rarfiles.lst", "license.txt", "rar.txt", "whatsnew.txt", "acknow.txt", "order.htm"] {
             let s = (src as NSString).appendingPathComponent(name)
-            if fm.fileExists(atPath: s) { try fm.copyItem(atPath: s, toPath: (installDir as NSString).appendingPathComponent(name)) }
+            if fm.fileExists(atPath: s) { try fm.copyItem(atPath: s, toPath: (staged as NSString).appendingPathComponent(name)) }
         }
-        let rar = (installDir as NSString).appendingPathComponent("rar")
+        let rar = (staged as NSString).appendingPathComponent("rar")
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: rar)
-        let sfx = (installDir as NSString).appendingPathComponent("default.sfx")
+        let sfx = (staged as NSString).appendingPathComponent("default.sfx")
         if fm.fileExists(atPath: sfx) { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sfx) }
-        // A tool the user chose themselves: remove the download quarantine
+        // A tool the user chose themselves, and RARLAB's by the check above: remove the download quarantine
         let xattr = Process()
         xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
-        xattr.arguments = ["-dr", "com.apple.quarantine", installDir]
+        xattr.arguments = ["-dr", "com.apple.quarantine", staged]
         xattr.standardOutput = FileHandle.nullDevice; xattr.standardError = FileHandle.nullDevice
         try? xattr.run(); xattr.waitUntilExit()
-        UserDefaults.standard.removeObject(forKey: "RarPath")
-        guard version != nil else {
-            try? fm.removeItem(atPath: installDir)
+        guard reportedVersion(of: URL(fileURLWithPath: rar)) != nil else {
             throw InstallError(message: loc.t("rar_tool_err_wrong_arch"))
         }
+        try? fm.removeItem(atPath: directory)
+        try fm.moveItem(atPath: staged, toPath: directory)
+        if directory == installDir { UserDefaults.standard.removeObject(forKey: "RarPath") }
+    }
+
+    /// The light check made before the download quarantine comes off, when the tool cannot yet be run to ask it: a
+    /// Mach-O program that carries RARLAB's copyright, which rar keeps as UTF-32 text.
+    static func looksLikeRarlabRar(at path: String) -> Bool {
+        guard let data = FileManager.default.contents(atPath: path), data.count > 4,
+              let copyright = "Alexander Roshal".data(using: .utf32LittleEndian) else { return false }
+        let machO: [[UInt8]] = [[0xCF, 0xFA, 0xED, 0xFE], [0xCA, 0xFE, 0xBA, 0xBE], [0xCA, 0xFE, 0xBA, 0xBF]]
+        return machO.contains(Array(data.prefix(4))) && data.range(of: copyright) != nil
+    }
+
+    /// The version the tool reports with -iver ("7.23"); nil when it does not run or answers something else.
+    static func reportedVersion(of rar: URL) -> String? {
+        let process = Process()
+        process.executableURL = rar
+        process.arguments = ["-iver"]
+        let pipe = Pipe()
+        process.standardOutput = pipe; process.standardError = FileHandle.nullDevice; process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let output = String(bytes: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        process.waitUntilExit()
+        let version = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return process.terminationStatus == 0 && version.range(of: #"^\d+\.\d+$"#, options: .regularExpression) != nil ? version : nil
     }
 
     private static func findRarDir(in dir: String) -> String? {
