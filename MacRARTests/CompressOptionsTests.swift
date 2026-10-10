@@ -105,4 +105,16 @@ final class CompressOptionsTests: XCTestCase {
             XCTAssertTrue(args.contains(expected), "\(expected) missing from \(args)")
         }
     }
+
+    /// rar writes a self-extracting archive as name.sfx, so that is the name asked for and reported.
+    func testSelfExtractingRarIsWrittenAsSfx() throws {
+        let sfx = options(.rar5) { $0.sfx = true }
+        XCTAssertEqual(sfx.writtenPath, "/tmp/out.sfx")
+        guard case .rar(let args) = sfx.buildSteps(items: ["/src/a"])[0].work else { return XCTFail("expected rar switches") }
+        XCTAssertEqual(Array(args.suffix(3)), ["--", "/tmp/out.sfx", "/src/a"])
+        XCTAssertTrue(args.contains { $0.hasPrefix("-sfx") }, "\(args)")
+
+        XCTAssertEqual(options(.rar5).writtenPath, "/tmp/out.rar")
+        XCTAssertEqual(options(.sevenZip) { $0.sfx = true }.writtenPath, "/tmp/out.7z")
+    }
 }

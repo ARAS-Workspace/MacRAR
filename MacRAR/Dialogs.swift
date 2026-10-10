@@ -519,6 +519,13 @@ struct CompressOptions {
         var cleanup: (() -> Void)?
     }
 
+    /// The archive file the tool writes. rar names a self-extracting archive .sfx whatever it was asked for, so the
+    /// app asks for that name and reports it.
+    var writtenPath: String {
+        guard format.isRar, sfx else { return archivePath }
+        return ((archivePath as NSString).deletingPathExtension as NSString).appendingPathExtension("sfx") ?? archivePath
+    }
+
     /// Maps the 0-5 level to the 7-Zip -mx value
     private var mx: Int32 { [0, 1, 3, 5, 7, 9][max(0, min(5, level))] }
 
@@ -549,10 +556,10 @@ struct CompressOptions {
             if solid { args.append("-s") }
             if recoveryRecord { args.append("-rr3") }
             if let v = volumeSize, !v.isEmpty { args.append("-v\(v)") }
-            if sfx { args.append("-sfx") }
+            if sfx { args.append("-sfx" + (RarTools.sfxModule?.path ?? "")) }
             if deleteAfter { args.append("-df") }
             args += RarRunner.rarPasswordArgs(password, encryptHeaders: encryptNames)
-            return [Step(title: loc.t("progress_compressing"), work: .rar(args + ["--", archivePath] + items))]
+            return [Step(title: loc.t("progress_compressing"), work: .rar(args + ["--", writtenPath] + items))]
 
         case .sevenZip:
             var sevenZip = SevenZipBridge.UpdateOptions(format: "7z", level: mx, solid: solid ? 1 : 0, password: password)

@@ -246,19 +246,43 @@ final class RARTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(info(archive, password: "pw")).entries.contains { $0.name == "a.txt" })
     }
 
-    // MARK: Known issues
-    // Each one fails today and is marked with XCTExpectFailure; once the app is fixed, XCTest reports the expected
-    // failure as missing and the mark comes off, leaving the test to guard the fix.
-
     /// rar on macOS looks for default.sfx in the home directory, /usr/lib or /usr/local/lib rather than next to itself,
-    /// and names the archive .sfx; the app passes a bare -sfx and expects the .rar it asked for.
-    func testSelfExtractingArchiveIsAKnownIssue() throws {
+    /// and names a self-extracting archive .sfx. The app passes the module beside rar and asks for that name; a bare
+    /// -sfx stopped with "Cannot open /usr/local/etc/default.sfx".
+    func testSelfExtractingArchiveIsWrittenAsSfx() throws {
         var options = CompressOptions(archivePath: workspace.path("sfx.rar"))
         options.format = .rar5
         options.sfx = true
-        let result = runRarJob(try rarSwitches(options))
-        XCTExpectFailure("rar -sfx finds no default.sfx, and would write sfx.sfx rather than sfx.rar")
+        let args = try rarSwitches(options)
+        let module = rar.url.deletingLastPathComponent().appendingPathComponent("default.sfx").path
+        XCTAssertTrue(args.contains("-sfx" + module), "\(args)")
+        let result = runRarJob(args)
         XCTAssertTrue(result.ok, result.output)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: options.archivePath))
+
+        let written = workspace.path("sfx.sfx")
+        XCTAssertEqual(options.writtenPath, written)
+        XCTAssertFalse(workspace.exists("sfx.rar"))
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: written))
+        XCTAssertEqual(workspace.contents("sfx.sfx")?.prefix(4), Data([0xCF, 0xFA, 0xED, 0xFE]), "not a 64-bit Mach-O")
+        XCTAssertEqual(try XCTUnwrap(info(written)).details, "RAR 5")
+        XCTAssertEqual(try extract(written, into: "out").code, .ok)
+        assertSourcesExtracted(into: "out")
+    }
+
+    /// Ops.compress reports the file it wrote, which the Create Archive dialog reveals in Finder.
+    func testCompressReportsTheSfxItWrote() {
+        var options = CompressOptions(archivePath: workspace.path("made.rar"))
+        options.format = .rar5
+        options.sfx = true
+        let done = expectation(description: "compressed")
+        var reported: (ok: Bool, path: String)?
+        Ops.compress(items: workspace.sources, options: options, host: nil) { ok, path in
+            reported = (ok, path)
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 120)
+        XCTAssertEqual(reported?.ok, true)
+        XCTAssertEqual(reported?.path, workspace.path("made.sfx"))
+        XCTAssertTrue(workspace.exists("made.sfx"))
     }
 }

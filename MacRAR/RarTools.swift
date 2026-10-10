@@ -47,6 +47,14 @@ enum RarTools {
 
     static var available: Bool { rarURL != nil }
 
+    /// The SFX module beside the rar in use: RARLAB ships default.sfx next to rar and install(from:) copies it, but rar
+    /// on macOS only looks in the home directory, /usr/lib and /usr/local/lib. nil leaves rar to that search.
+    static var sfxModule: URL? {
+        guard let module = rarURL?.resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent("default.sfx"),
+              FileManager.default.fileExists(atPath: module.path) else { return nil }
+        return module
+    }
+
     /// e.g. "RAR 7.23"; nil if it does not run
     static var version: String? {
         guard let url = rarURL else { return nil }

@@ -177,6 +177,8 @@ enum Ops {
     // swiftlint:disable:next function_body_length
     static func compress(items: [String], options: CompressOptions, host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
         var options = options
+        // A self-extracting RAR is written as name.sfx: the checks below and the reported path are about that file
+        options.archivePath = options.writtenPath
         if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
         if !options.format.isRar, options.format.supportsVolumes, options.volumeBytes == nil {
             Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_invalid_volume_size", options.volumeSize ?? ""))
