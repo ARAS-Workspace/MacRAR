@@ -7,6 +7,100 @@ Each entry is one patch round on top of an original release, versioned
 in the original project.
 
 
+v1.4.2+ARAS.Patch.4 - 2026-10-10
+--------------------------------
+
+TR:
+ - Büyük dosyalar RAR olarak sıkıştırılırken ilerleme penceresi artık
+   "Hazırlanıyor…" yazısında kalmıyor. Pencere, rar'ın eklediği her
+   dosyanın adını gösteriyor ve yüzde geri gitmiyor. Önceden rar
+   dosya adını ve ilk yüzdeyi aynı satıra yazdığında ad okunamıyordu.
+ - RAR arşivine yalnızca seçilen öğeler ekleniyor. Önceden seçilmeyen
+   klasörlerdeki aynı adlı dosyalar da arşive giriyordu.
+   "Arşivledikten sonra sil" seçiliyse bu dosyalar diskten de
+   siliniyordu. Adında Türkçe harf bulunan bazı dosyalar ise hata
+   verilmeden atlanıyordu.
+ - Türkçe harf içeren RAR parolaları yazıldığı gibi kullanılıyor.
+   Parola rar'a komut satırından değil standart girdiden veriliyor.
+   Bu sayede parola süreç listesinde de görünmüyor. Önceki sürümlerin
+   böyle bir parolayla kilitlediği arşivler de yazılan parolayla
+   açılıyor.
+ - Dosyaları şifrelenmiş bir arşive yeni dosya eklenmeden ve bu
+   arşivden dosya çıkarılmadan önce parola denetleniyor. Yanlış
+   girilen parola yeniden soruluyor. Böylece arşiv iki farklı
+   parolayla kilitlenmiş olarak kalmıyor. "Üzerine yaz" seçilen bir
+   dosya boşalmıyor. Geride boş dosya ya da klasör de kalmıyor.
+ - Arşiv biçiminin kabul etmediği bir parola, işlem başlamadan bir
+   açıklamayla reddediliyor. ZIP parolası yalnızca İngilizce harf,
+   rakam, boşluk ve işaretlerden oluşabilir ve en fazla 99 karakter
+   olabilir. RAR'da ilk 127 karakteri arasında emoji bulunan uzun bir
+   parola kabul edilmiyor. Böyle bir parolayla oluşturulan arşivi
+   7-Zip, dolayısıyla MacRAR da açamıyordu.
+ - Adında Türkçe harf bulunan bazı öğeler RAR arşivinden
+   silinemiyordu. Artık bu öğeler de siliniyor.
+ - tar.gz arşivinin içinde saklanan tar dosyası artık arşivle aynı
+   adı taşıyor. Önceden bu dosyanın adı Archiver-<UUID>.tar oluyordu.
+   tar.gz, tar.xz ve tar.bz2 sıkıştırılırken ilerleme penceresi de
+   artık bu geçici adı göstermiyor.
+ - Geliştirme: External/generate-large-files.sh betiği testler için
+   üç dosya üretiyor. Her dosya 256 MiB büyüklüğünde ve
+   sıkıştırıldığında küçülmüyor. Dosyalardan birinin adı Türkçe. CI
+   bu betiği testlerden önce çalıştırıyor.
+ - Geliştirme: Testler büyük dosyaları uygulamanın kendi sıkıştırma,
+   çıkarma ve iptal akışlarından geçiriyor. On farklı türde parola
+   beş durumda deneniyor: yalnızca dosyaları ya da adları da
+   şifreleyen RAR ve 7z arşivleri ile ZIP. Bir biçimin kabul etmediği
+   parolalarda açıklamanın gösterildiği doğrulanıyor. Hızlı Eylemler,
+   uygulamanın ikinci bir kopyasıyla test ediliyor. Testler hiçbir
+   zaman gerçek bir pencerede beklemiyor. Test sayısı 90 -> 124.
+
+EN:
+ - Compressing large files as RAR no longer leaves the progress
+   window on "Preparing…". The window names each file rar adds, and
+   the percentage never goes back. rar writes a file's name and its
+   first percentage on one line, and the name used to go unread.
+ - Only the chosen items go into a RAR archive. Same-named files in
+   folders nobody chose used to go in too. With "delete files after
+   archiving" they were deleted from the disk as well. Some files
+   with Turkish letters in their names were left out without an
+   error.
+ - RAR passwords with Turkish letters work as typed. rar gets the
+   password on its standard input instead of its command line. The
+   password therefore no longer shows in the process list either.
+   Archives that earlier versions locked with such a password open
+   with the password as typed.
+ - The password is checked before files are added to an archive
+   whose files are encrypted, and before files are extracted from
+   it. A wrong password is asked for again. The archive no longer
+   ends up under two different passwords. A file chosen for
+   Overwrite is no longer emptied. No empty files or folders are
+   left behind either.
+ - A password the archive format cannot take is refused with an
+   explanation before anything is written. A ZIP password can hold
+   only English letters, digits, spaces and symbols, and at most 99
+   characters. RAR refuses a long password with an emoji among its
+   first 127 characters. 7-Zip, and so MacRAR, could not open an
+   archive locked with such a password.
+ - Some items with Turkish letters in their names could not be
+   deleted from RAR archives. They are deleted now.
+ - The tar kept inside a tar.gz archive now has the archive's name.
+   It used to be named Archiver-<UUID>.tar. The progress window no
+   longer shows that temporary name either while a tar.gz, tar.xz or
+   tar.bz2 is compressed.
+ - Development: External/generate-large-files.sh makes three files
+   for the tests. Each file is 256 MiB and does not get smaller when
+   compressed. One of the files has a Turkish name. CI runs the
+   script before the tests.
+ - Development: the tests run the large files through the app's own
+   compressing, extracting and cancelling flows. Ten kinds of
+   password are tried in five cases: RAR and 7z archives that
+   encrypt only the files or their names too, and ZIP. For a
+   password a format cannot take, the tests check that the
+   explanation is shown. The Quick Actions are tested in a second
+   copy of the app. No test ever waits at a real dialog.
+   90 -> 124 tests.
+
+
 v1.4.2+ARAS.Patch.3 - 2026-10-10
 --------------------------------
 
