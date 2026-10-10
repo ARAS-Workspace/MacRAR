@@ -14,6 +14,22 @@ enum LargeFiles {
         return names.sorted().map { folder.appendingPathComponent($0).path }
     }
 
+    /// Copies of them in a folder of the workspace, under their composed names as the originals have them: for flows
+    /// that write next to what they pack, such as the Quick Action. APFS clones, so they take no space; a plain copy
+    /// where the workspace is on another volume.
+    static func clone(into workspace: Workspace, folder: String) throws -> [String] {
+        let target = try workspace.makeComposedDirectory(folder)
+        return try locate().map { source in
+            let copy = "\(target)/\((source as NSString).lastPathComponent.precomposedStringWithCanonicalMapping)"
+            if clonefile(source, copy, 0) != 0 {
+                guard errno == EXDEV, copyfile(source, copy, nil, copyfile_flags_t(COPYFILE_ALL)) == 0 else {
+                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+            }
+            return copy
+        }
+    }
+
     /// The SHA-256 of a file, read a piece at a time: what came out of an archive is compared with what went in
     /// without holding either in memory.
     static func digest(_ path: String) throws -> String {

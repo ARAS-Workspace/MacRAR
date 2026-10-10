@@ -397,6 +397,9 @@ final class ProgressPanel: NSWindowController {
         close()
     }
 
+    /// The file line and the percentage line as they read now
+    var readout: (file: String, detail: String) { (fileLabel.stringValue, detailLabel.stringValue) }
+
     func setFile(_ raw: String) {
         var name = raw
         if let stripPrefix, !stripPrefix.isEmpty {

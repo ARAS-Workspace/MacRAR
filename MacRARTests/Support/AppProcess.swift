@@ -12,7 +12,7 @@ extension XCTestCase {
     /// Runs a second copy of the app with the arguments a Finder Quick Action passes after "--args", and waits for it.
     /// MACRAR_DEBUG_CONFIRM prints the alerts that report a result, and the argument domain keeps the result from being
     /// revealed in Finder; "-Key value" pairs in `arguments` set further defaults for that copy only.
-    func launchApp(_ arguments: [String], environment: [String: String] = [:],
+    func launchApp(_ arguments: [String], environment: [String: String] = [:], timeout: TimeInterval = 60,
                    file: StaticString = #filePath, line: UInt = #line) throws -> AppExit {
         let process = Process()
         process.executableURL = try XCTUnwrap(Bundle.main.executableURL)
@@ -29,7 +29,7 @@ extension XCTestCase {
         process.terminationHandler = { _ in finished.signal() }
         let started = Date()
         try process.run()
-        if finished.wait(timeout: .now() + 60) == .timedOut {
+        if finished.wait(timeout: .now() + timeout) == .timedOut {
             process.terminate()
             process.waitUntilExit()
             XCTFail("MacRAR \(arguments.joined(separator: " ")) did not finish", file: file, line: line)
