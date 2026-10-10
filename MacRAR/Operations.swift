@@ -279,7 +279,8 @@ enum Ops {
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
-        guard FolderAccess.ensure((info.path as NSString).deletingLastPathComponent, write: true) else {
+        let folder = (info.path as NSString).deletingLastPathComponent
+        guard FolderAccess.ensure(folder, write: true) else {
             completion(false, password); return
         }
         var pw = password
@@ -302,7 +303,8 @@ enum Ops {
         case .rar:
             let args = ["a", "-ep1", "-r", "-y"] + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted)
                 + ["--", info.path] + items
-            runRar(title: title, args: args, host: host, completion: finish)
+            // rar writes its temporary archive in its working directory, which is / when Finder opens the app
+            runRar(title: title, args: args, cwd: folder, host: host, completion: finish)
         case .other:
             var options = SevenZipBridge.UpdateOptions(format: info.type, password: pw)
             options.encryptHeaders = pw != nil && info.headersEncrypted
@@ -318,7 +320,8 @@ enum Ops {
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
-        guard FolderAccess.ensure((info.path as NSString).deletingLastPathComponent, write: true) else {
+        let folder = (info.path as NSString).deletingLastPathComponent
+        guard FolderAccess.ensure(folder, write: true) else {
             completion(false, password); return
         }
         var pw = password
@@ -340,7 +343,7 @@ enum Ops {
         switch info.kind {
         case .rar:
             let args = ["d", "-y"] + RarRunner.rarPasswordArgs(pw) + ["--", info.path] + names
-            runRar(title: title, args: args, host: host, completion: finish)
+            runRar(title: title, args: args, cwd: folder, host: host, completion: finish)
         case .other:
             let operation = SevenZipBridge.Operation.delete(archive: info.path, items: names, password: pw,
                                                             encryptHeaders: info.headersEncrypted)

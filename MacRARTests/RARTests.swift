@@ -210,22 +210,15 @@ final class RARTests: XCTestCase {
         XCTAssertEqual(info.entries.map(\.name), ["a.txt"])
     }
 
-    // MARK: Known issues
-    // Each one fails today and is marked with XCTExpectFailure; once the app is fixed, XCTest reports the expected
-    // failure as missing and the mark comes off, leaving the test to guard the fix.
-
-    private static let workingDirectoryIssue = "rar runs in the app's working directory, /, and cannot create its temporary archive there"
-
-    /// Ops.add and Ops.delete run rar without a working directory, so it inherits the app's: / when Finder opens the
-    /// app, and in the test host. rar 7 writes its temporary archive there ("Cannot create __rar_….rartemp") and stops.
-    /// Creating archives passes the archive's folder and works.
-    func testAddingAndDeletingIsAKnownIssue() throws {
+    /// rar writes its temporary archive in its working directory. The test host's is /, as is the app's when Finder
+    /// opens it, so Ops.add and Ops.delete run rar in the archive's folder; inheriting / failed with
+    /// "Cannot create __rar_….rartemp".
+    func testAddingAndDeletingGoThroughRar() throws {
         let archive = try makeRar("edit.rar")
         try Data("added\n".utf8).write(to: workspace.url("added.txt"))
         let added = workspace.path("added.txt")
 
         let before = try XCTUnwrap(info(archive))
-        XCTExpectFailure(Self.workingDirectoryIssue)
         XCTAssertTrue(finished { Ops.add(info: before, items: [added], password: nil, host: nil, completion: $0) })
         let afterAdding = try XCTUnwrap(info(archive))
         XCTAssertTrue(afterAdding.entries.contains { $0.name == "added.txt" })
@@ -236,18 +229,26 @@ final class RARTests: XCTestCase {
         XCTAssertTrue(names.contains("added.txt"), "\(names)")
     }
 
-    /// Adding to an archive with encrypted names keeps them encrypted (-hp); blocked by the same issue.
-    func testAddingWithEncryptedNamesIsAKnownIssue() throws {
+    /// Adding to an archive with encrypted names keeps them encrypted (-hp), and so does deleting from it.
+    func testEncryptedNamesStayEncrypted() throws {
         let archive = try makeRar("hidden.rar", ["-hppw"])
         try Data("added\n".utf8).write(to: workspace.url("added.txt"))
         let added = workspace.path("added.txt")
 
         let before = try XCTUnwrap(info(archive, password: "pw"))
-        XCTExpectFailure(Self.workingDirectoryIssue)
         XCTAssertTrue(finished { Ops.add(info: before, items: [added], password: "pw", host: nil, completion: $0) })
         guard case .wrongPassword = ArchiveReader.list(archive, password: nil) else { return XCTFail("the names are no longer encrypted") }
-        XCTAssertTrue(try XCTUnwrap(info(archive, password: "pw")).entries.contains { $0.name == "added.txt" })
+        let afterAdding = try XCTUnwrap(info(archive, password: "pw"))
+        XCTAssertTrue(afterAdding.entries.contains { $0.name == "added.txt" })
+
+        XCTAssertTrue(finished { Ops.delete(info: afterAdding, names: ["a.txt"], password: "pw", host: nil, completion: $0) })
+        guard case .wrongPassword = ArchiveReader.list(archive, password: nil) else { return XCTFail("deleting decrypted the names") }
+        XCTAssertFalse(try XCTUnwrap(info(archive, password: "pw")).entries.contains { $0.name == "a.txt" })
     }
+
+    // MARK: Known issues
+    // Each one fails today and is marked with XCTExpectFailure; once the app is fixed, XCTest reports the expected
+    // failure as missing and the mark comes off, leaving the test to guard the fix.
 
     /// rar on macOS looks for default.sfx in the home directory, /usr/lib or /usr/local/lib rather than next to itself,
     /// and names the archive .sfx; the app passes a bare -sfx and expects the .rar it asked for.
