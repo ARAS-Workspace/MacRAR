@@ -7,6 +7,59 @@ Each entry is one patch round on top of an original release, versioned
 in the original project.
 
 
+v1.4.2+ARAS.Patch.2 - 2026-10-10
+--------------------------------
+
+TR:
+ - Ayarlar'da seçilen dil anında uygulanır; uygulamayı yeniden açmak
+   gerekmez. Menüler, açık arşiv pencereleri ve Ayarlar penceresi
+   yeni dile hemen geçer.
+ - Dil seçimi bayraklı iki seçenekten oluşur: Türkçe ve English.
+   "Sistem dili" seçeneği ve "yeniden açılınca geçerli olur" notu
+   kaldırıldı; hiç seçim yapılmadıysa uygulama yine sistem dilini
+   kullanır.
+ - Finder Hızlı Eylemleri seçilen dildeki adlarıyla yeniden yazılır.
+   Bunu yalnızca Applications klasöründeki kopya yapar; başka bir
+   yerden çalışan kopya kullanıcının Hızlı Eylemlerine dokunmaz.
+ - Düzeltme: -AppleLanguages (tr) gibi "-Anahtar değer" biçimindeki
+   açılış argümanları artık açılacak dosya sanılmaz; önceden değer
+   (burada "(tr)") için Arşiv Oluştur penceresi açılıyordu.
+ - Belgeler: İngilizce README.md ve Türkçe README_TR.md eklendi; her
+   yama turu bu CHANGELOG dosyasına yazılır.
+ - Geliştirme: dil katmanı phantom-wg'nin LocalizationManager
+   desenini izler; dil değişince yayınlanan bildirimi menüler ve
+   pencereler dinler, metinlerini applyLanguage() ile yeniden yazar.
+ - Geliştirme: XCTest paketi komut satırı modlarını uygulamanın ikinci
+   bir kopyasıyla çalıştırır ve dil değişikliğini Ayarlar'daki
+   seçiciden başlayarak doğrular; MACRAR_DEBUG_CONFIRM açıkken tek
+   düğmeli uyarılar beklemek yerine çıktıya yazılır. Test sayısı
+   37 -> 57.
+
+EN:
+ - A language chosen in Settings applies at once, with no relaunch:
+   the menus, open archive windows and the Settings window switch
+   immediately.
+ - The language choice is Türkçe or English, with flags. The "System
+   language" option and the relaunch note are gone; with no choice
+   made, the app still follows the system language.
+ - The Finder Quick Actions are rewritten under their names in the
+   chosen language. Only the copy in the Applications folder does
+   this; a copy run from elsewhere leaves the user's Quick Actions
+   alone.
+ - Fix: launch arguments of the form -Key value, such as
+   -AppleLanguages (tr), are no longer taken for files to open; the
+   value, "(tr)" here, used to open the Create Archive dialog.
+ - Docs: README.md in English and README_TR.md in Turkish; each patch
+   round is recorded in this CHANGELOG.
+ - Development: the language layer follows phantom-wg's
+   LocalizationManager; menus and windows observe the change it
+   announces and rewrite their texts in applyLanguage().
+ - Development: the XCTest suite runs the command-line modes in a
+   second copy of the app and checks the language switch starting
+   from the Settings popup; with MACRAR_DEBUG_CONFIRM set, one-button
+   alerts are printed instead of waiting. 37 -> 57 tests.
+
+
 v1.4.2+ARAS.Patch.1 - 2026-10-10
 --------------------------------
 
