@@ -382,8 +382,8 @@ extension PasswordTests {
     /// A password a format cannot take so that the archive opens as typed is explained before anything is written, in
     /// the app's own words, where 7-Zip stopped with "E_INVALIDARG" or rar locked an archive the app could not open:
     /// ZIP with AES takes 99 characters at most; rar uses the first 127 characters, counted in Unicode scalars, while
-    /// 7-Zip and WinRAR on Windows count UTF-16 units, an emoji taking two. A password on either side of each limit goes
-    /// through the second copy of the app, as a Quick Action runs it.
+    /// 7-Zip counts UTF-16 units, an emoji taking two. A password on either side of each limit goes through the second
+    /// copy of the app, as a Quick Action runs it.
     func testPasswordsAFormatCannotTakeAreExplained() throws {
         struct Limit {
             let lock: Lock

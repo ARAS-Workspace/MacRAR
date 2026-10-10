@@ -26,8 +26,9 @@ extension Ops {
     /// Why `password` cannot lock a new archive of `format` so that it opens as typed, for the user; nil when it can.
     /// ZIP: printable ASCII only, and with AES, which the app always uses for a ZIP password, 99 characters at most;
     /// 7-Zip refused anything else with "E_INVALIDARG". RAR: rar uses the first 127 characters, counting Unicode
-    /// scalars, while 7-Zip and WinRAR on Windows count UTF-16 units, an emoji taking two; when those 127 characters
-    /// take more units, rar locked the archive with more of the password than they read, and the app could not open it.
+    /// scalars, while 7-Zip counts UTF-16 units, an emoji taking two (as WinRAR on Windows likely does, its wide
+    /// characters being UTF-16; not measured). When those 127 characters take more units, rar locked the archive with
+    /// more of the password than 7-Zip reads, and the app could not open it.
     static func passwordProblem(_ password: String?, format: ArchiveFormat) -> String? {
         guard let password, !password.isEmpty else { return nil }
         switch format {
