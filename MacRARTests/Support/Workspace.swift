@@ -33,6 +33,12 @@ final class Workspace {
 
     func exists(_ relative: String) -> Bool { FileManager.default.fileExists(atPath: path(relative)) }
 
+    /// The files at the top level whose names start with `prefix`, with their contents: a volume set to compare.
+    func files(startingWith prefix: String) throws -> [String: Data] {
+        let names = try FileManager.default.contentsOfDirectory(atPath: root.path).filter { $0.hasPrefix(prefix) }
+        return Dictionary(uniqueKeysWithValues: names.map { ($0, contents($0) ?? Data()) })
+    }
+
     private static func noise(count: Int) -> Data {
         var state: UInt32 = 2_654_435_761
         return Data((0..<count).map { _ in

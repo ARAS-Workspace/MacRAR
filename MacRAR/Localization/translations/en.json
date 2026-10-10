@@ -177,6 +177,7 @@
   "compress_exists_message": "Create a new archive, or add the files to the existing one?",
   "compress_exists_encrypted_message": "An archive with this name already exists and is encrypted. Create a new unencrypted archive, or add the files to the encrypted archive?",
   "compress_exists_no_append_message": "Files cannot be added to an existing archive of this format. Create a new archive?",
+  "compress_exists_split_message": "A split archive with this name already exists, and files cannot be added to one. Create a new archive?",
   "compress_create_new": "Create New Archive",
   "compress_add_to_existing": "Add to Existing Archive",
   "compress_add_to_encrypted": "Add to Encrypted Archive…",

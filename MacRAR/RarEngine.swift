@@ -418,9 +418,8 @@ func isDirectoryPath(_ path: String) -> Bool {
     return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
 }
 
-func uniquePath(_ path: String) -> String {
-    let fm = FileManager.default
-    guard fm.fileExists(atPath: path) else { return path }
+func uniquePath(_ path: String, taken: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> String {
+    guard taken(path) else { return path }
     let ns = path as NSString
     let dir = ns.deletingLastPathComponent
     let ext = ns.pathExtension
@@ -428,7 +427,7 @@ func uniquePath(_ path: String) -> String {
     var i = 2
     while true {
         let candidate = (dir as NSString).appendingPathComponent(ext.isEmpty ? "\(base) \(i)" : "\(base) \(i).\(ext)")
-        if !fm.fileExists(atPath: candidate) { return candidate }
+        if !taken(candidate) { return candidate }
         i += 1
     }
 }

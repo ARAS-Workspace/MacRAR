@@ -177,6 +177,7 @@
   "compress_exists_message": "Yeni bir arşiv oluşturulsun mu, yoksa dosyalar mevcut arşive mi eklensin?",
   "compress_exists_encrypted_message": "Aynı adlı mevcut arşiv şifreli. Yeni, şifresiz bir arşiv oluşturulsun mu, yoksa dosyalar şifreli arşive mi eklensin?",
   "compress_exists_no_append_message": "Bu biçimde mevcut arşive ekleme yapılamaz. Yeni bir arşiv oluşturulsun mu?",
+  "compress_exists_split_message": "Bu adla parçalı bir arşiv zaten var ve parçalı arşive dosya eklenemez. Yeni bir arşiv oluşturulsun mu?",
   "compress_create_new": "Yeni Arşiv Oluştur",
   "compress_add_to_existing": "Mevcut Arşive Ekle",
   "compress_add_to_encrypted": "Şifreli Arşive Ekle…",

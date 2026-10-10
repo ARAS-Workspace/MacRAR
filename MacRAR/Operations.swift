@@ -179,10 +179,14 @@ enum Ops {
             Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_invalid_volume_size", options.volumeSize ?? ""))
             completion(false, options.archivePath); return
         }
-        if FileManager.default.fileExists(atPath: options.archivePath) {
+        // A split set under this name counts as there when the new archive is split as well: rar would write over its
+        // first volumes and leave the rest behind, and 7-Zip cannot update a split set
+        let existingSet = options.isSplit ? firstVolume(of: options.archivePath) : options.archivePath
+        let setExists = existingSet != options.archivePath
+        if FileManager.default.fileExists(atPath: options.archivePath) || setExists {
             let alert = NSAlert()
-            alert.messageText = loc.t("compress_exists_title", name(options.archivePath))
-            if options.format.supportsAppend {
+            alert.messageText = loc.t("compress_exists_title", name(existingSet))
+            if options.format.supportsAppend, !setExists {
                 // Is the existing archive encrypted? (try listing without a password)
                 var existingEncrypted = false
                 switch ArchiveReader.list(options.archivePath, password: nil) {
@@ -195,10 +199,9 @@ enum Ops {
                     alert.addButton(withTitle: loc.t("compress_create_new"))
                     alert.addButton(withTitle: loc.t("compress_add_to_encrypted"))
                     alert.addButton(withTitle: loc.t("cancel"))
-                    Dialogs.activate()
-                    switch alert.runModal() {
+                    switch Dialogs.ask(alert) {
                     case .alertFirstButtonReturn:
-                        options.archivePath = uniquePath(options.archivePath)
+                        options.archivePath = uniquePath(options.archivePath, taken: isTaken)
                     case .alertSecondButtonReturn:
                         var pw: String?
                         guard let existing = listInteractive(archive: options.archivePath, password: &pw) else {
@@ -214,20 +217,18 @@ enum Ops {
                     alert.addButton(withTitle: loc.t("compress_create_new"))
                     alert.addButton(withTitle: loc.t("compress_add_to_existing"))
                     alert.addButton(withTitle: loc.t("cancel"))
-                    Dialogs.activate()
-                    switch alert.runModal() {
-                    case .alertFirstButtonReturn: options.archivePath = uniquePath(options.archivePath)
+                    switch Dialogs.ask(alert) {
+                    case .alertFirstButtonReturn: options.archivePath = uniquePath(options.archivePath, taken: isTaken)
                     case .alertSecondButtonReturn: break
                     default: completion(false, options.archivePath); return
                     }
                 }
             } else {
-                alert.informativeText = loc.t("compress_exists_no_append_message")
+                alert.informativeText = loc.t(setExists ? "compress_exists_split_message" : "compress_exists_no_append_message")
                 alert.addButton(withTitle: loc.t("compress_create_new"))
                 alert.addButton(withTitle: loc.t("cancel"))
-                Dialogs.activate()
-                if alert.runModal() == .alertFirstButtonReturn {
-                    options.archivePath = uniquePath(options.archivePath)
+                if Dialogs.ask(alert) == .alertFirstButtonReturn {
+                    options.archivePath = uniquePath(options.archivePath, taken: isTaken)
                 } else {
                     completion(false, options.archivePath); return
                 }
@@ -248,6 +249,9 @@ enum Ops {
         let rarVolumes = (0..<4).map { "\(ns.deletingPathExtension).part\(String(repeating: "0", count: $0))1.\(ns.pathExtension)" }
         return ([archive + ".001"] + rarVolumes).first { fm.fileExists(atPath: $0) } ?? archive
     }
+
+    /// A name is taken by a file or by a split set under it.
+    static func isTaken(_ path: String) -> Bool { firstVolume(of: path) != path || FileManager.default.fileExists(atPath: path) }
 
     // swiftlint:disable:next function_parameter_count
     private static func runSteps(_ steps: [CompressOptions.Step], index: Int, archive: String, cwd: String,

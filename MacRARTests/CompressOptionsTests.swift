@@ -106,6 +106,14 @@ final class CompressOptionsTests: XCTestCase {
         }
     }
 
+    func testSplitIsTheVolumeSizeOfAFormatThatSplits() {
+        XCTAssertTrue(options(.rar5) { $0.volumeSize = "100M" }.isSplit)
+        XCTAssertTrue(options(.sevenZip) { $0.volumeSize = "300k" }.isSplit)
+        XCTAssertFalse(options(.rar5).isSplit)
+        XCTAssertFalse(options(.zip) { $0.volumeSize = " " }.isSplit)
+        XCTAssertFalse(options(.tar) { $0.volumeSize = "1m" }.isSplit)
+    }
+
     /// rar writes a self-extracting archive as name.sfx, so that is the name asked for and reported.
     func testSelfExtractingRarIsWrittenAsSfx() throws {
         let sfx = options(.rar5) { $0.sfx = true }

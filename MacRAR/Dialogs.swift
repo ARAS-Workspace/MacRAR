@@ -128,6 +128,14 @@ enum Dialogs {
         alert.runModal()
     }
 
+    /// Shows a question and returns the button chosen; with MACRAR_DEBUG_CONFIRM the question goes to stdout and its
+    /// first, default button answers.
+    static func ask(_ alert: NSAlert) -> NSApplication.ModalResponse {
+        if reportedForDebugging(alert.messageText, alert.informativeText) { return .alertFirstButtonReturn }
+        activate()
+        return alert.runModal()
+    }
+
     static func confirm(_ title: String, _ detail: String, okTitle: String = loc.t("ok"), destructive: Bool = false) -> Bool {
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil { return true }
         activate()
@@ -521,6 +529,12 @@ struct CompressOptions {
     var writtenPath: String {
         guard format.isRar, sfx else { return archivePath }
         return ((archivePath as NSString).deletingPathExtension as NSString).appendingPathExtension("sfx") ?? archivePath
+    }
+
+    /// Whether the archive is written as volumes (name.part1.rar, name.7z.001…) rather than as one file.
+    var isSplit: Bool {
+        guard format.supportsVolumes, let size = volumeSize?.trimmingCharacters(in: .whitespaces), !size.isEmpty else { return false }
+        return format.isRar || (volumeBytes ?? 0) > 0
     }
 
     /// The archive name the Create Archive dialog shows and uses: a name that already fits the format stays, another

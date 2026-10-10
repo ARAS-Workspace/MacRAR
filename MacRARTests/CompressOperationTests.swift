@@ -39,6 +39,23 @@ final class CompressOperationTests: XCTestCase {
         }
     }
 
+    /// An earlier split set under the same name is left alone: the question it raises, answered with Create New by
+    /// MACRAR_DEBUG_CONFIRM, gives the new set a free name. 7-Zip used to fail with "Updating for multivolume
+    /// archives is not implemented".
+    func testSplittingOverAnEarlierSetMakesANewOne() throws {
+        setenv("MACRAR_DEBUG_CONFIRM", "1", 1)
+        defer { unsetenv("MACRAR_DEBUG_CONFIRM") }
+        XCTAssertTrue(compress(workspace.sources, options(.sevenZip, "set.7z", split: "200k")).ok)
+        let earlier = try workspace.files(startingWith: "set.7z.")
+        XCTAssertGreaterThan(earlier.count, 2)
+
+        let again = compress(workspace.sources, options(.sevenZip, "set.7z", split: "700k"))
+        XCTAssertTrue(again.ok)
+        XCTAssertEqual(again.path, workspace.path("set 2.7z.001"))
+        XCTAssertEqual(try workspace.files(startingWith: "set.7z."), earlier, "the earlier set changed")
+        guard case .ok = ArchiveReader.list(again.path, password: nil) else { return XCTFail("\(again.path) did not list") }
+    }
+
     /// rar numbers its volumes with as many digits as their count needs, and a self-extracting set starts with .sfx.
     func testRarVolumeNames() throws {
         for volume in ["many.part01.rar", "sfx.part1.sfx"] {
@@ -47,5 +64,7 @@ final class CompressOperationTests: XCTestCase {
         XCTAssertEqual(Ops.firstVolume(of: workspace.path("many.rar")), workspace.path("many.part01.rar"))
         XCTAssertEqual(Ops.firstVolume(of: workspace.path("sfx.sfx")), workspace.path("sfx.part1.sfx"))
         XCTAssertEqual(Ops.firstVolume(of: workspace.path("none.rar")), workspace.path("none.rar"))
+        XCTAssertTrue(Ops.isTaken(workspace.path("many.rar")))
+        XCTAssertFalse(Ops.isTaken(workspace.path("none.rar")))
     }
 }

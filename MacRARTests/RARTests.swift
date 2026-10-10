@@ -301,6 +301,27 @@ final class RARTests: XCTestCase {
         XCTAssertTrue(workspace.exists("made.sfx"))
     }
 
+    /// An earlier split RAR under the same name keeps every volume: rar wrote a new set over its first volumes and
+    /// left the rest behind. The question it raises now gives the new set a free name.
+    func testSplittingOverAnEarlierRarSetMakesANewOne() throws {
+        func options(_ split: String) -> CompressOptions {
+            var options = CompressOptions(archivePath: workspace.path("set.rar"))
+            options.format = .rar5
+            options.volumeSize = split
+            return options
+        }
+        XCTAssertTrue(compress(workspace.sources, options("200k")).ok)
+        let earlier = try workspace.files(startingWith: "set.part")
+        XCTAssertGreaterThan(earlier.count, 2)
+
+        let again = compress(workspace.sources, options("700k"))
+        XCTAssertTrue(again.ok)
+        XCTAssertEqual(again.path, workspace.path("set 2.part1.rar"))
+        XCTAssertEqual(try workspace.files(startingWith: "set.part"), earlier, "the earlier set changed")
+        XCTAssertEqual(try extract(again.path, into: "out").code, .ok)
+        assertSourcesExtracted(into: "out")
+    }
+
     /// A split RAR has no file under its own name; Ops.compress reports its first volume, .sfx when self-extracting.
     func testCompressReportsTheFirstRarVolume() throws {
         let fm = FileManager.default
