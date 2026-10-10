@@ -528,7 +528,8 @@ struct CompressOptions {
     var deleteAfter: Bool = false
 
     enum StepWork {
-        case rar([String])
+        /// rar's arguments, and the password it asks for on its standard input
+        case rar([String], password: String?)
         case sevenZip(SevenZipBridge.Operation)
     }
 
@@ -593,8 +594,8 @@ struct CompressOptions {
             if let v = volumeSize, !v.isEmpty { args.append("-v\(v)") }
             if sfx { args.append("-sfx" + (RarTools.sfxModule?.path ?? "")) }
             if deleteAfter { args.append("-df") }
-            args += RarRunner.rarPasswordArgs(password, encryptHeaders: encryptNames)
-            return [Step(title: loc.t("progress_compressing"), work: .rar(args + ["--", writtenPath] + items))]
+            args += RarRunner.passwordSwitch(password, encryptHeaders: encryptNames)
+            return [Step(title: loc.t("progress_compressing"), work: .rar(args + ["--", writtenPath] + items, password: password))]
 
         case .sevenZip:
             var sevenZip = SevenZipBridge.UpdateOptions(format: "7z", level: mx, solid: solid ? 1 : 0, password: password)

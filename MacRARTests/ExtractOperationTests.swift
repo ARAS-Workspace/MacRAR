@@ -10,11 +10,11 @@ final class ExtractOperationTests: XCTestCase {
 
     override func setUpWithError() throws {
         workspace = try Workspace()
-        setenv("MACRAR_DEBUG_CONFIRM", "1", 1)
+        setDebugAnswers()
     }
 
     override func tearDown() {
-        unsetenv("MACRAR_DEBUG_CONFIRM")
+        clearDebugAnswers()
         workspace = nil
     }
 

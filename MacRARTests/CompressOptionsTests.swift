@@ -107,11 +107,14 @@ final class CompressOptionsTests: XCTestCase {
             $0.recoveryRecord = true
             $0.volumeSize = "100M"
         }.buildSteps(items: ["/src/a"])
-        guard case .rar(let args) = steps[0].work else { return XCTFail("expected rar switches") }
+        guard case .rar(let args, let password) = steps[0].work else { return XCTFail("expected rar switches") }
         XCTAssertEqual(Array(args.suffix(3)), ["--", "/tmp/out.rar", "/src/a"])
-        for expected in ["-ma5", "-rr3", "-v100M", "-hppw"] {
+        for expected in ["-ma5", "-rr3", "-v100M", "-hp"] {
             XCTAssertTrue(args.contains(expected), "\(expected) missing from \(args)")
         }
+        // The password goes to rar's standard input, never into its arguments
+        XCTAssertEqual(password, "pw")
+        XCTAssertFalse(args.contains { $0.contains("pw") }, "\(args)")
     }
 
     func testSplitIsTheVolumeSizeOfAFormatThatSplits() {
@@ -126,7 +129,7 @@ final class CompressOptionsTests: XCTestCase {
     func testSelfExtractingRarIsWrittenAsSfx() throws {
         let sfx = options(.rar5) { $0.sfx = true }
         XCTAssertEqual(sfx.writtenPath, "/tmp/out.sfx")
-        guard case .rar(let args) = sfx.buildSteps(items: ["/src/a"])[0].work else { return XCTFail("expected rar switches") }
+        guard case .rar(let args, _) = sfx.buildSteps(items: ["/src/a"])[0].work else { return XCTFail("expected rar switches") }
         XCTAssertEqual(Array(args.suffix(3)), ["--", "/tmp/out.sfx", "/src/a"])
         XCTAssertTrue(args.contains { $0.hasPrefix("-sfx") }, "\(args)")
 

@@ -4,7 +4,7 @@ import XCTest
 /// RAR, the format the app is named after, with RARLAB's own rar (RarTool): archives rar makes are listed, extracted
 /// and tested through the 7-Zip library, and the archives the app has rar create, add to and delete from come out as
 /// asked. The app reaches rar through the RarPath setting, which each test points at RarTool in the argument domain
-/// (never saved); alerts that report an error print instead of waiting (MACRAR_DEBUG_CONFIRM).
+/// (never saved); the app's questions get the tests' debug answers (setDebugAnswers), never a real alert.
 final class RARTests: XCTestCase {
     private var rar: RarTool!
     private var workspace: Workspace!
@@ -18,12 +18,12 @@ final class RARTests: XCTestCase {
         savedArguments = arguments
         defaults.removeVolatileDomain(forName: UserDefaults.argumentDomain)
         defaults.setVolatileDomain(arguments.merging(["RarPath": rar.url.path]) { $1 }, forName: UserDefaults.argumentDomain)
-        setenv("MACRAR_DEBUG_CONFIRM", "1", 1)
+        setDebugAnswers()
     }
 
     override func tearDown() {
         if let savedArguments {
-            unsetenv("MACRAR_DEBUG_CONFIRM")
+            clearDebugAnswers()
             UserDefaults.standard.removeVolatileDomain(forName: UserDefaults.argumentDomain)
             UserDefaults.standard.setVolatileDomain(savedArguments, forName: UserDefaults.argumentDomain)
         }
@@ -61,13 +61,15 @@ final class RARTests: XCTestCase {
         }
     }
 
-    /// rar switches run the way the operations run them, through RarJob, with what it reports along the way.
-    private func runRarJob(_ args: [String], cwd: String? = nil, onEvent: ((RarJob.Event) -> Void)? = nil) -> RarResult {
+    /// rar switches run the way the operations run them, through RarJob, with the password it asks for and what it
+    /// reports along the way.
+    private func runRarJob(_ args: [String], password: String? = nil, cwd: String? = nil,
+                           onEvent: ((RarJob.Event) -> Void)? = nil) -> RarResult {
         let job = RarJob()
         job.onEvent = onEvent
         let done = expectation(description: "rar finished")
         var result: RarResult?
-        job.start(args, cwd: cwd) { outcome in
+        job.start(args, cwd: cwd, password: password) { outcome in
             result = outcome
             done.fulfill()
         }
@@ -78,12 +80,12 @@ final class RARTests: XCTestCase {
     /// The SFX module RARLAB ships beside rar.
     private var sfxModule: String { rar.url.deletingLastPathComponent().appendingPathComponent("default.sfx").path }
 
-    /// The switches the Create Archive dialog's choices become.
-    private func rarSwitches(_ options: CompressOptions) throws -> [String] {
-        guard case .rar(let args) = try XCTUnwrap(options.buildSteps(items: workspace.sources).first).work else {
+    /// The rar call the Create Archive dialog's choices become: its switches and the password rar asks for.
+    private func rarCall(_ options: CompressOptions) throws -> (args: [String], password: String?) {
+        guard case .rar(let args, let password) = try XCTUnwrap(options.buildSteps(items: workspace.sources).first).work else {
             throw XCTSkip("expected rar switches")
         }
-        return args
+        return (args, password)
     }
 
     // MARK: Reading what rar makes
@@ -151,7 +153,8 @@ final class RARTests: XCTestCase {
         options.encryptNames = true
         options.solid = true
         options.recoveryRecord = true
-        let result = runRarJob(try rarSwitches(options))
+        let call = try rarCall(options)
+        let result = runRarJob(call.args, password: call.password)
         XCTAssertTrue(result.ok, result.output)
 
         guard case .wrongPassword = ArchiveReader.list(options.archivePath, password: nil) else {
@@ -168,7 +171,8 @@ final class RARTests: XCTestCase {
         var options = CompressOptions(archivePath: workspace.path("split.rar"))
         options.format = .rar5
         options.volumeSize = "300k"
-        let result = runRarJob(try rarSwitches(options))
+        let call = try rarCall(options)
+        let result = runRarJob(call.args, password: call.password)
         XCTAssertTrue(result.ok, result.output)
         let info = try XCTUnwrap(info(workspace.path("split.part1.rar")))
         XCTAssertTrue(info.details.contains("volume"), info.details)
@@ -176,10 +180,10 @@ final class RARTests: XCTestCase {
 
     func testRarOutputTellsAWrongPassword() throws {
         let archive = try makeRar("data.rar", ["-ppw"])
-        let wrong = runRarJob(["t", "-pwrong", "--", archive])
+        let wrong = runRarJob(["t", "-p", "--", archive], password: "wrong")
         XCTAssertFalse(wrong.ok)
         XCTAssertTrue(wrong.wrongPassword, wrong.output)
-        let right = runRarJob(["t", "-ppw", "--", archive])
+        let right = runRarJob(["t", "-p", "--", archive], password: "pw")
         XCTAssertTrue(right.ok, right.output)
         XCTAssertFalse(right.wrongPassword)
     }
@@ -295,7 +299,7 @@ final class RARTests: XCTestCase {
         var options = CompressOptions(archivePath: workspace.path("sfx.rar"))
         options.format = .rar5
         options.sfx = true
-        let args = try rarSwitches(options)
+        let args = try rarCall(options).args
         XCTAssertTrue(args.contains("-sfx" + sfxModule), "\(args)")
         let result = runRarJob(args)
         XCTAssertTrue(result.ok, result.output)
@@ -379,13 +383,101 @@ final class RARTests: XCTestCase {
         }
     }
 
+    // MARK: Passwords
+
+    /// A password with Turkish letters, composed, as typing gives it.
+    private let typed = "Şifre İğüöçı"
+
+    private func scalars(_ text: String?) -> [Unicode.Scalar]? { text.map { Array($0.unicodeScalars) } }
+
+    /// rar is handed the password on its standard input. On its command line it arrived decomposed, as Process passes
+    /// arguments, so an archive locked with letters such as ü or ş opened neither in the app's 7-Zip nor in rar with the
+    /// password as typed.
+    func testATurkishPasswordLocksTheArchiveAsTyped() throws {
+        for encryptNames in [false, true] {
+            var options = CompressOptions(archivePath: workspace.path("locked-\(encryptNames).rar"))
+            options.format = .rar5
+            options.password = typed
+            options.encryptNames = encryptNames
+            let made = compress(workspace.sources, options)
+            XCTAssertTrue(made.ok)
+            XCTAssertEqual(try extract(made.path, password: typed, into: "out-\(encryptNames)").code, .ok, "names encrypted: \(encryptNames)")
+            assertSourcesExtracted(into: "out-\(encryptNames)")
+            let tested = runRarJob(["t", "-p", "--", made.path], password: typed)
+            XCTAssertTrue(tested.ok, tested.output)
+        }
+    }
+
+    /// Earlier versions, and the original app, handed rar the password on its command line, decomposed. Their archives
+    /// open with the password as typed: the decomposed form is tried before asking again, and the form that opens the
+    /// archive is the one the app goes on with.
+    func testAnArchiveLockedTheEarlierWayOpensWithThePasswordAsTyped() throws {
+        let decomposed = scalars(typed.decomposedStringWithCanonicalMapping)
+        // RarTool passes switches through Process, as those versions did
+        let data = try makeRar("data.rar", ["-p\(typed)"])
+        let names = try makeRar("names.rar", ["-hp\(typed)"])
+
+        let dataInfo = try XCTUnwrap(info(data))
+        let out = try workspace.makeDirectory("out")
+        var used: String?
+        XCTAssertTrue(finished { done in
+            Ops.extract(info: dataInfo, names: nil, dest: out, password: self.typed, host: nil) { ok, pw in
+                used = pw
+                done(ok, pw)
+            }
+        })
+        assertSourcesExtracted(into: "out")
+        XCTAssertEqual(scalars(used), decomposed)
+        XCTAssertTrue(finished { Ops.test(info: dataInfo, password: typed, host: nil, completion: $0) })
+
+        var password: String?
+        var listed: ArchiveInfo?
+        withEnvironment(["MACRAR_DEBUG_PASSWORD": typed]) { listed = Ops.listInteractive(archive: names, password: &password) }
+        XCTAssertEqual(scalars(password), decomposed)
+        let namesInfo = try XCTUnwrap(listed)
+        XCTAssertTrue(finished { Ops.delete(info: namesInfo, names: ["a.txt"], password: typed, host: nil, completion: $0) })
+        let left = try XCTUnwrap(info(names, password: typed.decomposedStringWithCanonicalMapping))
+        XCTAssertFalse(left.entries.contains { $0.name == "a.txt" })
+    }
+
+    /// Files added to an archive whose files are encrypted, under a password other than its own, were locked with that
+    /// one: the archive ended up under two passwords, neither of which opened it whole. The password is checked first, a
+    /// mistyped one is asked again, cancelling writes nothing, and an archive locked the earlier way is added to under
+    /// its own form.
+    func testAddingFindsTheArchivesOwnPasswordFirst() throws {
+        try Data("added\n".utf8).write(to: workspace.url("added.txt"))
+        try Data("not added\n".utf8).write(to: workspace.url("skipped.txt"))
+        var options = CompressOptions(archivePath: workspace.path("locked.rar"))
+        options.format = .rar5
+        options.password = typed
+        XCTAssertTrue(compress(workspace.sources, options).ok)
+        let locked = try XCTUnwrap(info(options.archivePath))
+
+        let added = [workspace.path("added.txt")], skipped = [workspace.path("skipped.txt")]
+        withEnvironment(["MACRAR_DEBUG_PASSWORD_RETRY": typed]) {
+            XCTAssertTrue(finished { Ops.add(info: locked, items: added, password: "Şifre", host: nil, completion: $0) })
+        }
+        withEnvironment(["MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__"]) {
+            XCTAssertFalse(finished { Ops.add(info: locked, items: skipped, password: "Şifre", host: nil, completion: $0) })
+        }
+        let names = try XCTUnwrap(info(options.archivePath)).entries.map(\.name)
+        XCTAssertTrue(names.contains("added.txt"))
+        XCTAssertFalse(names.contains("skipped.txt"))
+        XCTAssertEqual(run(.test(archive: options.archivePath, password: typed)).code, .ok, "the archive is under two passwords")
+
+        let earlier = try makeRar("earlier.rar", ["-p\(typed)"])
+        let earlierInfo = try XCTUnwrap(info(earlier))
+        XCTAssertTrue(finished { Ops.add(info: earlierInfo, items: added, password: typed, host: nil, completion: $0) })
+        XCTAssertEqual(run(.test(archive: earlier, password: typed.decomposedStringWithCanonicalMapping)).code, .ok)
+    }
+
     /// The large files packed the way the Create Archive dialog has rar pack them: the progress names each file as rar
     /// takes it and reaches 100%, and what 7-Zip extracts again is what went in.
     func testLargeFilesAreNamedWhileRarPacksThem() throws {
         let files = try LargeFiles.locate()
         var options = CompressOptions(archivePath: workspace.path("large.rar"))
         options.format = .rar5
-        guard case .rar(let args) = try XCTUnwrap(options.buildSteps(items: files).first).work else {
+        guard case .rar(let args, _) = try XCTUnwrap(options.buildSteps(items: files).first).work else {
             throw XCTSkip("expected rar switches")
         }
         var events: [RarJob.Event] = []

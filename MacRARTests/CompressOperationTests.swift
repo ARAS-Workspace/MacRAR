@@ -8,9 +8,11 @@ final class CompressOperationTests: XCTestCase {
 
     override func setUpWithError() throws {
         workspace = try Workspace()
+        setDebugAnswers()
     }
 
     override func tearDown() {
+        clearDebugAnswers()
         workspace = nil
     }
 
@@ -61,8 +63,6 @@ final class CompressOperationTests: XCTestCase {
     /// MACRAR_DEBUG_CONFIRM, gives the new set a free name. 7-Zip used to fail with "Updating for multivolume
     /// archives is not implemented".
     func testSplittingOverAnEarlierSetMakesANewOne() throws {
-        setenv("MACRAR_DEBUG_CONFIRM", "1", 1)
-        defer { unsetenv("MACRAR_DEBUG_CONFIRM") }
         XCTAssertTrue(compress(workspace.sources, options(.sevenZip, "set.7z", split: "200k")).ok)
         let earlier = try workspace.files(startingWith: "set.7z.")
         XCTAssertGreaterThan(earlier.count, 2)

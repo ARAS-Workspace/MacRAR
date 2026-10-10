@@ -73,4 +73,17 @@ final class CommandLineModeTests: XCTestCase {
         XCTAssertFalse(workspace.exists("a.txt"))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: workspace.path("src")).sorted(), before)
     }
+
+    /// 7-Zip writes ZIP only with a password of printable ASCII. One with letters such as ü or ş is explained before
+    /// anything is written, where 7-Zip stopped with "E_INVALIDARG"; an ASCII one with spaces and symbols is taken.
+    func testAZipPasswordBeyondAsciiIsExplained() throws {
+        let file = workspace.path("src/a.txt")
+        let refused = try launchApp(["--compress", file], environment: ["MACRAR_DEBUG_FORMAT": "zip", "MACRAR_DEBUG_PASSWORD": "şifre"])
+        XCTAssertTrue(refused.output.contains(try english("zip_password_not_ascii")), refused.output)
+        XCTAssertFalse(workspace.exists("src/a.zip"))
+
+        let taken = try launchApp(["--compress", file], environment: ["MACRAR_DEBUG_FORMAT": "zip", "MACRAR_DEBUG_PASSWORD": "pass ~!@"])
+        XCTAssertEqual(taken.status, 0, taken.output)
+        XCTAssertEqual(run(.test(archive: workspace.path("src/a.zip"), password: "pass ~!@")).code, .ok)
+    }
 }

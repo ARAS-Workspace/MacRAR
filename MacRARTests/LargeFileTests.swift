@@ -23,11 +23,11 @@ final class LargeFileTests: XCTestCase {
             defaults.removeVolatileDomain(forName: UserDefaults.argumentDomain)
             defaults.setVolatileDomain(arguments.merging(["RarPath": rar.url.path]) { $1 }, forName: UserDefaults.argumentDomain)
         }
-        setenv("MACRAR_DEBUG_CONFIRM", "1", 1)
+        setDebugAnswers()
     }
 
     override func tearDown() {
-        unsetenv("MACRAR_DEBUG_CONFIRM")
+        clearDebugAnswers()
         if let savedArguments {
             UserDefaults.standard.removeVolatileDomain(forName: UserDefaults.argumentDomain)
             UserDefaults.standard.setVolatileDomain(savedArguments, forName: UserDefaults.argumentDomain)

@@ -216,11 +216,13 @@ enum ArchiveReader {
 // MARK: - RAR tool runner
 
 enum RarRunner {
-    /// Password arguments for rar (a / d). CAUTION: given "-p-", rar uses the "-" character as the password;
-    /// so no switch at all is passed when there is no password.
-    static func rarPasswordArgs(_ pw: String?, encryptHeaders: Bool = false) -> [String] {
+    /// The switch that has rar ask for the password, which RarJob writes to its standard input. Given on the command
+    /// line it reached rar decomposed, as Process passes arguments, so a password holding letters such as ü or ş locked
+    /// the archive with other bytes than the ones typed, and it showed in the process list. No switch at all when there
+    /// is no password: given "-p-", rar takes "-" for the password.
+    static func passwordSwitch(_ pw: String?, encryptHeaders: Bool = false) -> [String] {
         guard let pw, !pw.isEmpty else { return [] }
-        return [(encryptHeaders ? "-hp" : "-p") + pw]
+        return [encryptHeaders ? "-hp" : "-p"]
     }
 
     /// rar's add command for the chosen items: each under its own name (-ep1), without asking (-y). Never -r: with it rar
@@ -381,8 +383,17 @@ final class RarJob {
     private(set) var cancelled = false
     var onEvent: ((Event) -> Void)?   // called on the main queue
 
-    func start(_ args: [String], cwd: String? = nil, completion: @escaping (RarResult) -> Void) {
+    /// `password` answers the question RarRunner.passwordSwitch makes rar ask, byte for byte as typed.
+    func start(_ args: [String], cwd: String? = nil, password: String? = nil, completion: @escaping (RarResult) -> Void) {
         let process = RarRunner.makeProcess(args, cwd: cwd)
+        if let password {
+            // rar reads one line, whatever the command. Written before rar starts, the pipe holds it until rar asks, and
+            // nothing is ever written to a rar that has already gone, which would end the app with SIGPIPE
+            let input = Pipe()
+            try? input.fileHandleForWriting.write(contentsOf: Data((password + "\n").utf8))
+            try? input.fileHandleForWriting.close()
+            process.standardInput = input
+        }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe

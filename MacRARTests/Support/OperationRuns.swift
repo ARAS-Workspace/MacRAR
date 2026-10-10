@@ -14,11 +14,32 @@ extension XCTestCase {
         return succeeded
     }
 
-    /// Runs `body` with these variables set in the test host, then removes them.
+    /// Runs `body` with these variables set in the test host, then puts back what they were.
     func withEnvironment(_ variables: [String: String], _ body: () throws -> Void) rethrows {
+        let earlier = variables.keys.map { ($0, getenv($0).map { String(cString: $0) }) }
         for (name, value) in variables { setenv(name, value, 1) }
-        defer { for name in variables.keys { unsetenv(name) } }
+        defer {
+            for (name, value) in earlier {
+                if let value { setenv(name, value, 1) } else { unsetenv(name) }
+            }
+        }
         try body()
+    }
+
+    /// The answers a test that drives the operations starts from, so the app never waits at a real alert: an error
+    /// prints instead (MACRAR_DEBUG_CONFIRM), and a password or overwrite question the test does not answer itself is
+    /// cancelled, which fails the test where it would have kept a dialog open.
+    private static let debugAnswers = [
+        "MACRAR_DEBUG_CONFIRM": "1", "MACRAR_DEBUG_PASSWORD": "__cancel__", "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__",
+        "MACRAR_DEBUG_OVERWRITE": "cancel",
+    ]
+
+    func setDebugAnswers() {
+        for (name, value) in Self.debugAnswers { setenv(name, value, 1) }
+    }
+
+    func clearDebugAnswers() {
+        for name in Self.debugAnswers.keys { unsetenv(name) }
     }
 
     /// Runs Ops.compress to its completion and returns what it reports: whether it worked and the archive file the

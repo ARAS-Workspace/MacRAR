@@ -21,6 +21,8 @@ extension XCTestCase {
         process.environment = [
             "HOME": NSHomeDirectory(), "TMPDIR": NSTemporaryDirectory(), "PATH": "/usr/bin:/bin",
             "MACRAR_LANG": "en", "MACRAR_NO_UPDATE_CHECK": "1", "MACRAR_DEBUG_CONFIRM": "1",
+            // A refused password is not asked again at a real dialog in the copy
+            "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__",
         ].merging(environment) { $1 }
         let pipe = Pipe()
         process.standardOutput = pipe

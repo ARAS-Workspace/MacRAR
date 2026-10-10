@@ -21,7 +21,7 @@ enum Ops {
     }
 
     /// The user's RAR tool.
-    static func runRar(title: String, args: [String], cwd: String? = nil, host: NSWindow?,
+    static func runRar(title: String, args: [String], password: String? = nil, cwd: String? = nil, host: NSWindow?,
                        completion: @escaping (RarResult) -> Void) {
         let panel = ProgressPanel(title: title)
         let job = RarJob()
@@ -34,13 +34,35 @@ enum Ops {
         }
         panel.onCancel = { job.cancel() }
         panel.show(on: host)
-        job.start(args, cwd: cwd) { result in
+        job.start(args, cwd: cwd, password: password) { result in
             panel.dismiss()
             completion(result)
         }
     }
 
     private static func name(_ path: String) -> String { (path as NSString).lastPathComponent }
+
+    // MARK: Passwords
+
+    /// The password as earlier versions handed it to rar and 7zz, decomposed, the way Process passes arguments: an
+    /// archive they locked with a password holding letters such as ü or ş opens only with those bytes. Nil when the
+    /// password has no such letter or already is that form. (Swift compares strings by meaning, so the scalars decide.)
+    static func decomposedForm(of password: String?) -> String? {
+        guard let password else { return nil }
+        let decomposed = password.decomposedStringWithCanonicalMapping
+        return decomposed.unicodeScalars.elementsEqual(password.unicodeScalars) ? nil : decomposed
+    }
+
+    /// What to try once `password` is refused: its decomposed form first, then what the user enters. Nil on cancel.
+    private static func password(after password: String?, archive: String) -> String? {
+        decomposedForm(of: password) ?? Dialogs.askPassword(archiveName: name(archive), wrong: true)
+    }
+
+    /// 7-Zip writes ZIP only with a password of printable ASCII, space to DEL; any other letter, such as ü or ş, made it
+    /// fail with "E_INVALIDARG", so that is explained before anything is written.
+    static func zipTakes(password: String?) -> Bool {
+        password?.unicodeScalars.allSatisfy { (0x20..<0x80).contains($0.value) } ?? true
+    }
 
     // MARK: Listing (with password loop)
 
@@ -52,6 +74,10 @@ enum Ops {
             case .ok(let info):
                 return info
             case .wrongPassword:
+                if let decomposed = decomposedForm(of: password) {
+                    password = decomposed
+                    continue
+                }
                 guard let pw = Dialogs.askPassword(archiveName: name(archive), wrong: wrong) else { return nil }
                 password = pw
                 wrong = true
@@ -113,7 +139,7 @@ enum Ops {
         func finish(_ result: RarResult) {
             if result.cancelled { completion(false, password); return }
             if result.wrongPassword {
-                guard let pw = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, password); return }
+                guard let pw = Ops.password(after: password, archive: info.path) else { completion(false, password); return }
                 runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, quiet: quiet, completion: completion)
                 return
             }
@@ -154,7 +180,7 @@ enum Ops {
         runJob(title: loc.t("progress_testing", name(info.path)), operation: operation, host: host) { result in
             if result.cancelled { completion(false, password); return }
             if result.wrongPassword {
-                guard let pw = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, password); return }
+                guard let pw = Ops.password(after: password, archive: info.path) else { completion(false, password); return }
                 runTest(info: info, password: pw, host: host, completion: completion)
                 return
             }
@@ -175,6 +201,10 @@ enum Ops {
         // A self-extracting RAR is written as name.sfx: the checks below and the reported path are about that file
         options.archivePath = options.writtenPath
         if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
+        if options.format == .zip, !zipTakes(password: options.password) {
+            Dialogs.error(loc.t("compress_failed_title"), loc.t("zip_password_not_ascii"))
+            completion(false, options.archivePath); return
+        }
         if !options.format.isRar, options.format.supportsVolumes, options.volumeBytes == nil {
             Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_invalid_volume_size", options.volumeSize ?? ""))
             completion(false, options.archivePath); return
@@ -275,7 +305,7 @@ enum Ops {
             runSteps(steps, index: index + 1, archive: archive, cwd: cwd, host: host, completion: completion)
         }
         switch step.work {
-        case .rar(let args): runRar(title: title, args: args, cwd: cwd, host: host, completion: next)
+        case .rar(let args, let password): runRar(title: title, args: args, password: password, cwd: cwd, host: host, completion: next)
         case .sevenZip(let operation): runJob(title: title, operation: operation, host: host, completion: next)
         }
     }
@@ -288,32 +318,68 @@ enum Ops {
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
-        let folder = (info.path as NSString).deletingLastPathComponent
         var pw = password
         if info.hasEncryptedFiles, pw == nil {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
             pw = entered
         }
+        if info.type.lowercased() == "zip", !zipTakes(password: pw) {
+            Dialogs.error(loc.t("add_failed_title"), loc.t("zip_password_not_ascii"))
+            completion(false, pw); return
+        }
+        // The archive's own password is found before anything is written: files added under another one left it with
+        // files under two passwords, neither of which opened it whole. Encrypted names make the tools check it anyway.
+        guard let typed = pw, info.hasEncryptedFiles, !info.headersEncrypted else {
+            write(items, into: info, password: pw, host: host, completion: completion); return
+        }
+        findPassword(typed, of: info, host: host) { found in
+            guard let found else { completion(false, pw); return }
+            write(items, into: info, password: found, host: host, completion: completion)
+        }
+    }
+
+    /// The form of `password` that opens the archive's encrypted files, found by extracting the smallest of them to a
+    /// scratch folder: the password, its decomposed form, then what the user enters, until one does. Nil on cancel.
+    private static func findPassword(_ password: String, of info: ArchiveInfo, host: NSWindow?, completion: @escaping (String?) -> Void) {
+        guard let sample = info.entries.filter({ $0.encrypted && !$0.isDirectory }).min(by: { $0.size < $1.size }) else {
+            completion(password); return
+        }
+        let scratch = TempDirs.make("password")
+        let operation = SevenZipBridge.Operation.extract(archive: info.path, destination: scratch, items: [sample.name],
+                                                         overwrite: .overwrite, password: password)
+        runJob(title: loc.t("progress_checking_password", name(info.path)), operation: operation, host: host) { result in
+            try? FileManager.default.removeItem(atPath: scratch)
+            if result.cancelled { completion(nil); return }
+            // Anything but a refused password, such as a damaged file, is the add's to report
+            guard result.wrongPassword else { completion(password); return }
+            guard let next = Ops.password(after: password, archive: info.path) else { completion(nil); return }
+            findPassword(next, of: info, host: host, completion: completion)
+        }
+    }
+
+    private static func write(_ items: [String], into info: ArchiveInfo, password: String?, host: NSWindow?,
+                              completion: @escaping (Bool, String?) -> Void) {
         let title = loc.t("progress_adding", name(info.path))
         let finish: (RarResult) -> Void = { result in
-            if result.cancelled { completion(false, pw); return }
+            if result.cancelled { completion(false, password); return }
             if result.wrongPassword {
-                guard let entered = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
-                add(info: info, items: items, password: entered, host: host, completion: completion)
+                guard let next = Ops.password(after: password, archive: info.path) else { completion(false, password); return }
+                add(info: info, items: items, password: next, host: host, completion: completion)
                 return
             }
             if !result.ok { Dialogs.error(loc.t("add_failed_title"), result.errorSummary, details: result.output) }
-            completion(result.ok, pw)
+            completion(result.ok, password)
         }
         switch info.kind {
         case .rar:
-            let args = RarRunner.addArguments + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted)
+            let args = RarRunner.addArguments + RarRunner.passwordSwitch(password, encryptHeaders: info.headersEncrypted)
                 + ["--", info.path] + items
             // rar writes its temporary archive in its working directory, which is / when Finder opens the app
-            runRar(title: title, args: args, cwd: folder, host: host, completion: finish)
+            let folder = (info.path as NSString).deletingLastPathComponent
+            runRar(title: title, args: args, password: password, cwd: folder, host: host, completion: finish)
         case .other:
-            var options = SevenZipBridge.UpdateOptions(format: info.type, password: pw)
-            options.encryptHeaders = pw != nil && info.headersEncrypted
+            var options = SevenZipBridge.UpdateOptions(format: info.type, password: password)
+            options.encryptHeaders = password != nil && info.headersEncrypted
             runJob(title: title, operation: .update(archive: info.path, sources: items, options: options), host: host, completion: finish)
         }
     }
@@ -336,8 +402,8 @@ enum Ops {
         let finish: (RarResult) -> Void = { result in
             if result.cancelled { completion(false, pw); return }
             if result.wrongPassword {
-                guard let entered = Dialogs.askPassword(archiveName: name(info.path), wrong: true) else { completion(false, pw); return }
-                delete(info: info, names: names, password: entered, host: host, completion: completion)
+                guard let next = Ops.password(after: pw, archive: info.path) else { completion(false, pw); return }
+                delete(info: info, names: names, password: next, host: host, completion: completion)
                 return
             }
             if !result.ok { Dialogs.error(loc.t("delete_failed_title"), result.errorSummary, details: result.output) }
@@ -345,8 +411,8 @@ enum Ops {
         }
         switch info.kind {
         case .rar:
-            let args = ["d", "-y"] + RarRunner.rarPasswordArgs(pw) + ["--", info.path] + names
-            runRar(title: title, args: args, cwd: folder, host: host, completion: finish)
+            let args = ["d", "-y"] + RarRunner.passwordSwitch(pw) + ["--", info.path] + names
+            runRar(title: title, args: args, password: pw, cwd: folder, host: host, completion: finish)
         case .other:
             let operation = SevenZipBridge.Operation.delete(archive: info.path, items: names, password: pw,
                                                             encryptHeaders: info.headersEncrypted)
