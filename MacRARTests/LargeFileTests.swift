@@ -209,27 +209,15 @@ final class LargeFileTests: XCTestCase {
 
     /// A tar.gz is packed into a tar in the temporary folder first and that tar is then compressed. gzip keeps the
     /// name of what it packs in the archive, which gunzip -N and other tools restore, and the window shows it while
-    /// it compresses: it should be the archive's own tar.
-    func testTarGzNamesItsTarAfterTheArchiveIsAKnownIssue() throws {
+    /// it compresses: it is the archive's own tar, where it used to be Archiver-<UUID>.tar.
+    func testTarGzNamesItsTarAfterTheArchive() throws {
         let archive = workspace.path("large.tar.gz")
         let run = compress(.tgz, to: archive)
         XCTAssertTrue(run.ok)
         XCTAssertLessThan(try XCTUnwrap(run.named, "the window never named a file"), 2)
+        XCTAssertEqual(try gzipName(archive), "large.tar")
+        XCTAssertEqual(run.shownNames.last, "large.tar", "\(run.shown)")
         try assertGivesBackEachFile(archive)
-        try XCTExpectFailure("the tar is named Archiver-<UUID>.tar, in the archive and on screen") {
-            XCTAssertEqual(try gzipName(archive), "large.tar")
-            XCTAssertEqual(run.shownNames.last, "large.tar", "\(run.shown)")
-        }
-    }
-
-    /// The name a gzip stream keeps for what it packs (FNAME, RFC 1952).
-    private func gzipName(_ path: String) throws -> String? {
-        let handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
-        defer { try? handle.close() }
-        let head = try XCTUnwrap(try handle.read(upToCount: 1024))
-        // ID1 ID2 CM FLG MTIME(4) XFL OS, then FNAME when FLG has it and no FEXTRA comes first
-        guard head.count > 10, head[0] == 0x1f, head[1] == 0x8b, head[3] & 0x08 != 0, head[3] & 0x04 == 0 else { return nil }
-        return String(bytes: head[10...].prefix { $0 != 0 }, encoding: .utf8)
     }
 
     // MARK: Extracting

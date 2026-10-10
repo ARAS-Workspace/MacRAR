@@ -89,7 +89,15 @@ final class CompressOptionsTests: XCTestCase {
         XCTAssertEqual(compress.options.level, 9)
         XCTAssertEqual(compress.sources, [pack.archive])
         XCTAssertEqual(compress.archive, "/tmp/out.tar.gz")
-        XCTAssertNotNil(steps[1].cleanup)
+
+        // The tar is the archive's own, in a folder of its own that the cleanup takes away
+        XCTAssertEqual((pack.archive as NSString).lastPathComponent, "out.tar")
+        let folder = (pack.archive as NSString).deletingLastPathComponent
+        XCTAssertTrue((folder as NSString).lastPathComponent.hasPrefix("Archiver-"), folder)
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        XCTAssertTrue(FileManager.default.createFile(atPath: pack.archive, contents: Data()))
+        try XCTUnwrap(steps[1].cleanup)()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder))
     }
 
     func testRarGoesToTheRarTool() throws {

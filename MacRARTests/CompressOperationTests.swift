@@ -22,6 +22,24 @@ final class CompressOperationTests: XCTestCase {
         return options
     }
 
+    /// A compressed tar is packed into a tar in the temporary folder first. That tar takes the archive's name, which gzip
+    /// keeps in the archive, and goes away once it is compressed; it used to be Archiver-<UUID>.tar.
+    func testCompressedTarsPackATarNamedAfterThem() throws {
+        let temporary = NSTemporaryDirectory()
+        let before = Set(try FileManager.default.contentsOfDirectory(atPath: temporary))
+        for format in [ArchiveFormat.tgz, .txz, .tbz2] {
+            var options = options(format, "packed.\(format.ext)")
+            options.level = 1
+            let made = compress(workspace.sources, options)
+            XCTAssertTrue(made.ok, format.ext)
+            guard case .ok(let info) = ArchiveReader.list(made.path, password: nil) else { return XCTFail("\(made.path) did not list") }
+            XCTAssertEqual(Set(info.entries.map(\.name)), ["a.txt", "sub", "sub/b.bin", "sub/çalışma ğüş.txt"], format.ext)
+        }
+        XCTAssertEqual(try gzipName(workspace.path("packed.tar.gz")), "packed.tar")
+        let left = Set(try FileManager.default.contentsOfDirectory(atPath: temporary)).subtracting(before)
+        XCTAssertEqual(left.filter { $0.hasPrefix("Archiver-") }, [])
+    }
+
     func testWholeArchiveIsReportedAsIs() {
         let made = compress(workspace.sources, options(.sevenZip, "whole.7z"))
         XCTAssertTrue(made.ok)

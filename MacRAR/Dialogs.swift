@@ -617,7 +617,11 @@ struct CompressOptions {
 
         case .tgz, .txz, .tbz2:
             let outer: String = format == .tgz ? "gzip" : (format == .txz ? "xz" : "bzip2")
-            let tmpTar = NSTemporaryDirectory() + "Archiver-\(UUID().uuidString).tar"
+            // The tar takes the archive's name, in a folder of its own: gzip keeps that name in the archive, which
+            // gunzip -N and other tools restore, and the progress window shows it while the tar is compressed
+            let folder = TempDirs.make()
+            let tmpTar = (folder as NSString).appendingPathComponent(
+                ArchiveFormat.tar.replacingExtension(in: (archivePath as NSString).lastPathComponent))
             var tar = SevenZipBridge.UpdateOptions(format: "tar")
             tar.deleteSources = deleteAfter
             let stream = SevenZipBridge.UpdateOptions(format: outer, level: mx)
@@ -625,7 +629,7 @@ struct CompressOptions {
                 Step(title: loc.t("progress_packing"), work: update(tmpTar, items, tar)),
                 Step(
                     title: loc.t("progress_compressing"), work: update(archivePath, [tmpTar], stream),
-                    cleanup: { try? FileManager.default.removeItem(atPath: tmpTar) }),
+                    cleanup: { try? FileManager.default.removeItem(atPath: folder) }),
             ]
         }
     }
