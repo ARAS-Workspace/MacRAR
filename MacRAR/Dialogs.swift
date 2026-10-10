@@ -434,9 +434,6 @@ final class ProgressPanel: NSWindowController {
 enum ArchiveFormat: Int, CaseIterable {
     case rar5 = 0, sevenZip = 2, zip = 3, tar = 4, tgz = 5, txz = 6, tbz2 = 7
 
-    /// Formats this edition can create (no RAR in the App Store edition)
-    static var creatable: [ArchiveFormat] { AppInfo.isAppStore ? allCases.filter { $0 != .rar5 } : allCases }
-
     var title: String {
         switch self {
         case .rar5: return RarTools.available ? "RAR 5" : loc.t("format_rar5")
@@ -661,8 +658,8 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         pathRow.orientation = .horizontal
         pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        formatPopup.addItems(withTitles: ArchiveFormat.creatable.map { $0.title })
-        formatPopup.selectItem(at: ArchiveFormat.creatable.firstIndex(of: options.format) ?? 0)
+        formatPopup.addItems(withTitles: ArchiveFormat.allCases.map { $0.title })
+        formatPopup.selectItem(at: ArchiveFormat.allCases.firstIndex(of: options.format) ?? 0)
         formatPopup.target = self
         formatPopup.action = #selector(formatChanged)
         levelPopup.addItems(withTitles: [
@@ -748,7 +745,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     }
 
     private var selectedFormat: ArchiveFormat {
-        let list = ArchiveFormat.creatable
+        let list = ArchiveFormat.allCases
         let i = formatPopup.indexOfSelectedItem
         return i >= 0 && i < list.count ? list[i] : (list.first ?? .zip)
     }

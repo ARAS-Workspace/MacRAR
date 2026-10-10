@@ -1,8 +1,6 @@
 import AppKit
 import UniformTypeIdentifiers
 
-// swiftlint:disable file_length
-
 enum Command: Equatable {
     case extractHere([String])
     case extractFolder([String])
@@ -50,9 +48,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Lifecycle
 
-    /// The app was opened only for a Finder service: quit when the work is done and no window is open
-    var launchedForService = false
-
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -60,13 +55,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
         launched = true
-        FolderAccess.restore()
-        #if APPSTORE
-        NSApp.servicesProvider = ServiceProvider()
-        NSUpdateDynamicServices()
-        let isDefaultLaunch = (notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool) ?? true
-        if !isDefaultLaunch, pendingFiles.isEmpty, pendingCommand == nil { launchedForService = true }
-        #endif
         scheduleDebugSnapshot()
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ABOUT"] != nil { showAbout(nil) }
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_PREFS"] != nil { showPreferences(nil) }
@@ -76,7 +64,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             return
         }
-        #if !APPSTORE
         if let path = ProcessInfo.processInfo.environment["MACRAR_DEBUG_RARINSTALL"] {
             do {
                 try RarTools.install(from: URL(fileURLWithPath: path))
@@ -86,7 +73,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             exit(0)
         }
-        #endif
         if let cmd = pendingCommand {
             NSApp.activate(ignoringOtherApps: true)
             runCommand(cmd)
@@ -95,12 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let files = pendingFiles
         pendingFiles = []
         if files.isEmpty {
-            if windows.isEmpty, !launchedForService { showEmptyWindow() }
+            if windows.isEmpty { showEmptyWindow() }
         } else {
             handleOpen(files)
         }
         NSApp.activate(ignoringOtherApps: true)
-        #if !APPSTORE
         // Finder context-menu commands: install silently if not yet installed for this install (path + version)
         let stamp = Bundle.main.bundlePath + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
         if UserDefaults.standard.string(forKey: "QuickActionsInstalledFor") != stamp, QuickActions.ownedByThisCopy {
@@ -109,7 +94,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         // Windowed use only, once a day
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if Prefs.checkUpdates { UpdateChecker.checkAutomatically() } }
-        #endif
         // Offer file associations on first launch (only when running from /Applications)
         if Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -124,28 +108,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showAssociations(_ sender: Any?) { Associations.show() }
 
-    /// Command from a Finder service: the app stays open; it quits only if it was opened for the service and no window is open
-    func runServiceCommand(_ cmd: Command) {
-        serviceMode = true
-        NSApp.activate(ignoringOtherApps: true)
-        runCommand(cmd)
-    }
-    private var serviceMode = false
-
-    /// Command finished: quit in command-line mode; in service mode quit if needed
+    /// Command finished: the copy a Finder Quick Action started quits
     private func finishCommand() {
-        if serviceMode {
-            serviceMode = false
-            if launchedForService, windows.allSatisfy({ !($0.window?.isVisible ?? false) }) { NSApp.terminate(nil) }
-            return
-        }
         NSApp.terminate(nil)
     }
 
     @objc func checkForUpdates(_ sender: Any?) {
-        #if !APPSTORE
         UpdateChecker.check(manual: true)
-        #endif
     }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
@@ -182,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         handleOpen(files)
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !headless && !serviceMode }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !headless }
 
     func applicationWillTerminate(_ notification: Notification) { TempDirs.cleanupAll() }
 
@@ -265,16 +234,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func runCommand(_ cmd: Command) {
         switch cmd {
         case .setDefault:
-            #if APPSTORE
-            finishCommand()
-            #else
             setDefaultHandler { _ in self.finishCommand() }
-            #endif
         case .installQuickActions:
-            #if !APPSTORE
             let count = QuickActions.installAll()
             print("\(count) Quick Actions installed: \(QuickActions.servicesDir)")
-            #endif
             self.finishCommand()
         case .extractHere(let paths):
             processArchives(Self.dedupeVolumes(paths), dest: { ($0 as NSString).deletingLastPathComponent })
@@ -437,10 +400,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func installQuickActionsAction(_ sender: Any?) {
-        #if !APPSTORE
         let count = QuickActions.installAll()
         Dialogs.info(loc.t("quick_actions_installed_title"), loc.t("quick_actions_installed_message", count))
-        #endif
     }
 
     // MARK: About
@@ -474,9 +435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// A language change: the menus are rebuilt and the Finder Quick Actions take their new names.
     @objc private func languageDidChange() {
         buildMenu()
-        #if !APPSTORE
         if QuickActions.ownedByThisCopy { QuickActions.relocalize() }
-        #endif
     }
 
     // swiftlint:disable:next function_body_length
@@ -486,16 +445,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appItem = NSMenuItem(); main.addItem(appItem)
         let app = NSMenu()
         app.addItem(withTitle: loc.t("menu_about", AppInfo.name), action: #selector(showAbout(_:)), keyEquivalent: "")
-        #if !APPSTORE
         app.addItem(withTitle: loc.t("menu_check_for_updates"), action: #selector(checkForUpdates(_:)), keyEquivalent: "")
-        #endif
         app.addItem(.separator())
         app.addItem(withTitle: loc.t("menu_settings"), action: #selector(showPreferences(_:)), keyEquivalent: ",")
         app.addItem(.separator())
         app.addItem(withTitle: loc.t("action_file_associations"), action: #selector(showAssociations(_:)), keyEquivalent: "")
-        #if !APPSTORE
         app.addItem(withTitle: loc.t("menu_install_quick_actions"), action: #selector(installQuickActionsAction(_:)), keyEquivalent: "")
-        #endif
         app.addItem(.separator())
         app.addItem(withTitle: loc.t("menu_hide_app", AppInfo.name), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = app.addItem(

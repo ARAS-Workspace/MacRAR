@@ -1,4 +1,3 @@
-#if !APPSTORE
 import AppKit
 
 /// Checks GitHub Releases for a new version (anonymous API, no credentials).
@@ -108,5 +107,3 @@ enum UpdateChecker {
         }
     }
 }
-
-#endif

@@ -7,8 +7,7 @@ enum Prefs {
         get {
             let fallback: ArchiveFormat = RarTools.available ? .rar5 : .zip
             guard defaults.object(forKey: "DefaultFormat") != nil,
-                let f = ArchiveFormat(rawValue: defaults.integer(forKey: "DefaultFormat")),
-                  ArchiveFormat.creatable.contains(f) else { return fallback }
+                  let f = ArchiveFormat(rawValue: defaults.integer(forKey: "DefaultFormat")) else { return fallback }
             return f
         }
         set { defaults.set(newValue.rawValue, forKey: "DefaultFormat") }
@@ -101,7 +100,6 @@ final class PreferencesWindowController: NSWindowController {
             [NSGridCell.emptyContentView, toolButton],
             [filesLabel, associationsButton],
         ])
-        updatesBox.isHidden = AppInfo.isAppStore
         toolStatus.font = .systemFont(ofSize: 11)
         toolStatus.textColor = .secondaryLabelColor
         toolStatus.lineBreakMode = .byTruncatingMiddle
@@ -126,7 +124,7 @@ final class PreferencesWindowController: NSWindowController {
         formatLabel.stringValue = loc.t("compress_label_format")
         levelLabel.stringValue = loc.t("compress_label_level")
         languageLabel.stringValue = loc.t("prefs_label_language")
-        toolLabel.stringValue = AppInfo.isAppStore ? loc.t("prefs_label_folders") : loc.t("prefs_label_rar_tool")
+        toolLabel.stringValue = loc.t("prefs_label_rar_tool")
         filesLabel.stringValue = loc.t("prefs_label_files")
         solidBox.title = loc.t("compress_solid")
         rrBox.title = loc.t("compress_recovery_record")
@@ -152,16 +150,12 @@ final class PreferencesWindowController: NSWindowController {
 
     private func reloadFormats() {
         formatPopup.removeAllItems()
-        formatPopup.addItems(withTitles: ArchiveFormat.creatable.map { $0.title })
-        formatPopup.selectItem(at: ArchiveFormat.creatable.firstIndex(of: Prefs.defaultFormat) ?? 0)
+        formatPopup.addItems(withTitles: ArchiveFormat.allCases.map { $0.title })
+        formatPopup.selectItem(at: ArchiveFormat.allCases.firstIndex(of: Prefs.defaultFormat) ?? 0)
     }
 
     private func refreshTool() {
-        if AppInfo.isAppStore {
-            let count = FolderAccess.grantedFolders.count
-            toolStatus.stringValue = count == 0 ? loc.t("prefs_folders_none") : loc.t("prefs_folders_count", count)
-            toolButton.title = loc.t("prefs_allow_home")
-        } else if let v = RarTools.version {
+        if let v = RarTools.version {
             toolStatus.stringValue = loc.t("prefs_rar_installed", v)
             toolButton.title = loc.t("prefs_rar_remove")
         } else {
@@ -171,13 +165,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func toolAction() {
-        if AppInfo.isAppStore {
-            FolderAccess.grantHome()
-        } else {
-            #if !APPSTORE
-            if RarTools.available { RarTools.uninstall() } else { RarTools.ensureAvailable() }
-            #endif
-        }
+        if RarTools.available { RarTools.uninstall() } else { RarTools.ensureAvailable() }
         refreshTool()
         reloadFormats()
     }
@@ -195,7 +183,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func changed() {
-        let list = ArchiveFormat.creatable
+        let list = ArchiveFormat.allCases
         let fi = formatPopup.indexOfSelectedItem
         Prefs.defaultFormat = fi >= 0 && fi < list.count ? list[fi] : .zip
         Prefs.defaultLevel = levelPopup.indexOfSelectedItem

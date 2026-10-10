@@ -48,11 +48,7 @@ struct ArchiveInfo {
         return out
     }
     /// Are adding / deleting files supported?
-    var supportsModification: Bool {
-        if tarCompressed { return false }
-        if kind == .rar { return !AppInfo.isAppStore }   // the GitHub edition asks for the RAR tool
-        return true
-    }
+    var supportsModification: Bool { !tarCompressed }
 }
 
 struct RarResult {
@@ -135,8 +131,6 @@ enum Formats {
         if ext == "rar" || ext.range(of: #"^r\d\d$"#, options: .regularExpression) != nil { return .rar }
         return .other
     }
-
-    static func filterArchives(_ paths: [String]) -> [String] { paths.filter { isArchive($0) } }
 
     static func isMultiVolume(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent

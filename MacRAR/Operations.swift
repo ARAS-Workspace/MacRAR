@@ -46,10 +46,6 @@ enum Ops {
 
     /// Lists the archive; asks for a password if needed. Returns nil on cancel.
     static func listInteractive(archive: String, password: inout String?) -> ArchiveInfo? {
-        let folder = (archive as NSString).deletingLastPathComponent
-        if Formats.isMultiVolume(archive) || !FileManager.default.isReadableFile(atPath: archive) {
-            guard FolderAccess.ensure(folder, write: false) else { return nil }
-        }
         var wrong = false
         while true {
             switch ArchiveReader.list(archive, password: password) {
@@ -85,7 +81,6 @@ enum Ops {
     /// names: nil means the whole archive. completion(success, password used)
     static func extract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
                         host: NSWindow?, quiet: Bool = false, completion: @escaping (Bool, String?) -> Void) {
-        guard FolderAccess.ensure(FolderAccess.existingAncestor(of: dest), write: true) else { completion(false, password); return }
         var pw = password
         if needsPassword(info: info, names: names), pw == nil {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
@@ -182,9 +177,6 @@ enum Ops {
         if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
         if !options.format.isRar, options.format.supportsVolumes, options.volumeBytes == nil {
             Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_invalid_volume_size", options.volumeSize ?? ""))
-            completion(false, options.archivePath); return
-        }
-        guard FolderAccess.ensure((options.archivePath as NSString).deletingLastPathComponent, write: true) else {
             completion(false, options.archivePath); return
         }
         if FileManager.default.fileExists(atPath: options.archivePath) {
@@ -293,9 +285,6 @@ enum Ops {
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
         let folder = (info.path as NSString).deletingLastPathComponent
-        guard FolderAccess.ensure(folder, write: true) else {
-            completion(false, password); return
-        }
         var pw = password
         if info.hasEncryptedFiles, pw == nil {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
@@ -334,9 +323,6 @@ enum Ops {
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
         let folder = (info.path as NSString).deletingLastPathComponent
-        guard FolderAccess.ensure(folder, write: true) else {
-            completion(false, password); return
-        }
         var pw = password
         if info.headersEncrypted, pw == nil {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }

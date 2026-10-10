@@ -1,19 +1,12 @@
 import AppKit
 
-/// App identity (GitHub edition "MacRAR", App Store edition "Easy Mac Archiver")
+/// App identity
 enum AppInfo {
     static let name: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "MacRAR"
     /// "1.4.2+ARAS.Patch.1": the original developer's release and the ARAS patch round on top of it
     static let version: String = Bundle.main.object(forInfoDictionaryKey: "ARASDistributionVersion") as? String
         ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-    static var isAppStore: Bool {
-        #if APPSTORE
-        return true
-        #else
-        return false
-        #endif
-    }
-    /// The user's real home folder (inside the sandbox NSHomeDirectory() returns the app container)
+    /// The user's home folder, from the user database
     static let realHome: String = {
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir { return String(cString: dir) }
         return NSHomeDirectory()
@@ -28,21 +21,16 @@ enum AppInfo {
 }
 
 /// RARLAB's "RAR for macOS" tool. Its licence does not allow shipping it with the app; the user downloads it.
-/// Never used in the App Store edition (Apple guideline 2.5.2).
 enum RarTools {
     static let downloadPage = URL(string: "https://www.rarlab.com/download.htm")!
     static var installDir: String { (AppInfo.supportDir as NSString).appendingPathComponent("rar") }
 
     static var rarURL: URL? {
-        #if APPSTORE
-        return nil
-        #else
         var candidates: [String] = []
         if let custom = UserDefaults.standard.string(forKey: "RarPath"), !custom.isEmpty { candidates.append(custom) }
         candidates += [(installDir as NSString).appendingPathComponent("rar"), "/usr/local/bin/rar", "/opt/homebrew/bin/rar"]
         for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) { return URL(fileURLWithPath: candidate) }
         return nil
-        #endif
     }
 
     static var available: Bool { rarURL != nil }
@@ -78,9 +66,6 @@ enum RarTools {
     @discardableResult
     static func ensureAvailable() -> Bool {
         if available { return true }
-        #if APPSTORE
-        return false
-        #else
         Dialogs.activate()
         let alert = NSAlert()
         alert.messageText = loc.t("rar_tool_required_title")
@@ -103,10 +88,8 @@ enum RarTools {
         default:
             return false
         }
-        #endif
     }
 
-    #if !APPSTORE
     private static func chooseAndInstall() -> Bool {
         let panel = NSOpenPanel()
         panel.title = loc.t("rar_tool_panel_title")
@@ -202,5 +185,4 @@ enum RarTools {
         try? FileManager.default.removeItem(atPath: installDir)
         UserDefaults.standard.removeObject(forKey: "RarPath")
     }
-    #endif
 }

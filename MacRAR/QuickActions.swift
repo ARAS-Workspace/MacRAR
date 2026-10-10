@@ -1,4 +1,3 @@
-#if !APPSTORE
 import Foundation
 
 /// Generates .workflow bundles under ~/Library/Services for the "Quick Actions" in Finder's context menu.
@@ -413,5 +412,3 @@ enum QuickActions {
         """
     }
 }
-
-#endif
