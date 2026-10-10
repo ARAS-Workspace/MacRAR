@@ -81,7 +81,15 @@ enum Dialogs {
         }
     }
 
+    /// MACRAR_DEBUG_CONFIRM: an alert that only reports goes to stdout instead of waiting for the user
+    private static func reportedForDebugging(_ title: String, _ detail: String) -> Bool {
+        guard ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil else { return false }
+        print("\(title): \(detail)")
+        return true
+    }
+
     static func error(_ title: String, _ detail: String, details: String? = nil) {
+        if reportedForDebugging(title, detail) { return }
         activate()
         let alert = NSAlert()
         alert.messageText = title
@@ -111,6 +119,7 @@ enum Dialogs {
     }
 
     static func info(_ title: String, _ detail: String) {
+        if reportedForDebugging(title, detail) { return }
         activate()
         let alert = NSAlert()
         alert.messageText = title

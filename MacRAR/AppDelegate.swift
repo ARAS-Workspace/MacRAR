@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 // swiftlint:disable file_length
 
-enum Command {
+enum Command: Equatable {
     case extractHere([String])
     case extractFolder([String])
     case extractTo([String])

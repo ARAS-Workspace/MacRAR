@@ -35,18 +35,19 @@ enum QuickActions {
         (NSHomeDirectory() as NSString).appendingPathComponent("Library/Services")
     }
 
-    /// Installs all actions, returns how many were installed.
+    /// Installs all actions, returns how many were installed. Tests write into a directory of their own
+    /// and leave Finder's service registration alone.
     @discardableResult
-    static func installAll() -> Int {
+    static func installAll(in directory: String = servicesDir, registerWithFinder: Bool = true) -> Int {
         let appPath = Bundle.main.bundlePath
         let fm = FileManager.default
-        try? fm.createDirectory(atPath: servicesDir, withIntermediateDirectories: true)
+        try? fm.createDirectory(atPath: directory, withIntermediateDirectories: true)
         // Remove old versions
-        if let items = try? fm.contentsOfDirectory(atPath: servicesDir) {
+        if let items = try? fm.contentsOfDirectory(atPath: directory) {
             for item in items
             where item.hasPrefix("RAR • ") || item.hasPrefix("MacRAR • ") || item.hasPrefix("MacRAR ile ") || item.hasPrefix("MacRAR: ")
                 || item.hasPrefix("Open with MacRAR") || item.hasPrefix("Compress with MacRAR") {
-                try? fm.removeItem(atPath: (servicesDir as NSString).appendingPathComponent(item))
+                try? fm.removeItem(atPath: (directory as NSString).appendingPathComponent(item))
             }
         }
         var count = 0
@@ -58,10 +59,12 @@ enum QuickActions {
             } else {
                 cmd = "open -a \(quotedApp) \"$@\""
             }
-            if write(action: action, command: cmd) { count += 1 }
+            if write(action: action, command: cmd, in: directory) { count += 1 }
         }
-        enableInFinder(actions.map { $0.name })
-        refreshServices()
+        if registerWithFinder {
+            enableInFinder(actions.map { $0.name })
+            refreshServices()
+        }
         return count
     }
 
@@ -91,8 +94,8 @@ enum QuickActions {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
-    private static func write(action: Action, command: String) -> Bool {
-        let bundle = (servicesDir as NSString).appendingPathComponent(action.name + ".workflow")
+    private static func write(action: Action, command: String, in directory: String) -> Bool {
+        let bundle = (directory as NSString).appendingPathComponent(action.name + ".workflow")
         let contents = (bundle as NSString).appendingPathComponent("Contents")
         let fm = FileManager.default
         do {

@@ -5,28 +5,8 @@ let delegate = AppDelegate()
 AppDelegate.shared = delegate
 app.delegate = delegate
 
-// Command-line arguments (Finder Quick Actions call "open -n -a MacRAR --args --command file...")
-var args = Array(CommandLine.arguments.dropFirst())
-// Drop arguments macOS adds, such as -psn_... / -NSDocumentRevisionsDebugMode
-args.removeAll { $0.hasPrefix("-psn_") || $0 == "-NSDocumentRevisionsDebugMode" || $0 == "YES" }
-
-if let flagIndex = args.firstIndex(where: { $0.hasPrefix("--") }) {
-    let flag = args[flagIndex]
-    let paths = Array(args[(flagIndex + 1)...]).filter { !$0.hasPrefix("--") }.map { ($0 as NSString).standardizingPath }
-    switch flag {
-    case "--extract-here":     delegate.pendingCommand = .extractHere(paths)
-    case "--extract-folder":   delegate.pendingCommand = .extractFolder(paths)
-    case "--extract-to":       delegate.pendingCommand = .extractTo(paths)
-    case "--test":             delegate.pendingCommand = .test(paths)
-    case "--compress":         delegate.pendingCommand = .compress(paths)
-    case "--compress-dialog":  delegate.pendingCommand = .compressDialog(paths)
-    case "--set-default":      delegate.pendingCommand = .setDefault
-    case "--install-quick-actions": delegate.pendingCommand = .installQuickActions
-    default:
-        delegate.pendingFiles = paths
-    }
-} else {
-    delegate.pendingFiles = args.filter { !$0.hasPrefix("-") }.map { ($0 as NSString).standardizingPath }
-}
+let launch = LaunchArguments(Array(CommandLine.arguments.dropFirst()))
+delegate.pendingCommand = launch.command
+delegate.pendingFiles = launch.files
 
 app.run()
