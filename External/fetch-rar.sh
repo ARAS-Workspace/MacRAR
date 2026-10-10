@@ -4,7 +4,9 @@
 # Downloads the pinned "RAR for macOS ARM" release, checks its SHA-256 and
 # unpacks it next to this script into a directory named after the archive:
 # External/rarmacos-arm-723/rar/rar. External/.gitignore keeps it out of git.
-# CI runs it before the tests; on a Mac, run it once.
+# CI runs it before the tests, keeping the result in the Actions cache; on a
+# Mac, run it once. A copy already there is checked by its SHA-256 before it
+# is used, so a cached or local rar is the pinned one too.
 # Usage: External/fetch-rar.sh
 set -euo pipefail
 
@@ -12,6 +14,7 @@ RAR_VERSION="7.23"
 RAR_ARCHIVE="rarmacos-arm-723"
 RAR_URL="https://www.win-rar.com/fileadmin/winrar-versions/${RAR_ARCHIVE}.tar.gz"
 RAR_SHA256="68b393c000758d477fde43c955ff7542f12f76f3f5e87cdda923152fc791bd4d"
+RAR_BINARY_SHA256="fd6c7db73c659a28b50408354f4a4845c53a67f929f37fd99df92aa77b9f5153"
 
 EXTERNAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="${EXTERNAL_DIR}/${RAR_ARCHIVE}"
@@ -22,7 +25,7 @@ if [[ "$(uname -m)" != "arm64" ]]; then
     exit 1
 fi
 
-if [[ -x "$RAR" && "$("$RAR" -iver)" == "$RAR_VERSION" ]]; then
+if [[ -x "$RAR" ]] && echo "${RAR_BINARY_SHA256}  ${RAR}" | shasum -a 256 -c -s -; then
     echo "rar ${RAR_VERSION}: ${RAR} (already fetched)"
     exit 0
 fi
@@ -35,6 +38,7 @@ curl -fsSL --retry 3 -o "$ARCHIVE" "$RAR_URL"
 echo "${RAR_SHA256}  ${ARCHIVE}" | shasum -a 256 -c -
 tar -xzf "$ARCHIVE" -C "$TARGET"
 rm "$ARCHIVE"
+echo "${RAR_BINARY_SHA256}  ${RAR}" | shasum -a 256 -c -
 
 VERSION="$("$RAR" -iver)"
 if [[ "$VERSION" != "$RAR_VERSION" ]]; then
