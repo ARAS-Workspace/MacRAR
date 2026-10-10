@@ -30,6 +30,14 @@ final class LaunchArgumentsTests: XCTestCase {
         XCTAssertEqual(launch.files, ["/a/x.zip"])
     }
 
+    /// XCTest launches the app with "-NSTreatUnknownArgumentsAsOpen NO -ApplePersistenceIgnoreState YES": the NO
+    /// was taken for a file and the Create Archive dialog opened on it.
+    func testDefaultsPairsAreNotFiles() {
+        XCTAssertEqual(LaunchArguments(["-NSTreatUnknownArgumentsAsOpen", "NO", "-ApplePersistenceIgnoreState", "YES"]).files, [])
+        XCTAssertEqual(LaunchArguments(["-AppleLanguages", "(tr)", "/a/x.zip"]).files, ["/a/x.zip"])
+        XCTAssertEqual(LaunchArguments(["-RevealAfterExtract", "NO", "--test", "/a/x.zip"]).command, .test(["/a/x.zip"]))
+    }
+
     func testFilesWithoutAFlagAreOpened() {
         let launch = LaunchArguments(["/a/x.zip", "/a/./y.7z"])
         XCTAssertNil(launch.command)
