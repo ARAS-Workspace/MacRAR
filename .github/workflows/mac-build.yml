@@ -47,10 +47,13 @@ jobs:
         run: swiftlint lint --strict --quiet
 
       - name: Build and test (unsigned)
+        # A Swift warning in the app or the tests fails the build here, so none slips through; release builds are not
+        # affected
         run: |
           set -o pipefail
           xcodebuild test \
             -scheme "MacRAR" \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | xcpretty --color
