@@ -485,7 +485,7 @@ enum ArchiveFormat: Int, CaseIterable {
     func replacingExtension(in path: String) -> String {
         var base = path
         let lower = base.lowercased()
-        for suf in [".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".txz", ".tbz2", ".tbz", ".rar", ".7z", ".zip", ".tar"]
+        for suf in [".tar.gz", ".tar.xz", ".tar.bz2", ".tgz", ".txz", ".tbz2", ".tbz", ".rar", ".sfx", ".7z", ".zip", ".tar"]
         where lower.hasSuffix(suf) {
             base = String(base.dropLast(suf.count)); break
         }
@@ -521,6 +521,16 @@ struct CompressOptions {
     var writtenPath: String {
         guard format.isRar, sfx else { return archivePath }
         return ((archivePath as NSString).deletingPathExtension as NSString).appendingPathExtension("sfx") ?? archivePath
+    }
+
+    /// The archive name the Create Archive dialog shows and uses: a name that already fits the format stays, another
+    /// takes the format's extension, and a self-extracting RAR is named .sfx, the file rar writes.
+    static func archivePath(_ path: String, format: ArchiveFormat, sfx: Bool) -> String {
+        let named = ArchiveFormat.detect(fromPath: path) == format ? path : format.replacingExtension(in: path)
+        var options = CompressOptions(archivePath: named)
+        options.format = format
+        options.sfx = sfx
+        return options.writtenPath
     }
 
     /// Maps the 0-5 level to the 7-Zip -mx value
@@ -647,7 +657,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     // swiftlint:disable:next function_body_length
     private func build(itemCount: Int) {
         guard let content = window?.contentView else { return }
-        pathField.stringValue = options.archivePath
+        pathField.stringValue = CompressOptions.archivePath(options.archivePath, format: options.format, sfx: options.sfx)
         pathField.placeholderString = loc.t("compress_path_placeholder")
         pathField.usesSingleLineMode = true
         pathField.cell?.wraps = false
@@ -680,6 +690,8 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         solidBox.state = options.solid ? .on : .off
         rrBox.state = options.recoveryRecord ? .on : .off
         sfxBox.state = options.sfx ? .on : .off
+        sfxBox.target = self
+        sfxBox.action = #selector(sfxChanged)
         deleteBox.state = options.deleteAfter ? .on : .off
         hintLabel.font = .systemFont(ofSize: 10)
         hintLabel.textColor = .secondaryLabelColor
@@ -751,11 +763,20 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     }
 
     @objc private func formatChanged() {
-        let f = selectedFormat
-        let path = pathField.stringValue.trimmingCharacters(in: .whitespaces)
-        if !path.isEmpty { pathField.stringValue = f.replacingExtension(in: path) }
+        refreshPath()
         applyFormatRules()
     }
+
+    @objc private func sfxChanged() { refreshPath() }
+
+    /// The path field shows the file that will be written, following the format and the SFX choice.
+    private func refreshPath() {
+        let path = pathField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !path.isEmpty else { return }
+        pathField.stringValue = CompressOptions.archivePath(path, format: selectedFormat, sfx: sfxChosen)
+    }
+
+    private var sfxChosen: Bool { selectedFormat.supportsSFX && sfxBox.state == .on }
 
     func controlTextDidChange(_ obj: Notification) { applyFormatRules() }
 
@@ -790,7 +811,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         var path = pathField.stringValue.trimmingCharacters(in: .whitespaces)
         guard !path.isEmpty else { NSSound.beep(); return }
         let f = selectedFormat
-        if ArchiveFormat.detect(fromPath: path) != f { path = f.replacingExtension(in: path) }
+        path = CompressOptions.archivePath(path, format: f, sfx: sfxChosen)
         if f.isRar, !RarTools.ensureAvailable() { return }
         if f.supportsPassword, pwField.stringValue != pw2Field.stringValue {
             Dialogs.error(loc.t("compress_password_mismatch_title"), loc.t("compress_password_mismatch_message"))
@@ -804,7 +825,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         chosen.encryptNames = f.supportsEncryptNames && encryptNamesBox.state == .on
         chosen.solid = f.supportsSolid && solidBox.state == .on
         chosen.recoveryRecord = f.supportsRecovery && rrBox.state == .on
-        chosen.sfx = f.supportsSFX && sfxBox.state == .on
+        chosen.sfx = sfxChosen
         chosen.deleteAfter = deleteBox.state == .on
         let v = volumeField.stringValue.trimmingCharacters(in: .whitespaces)
         chosen.volumeSize = (f.supportsVolumes && !v.isEmpty) ? v : nil
