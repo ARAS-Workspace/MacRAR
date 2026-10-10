@@ -33,6 +33,30 @@ final class Workspace {
 
     func exists(_ relative: String) -> Bool { FileManager.default.fileExists(atPath: path(relative)) }
 
+    /// Creates folders under their composed (NFC) names, as shell tools, git and archives made elsewhere name them.
+    /// Foundation's own file calls write names decomposed, and Process passes them on decomposed.
+    @discardableResult
+    func makeComposedDirectory(_ relative: String) throws -> String {
+        var folder = root.path
+        for component in relative.precomposedStringWithCanonicalMapping.split(separator: "/") {
+            folder += "/\(component)"
+            guard mkdir(folder, 0o755) == 0 || errno == EEXIST else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        }
+        return folder
+    }
+
+    /// Writes a file under its composed (NFC) name, in folders named the same way.
+    func writeComposed(_ data: Data, to relative: String) throws {
+        var components = relative.precomposedStringWithCanonicalMapping.split(separator: "/").map(String.init)
+        let name = components.removeLast()
+        let folder = try makeComposedDirectory(components.joined(separator: "/"))
+        let descriptor = open("\(folder)/\(name)", O_CREAT | O_WRONLY | O_TRUNC, 0o644)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(descriptor) }
+        let written = data.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) }
+        guard written == data.count else { throw POSIXError(.EIO) }
+    }
+
     /// The files at the top level whose names start with `prefix`, with their contents: a volume set to compare.
     func files(startingWith prefix: String) throws -> [String: Data] {
         let names = try FileManager.default.contentsOfDirectory(atPath: root.path).filter { $0.hasPrefix(prefix) }

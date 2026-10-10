@@ -307,7 +307,7 @@ enum Ops {
         }
         switch info.kind {
         case .rar:
-            let args = ["a", "-ep1", "-r", "-y"] + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted)
+            let args = RarRunner.addArguments + RarRunner.rarPasswordArgs(pw, encryptHeaders: info.headersEncrypted)
                 + ["--", info.path] + items
             // rar writes its temporary archive in its working directory, which is / when Finder opens the app
             runRar(title: title, args: args, cwd: folder, host: host, completion: finish)

@@ -37,7 +37,7 @@ final class RARTests: XCTestCase {
     @discardableResult
     private func makeRar(_ name: String, _ switches: [String] = [], file: StaticString = #filePath, line: UInt = #line) throws -> String {
         let archive = workspace.path(name)
-        let made = try rar.run(["a", "-ma5", "-ep1", "-r", "-y"] + switches + ["--", archive] + workspace.sources, in: workspace.root.path)
+        let made = try rar.run(RarRunner.addArguments + ["-ma5"] + switches + ["--", archive] + workspace.sources, in: workspace.root.path)
         XCTAssertEqual(made.status, 0, made.output, file: file, line: line)
         return archive
     }
@@ -218,6 +218,56 @@ final class RARTests: XCTestCase {
         let names = try XCTUnwrap(info(archive)).entries.map(\.name)
         XCTAssertFalse(names.contains("a.txt"), "\(names)")
         XCTAssertTrue(names.contains("added.txt"), "\(names)")
+    }
+
+    /// rar packs exactly the chosen items. With -r it read each chosen file name as a mask for the folders below: a file
+    /// whose name holds Turkish letters composed on disk, as shell tools, git and archives made elsewhere write them, was
+    /// left out without an error, since Process hands names over decomposed, and a same-named file in a folder nobody
+    /// chose went into the archive and, with "delete files after archiving", off the disk. Chosen folders, nested or
+    /// empty, are still added whole.
+    func testCompressTakesExactlyTheChosenItems() throws {
+        _ = try workspace.makeDirectory("src/other")
+        let notChosen = Data("not chosen\n".utf8)
+        try notChosen.write(to: workspace.url("src/other/a.txt"))
+        try workspace.writeComposed(Data("Türkçe\n".utf8), to: "src/büyük dosya.txt")
+        try workspace.writeComposed(Data("iç içe\n".utf8), to: "src/Klasör ğ/iç/d.txt")
+        try workspace.makeComposedDirectory("src/boş")
+        let files = ["a.txt", "büyük dosya.txt", "sub/b.bin", "sub/çalışma ğüş.txt", "Klasör ğ/iç/d.txt"]
+        let originals = files.map { workspace.contents("src/\($0)") }
+
+        var options = CompressOptions(archivePath: workspace.path("chosen.rar"))
+        options.format = .rar5
+        options.deleteAfter = true
+        let made = compress(["a.txt", "büyük dosya.txt", "sub", "Klasör ğ", "boş"].map { workspace.path("src/\($0)") }, options)
+        XCTAssertTrue(made.ok)
+        let entries = try XCTUnwrap(info(made.path)).entries.map(\.name)
+        let expected = files + ["sub", "Klasör ğ", "Klasör ğ/iç", "boş"]
+        XCTAssertEqual(Set(entries), Set(expected))
+        XCTAssertEqual(entries.count, expected.count, "\(entries)")
+        XCTAssertEqual(workspace.contents("src/other/a.txt"), notChosen, "a file nobody chose was deleted")
+        XCTAssertFalse(workspace.exists("src/büyük dosya.txt"), "the chosen file was not moved into the archive")
+
+        XCTAssertEqual(try extract(made.path, into: "out").code, .ok)
+        XCTAssertEqual(files.map { workspace.contents("out/\($0)") }, originals)
+        XCTAssertTrue(isDirectoryPath(workspace.path("out/boş")))
+    }
+
+    /// Ops.add hands rar exactly the chosen items as well, a dropped folder with everything in it.
+    func testAddingTakesExactlyTheChosenItems() throws {
+        let archive = try makeRar("edit.rar")
+        _ = try workspace.makeDirectory("more/other")
+        try Data("chosen\n".utf8).write(to: workspace.url("more/added.txt"))
+        try Data("not chosen\n".utf8).write(to: workspace.url("more/other/added.txt"))
+        try workspace.writeComposed(Data("Türkçe\n".utf8), to: "more/eklenen ğüş.txt")
+        try workspace.writeComposed(Data("iç içe\n".utf8), to: "more/Yeni klasör/iç/e.txt")
+
+        let before = try XCTUnwrap(info(archive))
+        let items = ["added.txt", "eklenen ğüş.txt", "Yeni klasör"].map { workspace.path("more/\($0)") }
+        XCTAssertTrue(finished { Ops.add(info: before, items: items, password: nil, host: nil, completion: $0) })
+        let after = try XCTUnwrap(info(archive)).entries.map(\.name)
+        let expected = ["added.txt", "eklenen ğüş.txt", "Yeni klasör", "Yeni klasör/iç", "Yeni klasör/iç/e.txt"]
+        XCTAssertEqual(Set(after).subtracting(before.entries.map(\.name)), Set(expected))
+        XCTAssertEqual(after.count, before.entries.count + expected.count, "\(after)")
     }
 
     /// Adding to an archive with encrypted names keeps them encrypted (-hp), and so does deleting from it.

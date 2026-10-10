@@ -584,7 +584,7 @@ struct CompressOptions {
 
         switch format {
         case .rar5:
-            var args = ["a", "-ep1", "-r", "-y", "-m\(level)", "-ma5"]
+            var args = RarRunner.addArguments + ["-m\(level)", "-ma5"]
             if solid { args.append("-s") }
             if recoveryRecord { args.append("-rr3") }
             if let v = volumeSize, !v.isEmpty { args.append("-v\(v)") }

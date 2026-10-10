@@ -223,6 +223,13 @@ enum RarRunner {
         return [(encryptHeaders ? "-hp" : "-p") + pw]
     }
 
+    /// rar's add command for the chosen items: each under its own name (-ep1), without asking (-y). Never -r: with it rar
+    /// reads every chosen file name as a mask for the folders below it, so it also added (and with -df deleted)
+    /// same-named files nobody chose, and it missed a file whose name holds letters such as ü or ş composed on disk, as
+    /// Process hands names over decomposed and rar compares bytes. A chosen folder is added with everything in it all the
+    /// same.
+    static let addArguments = ["a", "-ep1", "-y"]
+
     static func makeProcess(_ args: [String], cwd: String?) -> Process {
         let process = Process()
         process.executableURL = RarTools.rarURL ?? URL(fileURLWithPath: "/nonexistent/rar")
