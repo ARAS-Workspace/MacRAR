@@ -363,26 +363,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         next(0)
     }
 
-    @objc func makeDefaultForAll(_ sender: Any?) {
-        setDefaultHandler(extensions: ["rar", "zip", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab", "iso", "lzh", "arj"]) { err in
-            if let err {
-                Dialogs.error(loc.t("default_app_failed_title"), err.localizedDescription)
-            } else {
-                Dialogs.info(loc.t("ok"), loc.t("default_app_all_done", AppInfo.name))
-            }
-        }
-    }
-
-    @objc func makeDefault(_ sender: Any?) {
-        setDefaultHandler { err in
-            if let err {
-                Dialogs.error(loc.t("default_app_failed_title"), err.localizedDescription)
-            } else {
-                Dialogs.info(loc.t("ok"), loc.t("default_app_rar_done", AppInfo.name))
-            }
-        }
-    }
-
     @objc func installQuickActionsAction(_ sender: Any?) { installQuickActions() }
 
     // MARK: About
