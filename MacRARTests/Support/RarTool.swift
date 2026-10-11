@@ -7,10 +7,7 @@ import XCTest
 struct RarTool {
     let url: URL
 
-    /// External/ in the repository this file belongs to (MacRARTests/Support/RarTool.swift).
-    static let external = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("External")
+    static let external = Repository.external
 
     static func locate() throws -> RarTool {
         let fetched = (try? FileManager.default.contentsOfDirectory(atPath: external.path)) ?? []

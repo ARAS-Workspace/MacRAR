@@ -30,9 +30,7 @@ final class LocalizationTests: XCTestCase {
 
     func testEveryKeyInTheSourcesExists() throws {
         let english = try table("en")
-        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let sources = repository.appendingPathComponent("MacRAR")
-        let files = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        let files = try XCTUnwrap(FileManager.default.enumerator(at: Repository.sources, includingPropertiesForKeys: nil))
         let call = try NSRegularExpression(pattern: #"loc\.t\("([a-z0-9_]+)""#)
         var used = Set<String>()
         for case let url as URL in files where url.pathExtension == "swift" {
