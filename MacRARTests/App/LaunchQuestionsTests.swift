@@ -18,6 +18,8 @@ final class LaunchQuestionsTests: XCTestCase {
 
     override func tearDown() {
         closeSheets()
+        // A block a failed test left waiting runs now, while its questions still print instead of showing
+        XCTAssertTrue(eventually { Dialogs.waiting == 0 }, "a block is still waiting")
         clearDebugAnswers()
         for key in keys { UserDefaults.standard.set(saved[key], forKey: key) }
     }
@@ -121,18 +123,18 @@ final class LaunchQuestionsTests: XCTestCase {
 
     /// An operation shows its progress window only after ProgressPanel.showDelay, and runs all the same until then:
     /// a question that came up in that time sat over its start, and with runModal called from a queued block, the
-    /// operation's own main-queue updates waited for the question to be answered.
-    func testAnOperationIsWaitedForBeforeItsProgressWindowIsUpIsAKnownIssue() {
+    /// operation's own main-queue updates waited for the question to be answered. It now waits for the operation.
+    func testAnOperationIsWaitedForBeforeItsProgressWindowIsUp() {
         let panel = ProgressPanel(title: "starting")
         hide(panel.window)
         panel.show(on: nil)
         var ran = false
         Dialogs.whenIdle { ran = true }
-        XCTExpectFailure("ran before the progress window came up") {
-            XCTAssertFalse(ran, "ran while the operation was starting")
-        }
+        XCTAssertFalse(ran, "ran while the operation was starting")
+        XCTAssertEqual(panel.window?.isVisible, false)
         panel.dismiss()
         XCTAssertTrue(eventually { ran })
+        XCTAssertEqual(ProgressPanel.running, 0)
     }
 
     // MARK: The questions

@@ -5,10 +5,29 @@ enum Dialogs {
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
 
     /// Whether something already waits for the user: a modal window (a password question, the Create Archive dialog,
-    /// an alert), a sheet, or a progress window on screen of its own.
+    /// an alert), a sheet, or an operation, its progress window up or not yet.
     static var isBusy: Bool {
-        NSApp.modalWindow != nil
-            || NSApp.windows.contains { $0.isVisible && ($0.attachedSheet != nil || $0.windowController is ProgressPanel) }
+        NSApp.modalWindow != nil || ProgressPanel.running > 0 || NSApp.windows.contains { $0.isVisible && $0.attachedSheet != nil }
+    }
+
+    /// Blocks waiting in whenIdle.
+    private(set) static var waiting = 0
+
+    /// Runs `block` once nothing waits for the user (isBusy), looking again every 1.5 s. The questions the app asks on
+    /// its own as it starts, the file associations and the update alert, wait here instead of coming up over another
+    /// one. (Taken from MacRAR 1.4.3, which did not count an operation's progress.)
+    static func whenIdle(_ block: @escaping () -> Void) {
+        guard isBusy else { block(); return }
+        waiting += 1
+        func check() {
+            guard !isBusy else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: check)
+                return
+            }
+            waiting -= 1
+            block()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: check)
     }
 
     /// Opens a page in the browser; with MACRAR_DEBUG_CONFIRM its address goes to stdout instead.
@@ -18,14 +37,6 @@ enum Dialogs {
             return
         }
         NSWorkspace.shared.open(page)
-    }
-
-    /// Runs `block` once nothing waits for the user (isBusy), looking again every 1.5 s. The questions the app asks on
-    /// its own as it starts, the file associations and the update alert, wait here instead of coming up over another
-    /// one. (Taken from MacRAR 1.4.3, which did not count a progress window.)
-    static func whenIdle(_ block: @escaping () -> Void) {
-        guard isBusy else { block(); return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { whenIdle(block) }
     }
 
     static func askPassword(archiveName: String, wrong: Bool = false) -> String? {

@@ -176,7 +176,24 @@ final class ProgressPanel: NSWindowController {
     static let showDelay: TimeInterval = 0.3
     private var pendingShow: DispatchWorkItem?
 
+    /// Operations started and not finished, their progress windows up or still waiting out showDelay: the questions the
+    /// app asks on its own wait for them (Dialogs.isBusy).
+    private(set) static var running = 0
+    private var counted = false
+
+    deinit { uncount() }
+
+    private func uncount() {
+        guard counted else { return }
+        counted = false
+        Self.running -= 1
+    }
+
     func show(on host: NSWindow?) {
+        if !counted {
+            counted = true
+            Self.running += 1
+        }
         self.host = host
         let present = DispatchWorkItem { [weak self] in self?.present() }
         pendingShow = present
@@ -200,6 +217,7 @@ final class ProgressPanel: NSWindowController {
     }
 
     func dismiss() {
+        uncount()
         if let pendingShow {
             pendingShow.cancel()
             self.pendingShow = nil
