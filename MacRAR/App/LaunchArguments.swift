@@ -1,5 +1,17 @@
 import Foundation
 
+/// What a launch asks the app to do instead of opening windows: a Finder Quick Action's mode, or a setup step.
+enum Command: Equatable {
+    case extractHere([String])
+    case extractFolder([String])
+    case extractTo([String])
+    case test([String])
+    case compress([String])
+    case compressDialog([String])
+    case setDefault
+    case installQuickActions
+}
+
 /// What the app was launched to do. Finder Quick Actions call "open -n -a MacRAR --args --command file...";
 /// anything else is a list of files to open.
 struct LaunchArguments: Equatable {
