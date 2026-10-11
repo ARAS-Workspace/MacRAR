@@ -94,10 +94,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         // Windowed use only, once a day
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if Prefs.checkUpdates { UpdateChecker.checkAutomatically() } }
-        // Offer file associations on first launch (only when running from /Applications)
-        if Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
+        // Offer file associations on first launch (only when running from the Applications folder)
+        if QuickActions.ownedByThisCopy || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
             askAssociationsWhenIdle()
         }
+        warnAboutPlacementWhenIdle()
     }
 
     /// The file associations question of the first launch, once no other question, sheet or progress window is up:
@@ -382,10 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc func installQuickActionsAction(_ sender: Any?) {
-        let count = QuickActions.installAll()
-        Dialogs.info(loc.t("quick_actions_installed_title"), loc.t("quick_actions_installed_message", count))
-    }
+    @objc func installQuickActionsAction(_ sender: Any?) { installQuickActions() }
 
     // MARK: About
 

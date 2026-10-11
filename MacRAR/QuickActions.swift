@@ -30,10 +30,6 @@ enum QuickActions {
         ]
     }
 
-    /// Only the copy in /Applications installs and renames the Finder Quick Actions; a copy elsewhere, such as the
-    /// test host, leaves the user's ~/Library/Services alone.
-    static var ownedByThisCopy: Bool { Bundle.main.bundlePath.hasPrefix("/Applications/") }
-
     static var servicesDir: String {
         (NSHomeDirectory() as NSString).appendingPathComponent("Library/Services")
     }
