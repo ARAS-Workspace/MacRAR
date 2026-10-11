@@ -16,10 +16,8 @@ struct RarOutput {
     private static let verbs = [
         "Extracting", "Adding", "Testing", "Updating", "Creating", "Deleting", "Compressing", "Fresh", "Calculating",
     ]
-    // swiftlint:disable force_try
-    private static let percentRegex = try! NSRegularExpression(pattern: #"^(\d{1,3})%( \d+)?$"#)
-    private static let tailRegex = try! NSRegularExpression(pattern: #"\s*(\d{1,3}%|OK|Failed|CRC failed)\s*$"#)
-    // swiftlint:enable force_try
+    private static let percentRegex = NSRegularExpression(literal: #"^(\d{1,3})%( \d+)?$"#)
+    private static let tailRegex = NSRegularExpression(literal: #"\s*(\d{1,3}%|OK|Failed|CRC failed)\s*$"#)
 
     /// The events in `data`, read after everything that came before it.
     mutating func read(_ data: Data) -> [RarJob.Event] {
@@ -115,8 +113,5 @@ struct RarOutput {
         pieces(of: text).filter { percentage(in: $0) == nil }.joined(separator: " ")
     }
 
-    private static func text(_ bytes: Data) -> String {
-        // swiftlint:disable:next optional_data_string_conversion
-        String(decoding: bytes, as: UTF8.self)
-    }
+    private static func text(_ bytes: Data) -> String { bytes.lossyUTF8 }
 }

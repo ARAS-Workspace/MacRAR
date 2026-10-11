@@ -32,8 +32,7 @@ enum RarTools {
         let pipe = Pipe()
         process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
-        // swiftlint:disable:next optional_data_string_conversion
-        let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let out = pipe.fileHandleForReading.readDataToEndOfFile().lossyUTF8
         process.waitUntilExit()
         for line in out.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)

@@ -66,7 +66,7 @@ extension ArchiveWindowController {
 
 extension ArchiveWindowController: NSFilePromiseProviderDelegate {
     func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
-        (filePromiseProvider.userInfo as? Node)?.name ?? "dosya"
+        (filePromiseProvider.userInfo as? Node)?.name ?? "file"
     }
     func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue { promiseQueue }
 

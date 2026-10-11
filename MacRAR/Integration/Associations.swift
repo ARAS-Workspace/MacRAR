@@ -74,9 +74,6 @@ enum Associations {
         alert.accessoryView = choices
         alert.addButton(withTitle: loc.t("assoc_make_default"))
         alert.addButton(withTitle: loc.t("assoc_not_now"))
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] == "show" {
-            // keep the window open for the screenshot
-        }
         // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is answered Not Now, leaving the user's associations
         // as they are
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
