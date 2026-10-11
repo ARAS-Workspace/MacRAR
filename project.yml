@@ -96,7 +96,7 @@ targets:
         # The original developer's release this build is based on, and the
         # ARAS patch round on top of it: 1.4.2+ARAS.Patch.<n>.
         MARKETING_VERSION: "1.4.2"
-        DISTRIBUTION_PATCH: 4
+        DISTRIBUTION_PATCH: 5
         CURRENT_PROJECT_VERSION: 7
       configs:
         Debug:
