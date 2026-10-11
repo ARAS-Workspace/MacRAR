@@ -2,7 +2,6 @@ import AppKit
 
 /// Creating archives from the Create Archive dialog's choices: 7-Zip in the app, or the user's rar.
 extension Ops {
-    // swiftlint:disable:next function_body_length
     static func compress(items: [String], options: CompressOptions, host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
         var options = options
         // A self-extracting RAR is written as name.sfx: the checks below and the reported path are about that file
@@ -16,64 +15,71 @@ extension Ops {
             Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_invalid_volume_size", options.volumeSize ?? ""))
             completion(false, options.archivePath); return
         }
-        // A split set under this name counts as there when the new archive is split as well: rar would write over its
-        // first volumes and leave the rest behind, and 7-Zip cannot update a split set
-        let existingSet = options.isSplit ? firstVolume(of: options.archivePath) : options.archivePath
-        let setExists = existingSet != options.archivePath
-        if FileManager.default.fileExists(atPath: options.archivePath) || setExists {
-            let alert = NSAlert()
-            alert.messageText = loc.t("compress_exists_title", name(existingSet))
-            if options.format.supportsAppend, !setExists {
-                // Is the existing archive encrypted? (try listing without a password)
-                var existingEncrypted = false
-                switch ArchiveReader.list(options.archivePath, password: nil) {
-                case .ok(let ex): existingEncrypted = ex.hasEncryptedFiles
-                case .wrongPassword: existingEncrypted = true
-                case .error: break
-                }
-                if existingEncrypted {
-                    alert.informativeText = loc.t("compress_exists_encrypted_message")
-                    alert.addButton(withTitle: loc.t("compress_create_new"))
-                    alert.addButton(withTitle: loc.t("compress_add_to_encrypted"))
-                    alert.addButton(withTitle: loc.t("cancel"))
-                    switch Dialogs.ask(alert) {
-                    case .alertFirstButtonReturn:
-                        options.archivePath = uniquePath(options.archivePath, taken: isTaken)
-                    case .alertSecondButtonReturn:
-                        var pw: String?
-                        guard let existing = listInteractive(archive: options.archivePath, password: &pw) else {
-                            completion(false, options.archivePath); return
-                        }
-                        add(info: existing, items: items, password: pw, host: host) { ok, _ in completion(ok, options.archivePath) }
-                        return
-                    default:
-                        completion(false, options.archivePath); return
-                    }
-                } else {
-                    alert.informativeText = loc.t("compress_exists_message")
-                    alert.addButton(withTitle: loc.t("compress_create_new"))
-                    alert.addButton(withTitle: loc.t("compress_add_to_existing"))
-                    alert.addButton(withTitle: loc.t("cancel"))
-                    switch Dialogs.ask(alert) {
-                    case .alertFirstButtonReturn: options.archivePath = uniquePath(options.archivePath, taken: isTaken)
-                    case .alertSecondButtonReturn: break
-                    default: completion(false, options.archivePath); return
-                    }
-                }
-            } else {
-                alert.informativeText = loc.t(setExists ? "compress_exists_split_message" : "compress_exists_no_append_message")
-                alert.addButton(withTitle: loc.t("compress_create_new"))
-                alert.addButton(withTitle: loc.t("cancel"))
-                if Dialogs.ask(alert) == .alertFirstButtonReturn {
-                    options.archivePath = uniquePath(options.archivePath, taken: isTaken)
-                } else {
-                    completion(false, options.archivePath); return
-                }
-            }
+        switch answerToExisting(options) {
+        case .write(let path):
+            options.archivePath = path
+        case .add(let existing, let password):
+            add(info: existing, items: items, password: password, host: host) { ok, _ in completion(ok, options.archivePath) }
+            return
+        case .cancel:
+            completion(false, options.archivePath); return
         }
         let cwd = (options.archivePath as NSString).deletingLastPathComponent
         let steps = options.buildSteps(items: items)
         runSteps(steps, index: 0, archive: options.archivePath, cwd: cwd, host: host, completion: completion)
+    }
+
+    /// What to do about an archive already under the new archive's name.
+    private enum Existing {
+        /// Write the new archive at this path: the one asked for, or a free name beside it
+        case write(String)
+        /// Add the items to the existing archive instead, opened with this password
+        case add(ArchiveInfo, String?)
+        case cancel
+    }
+
+    /// Asks what to do when the new archive's name is taken. A split set under the name counts as there when the new
+    /// archive is split as well: rar would write over its first volumes and leave the rest behind, and 7-Zip cannot
+    /// update a split set.
+    private static func answerToExisting(_ options: CompressOptions) -> Existing {
+        let path = options.archivePath
+        let existingSet = options.isSplit ? firstVolume(of: path) : path
+        let setExists = existingSet != path
+        guard FileManager.default.fileExists(atPath: path) || setExists else { return .write(path) }
+        let alert = NSAlert()
+        alert.messageText = loc.t("compress_exists_title", name(existingSet))
+        guard options.format.supportsAppend, !setExists else {
+            alert.informativeText = loc.t(setExists ? "compress_exists_split_message" : "compress_exists_no_append_message")
+            alert.addButton(withTitle: loc.t("compress_create_new"))
+            alert.addButton(withTitle: loc.t("cancel"))
+            return Dialogs.ask(alert) == .alertFirstButtonReturn ? .write(uniquePath(path, taken: isTaken)) : .cancel
+        }
+        let encrypted = isEncrypted(path)
+        alert.informativeText = loc.t(encrypted ? "compress_exists_encrypted_message" : "compress_exists_message")
+        alert.addButton(withTitle: loc.t("compress_create_new"))
+        alert.addButton(withTitle: loc.t(encrypted ? "compress_add_to_encrypted" : "compress_add_to_existing"))
+        alert.addButton(withTitle: loc.t("cancel"))
+        switch Dialogs.ask(alert) {
+        case .alertFirstButtonReturn:
+            return .write(uniquePath(path, taken: isTaken))
+        case .alertSecondButtonReturn:
+            // An encrypted archive is opened first, which asks for its password; any other is written into as it is
+            guard encrypted else { return .write(path) }
+            var password: String?
+            guard let existing = listInteractive(archive: path, password: &password) else { return .cancel }
+            return .add(existing, password)
+        default:
+            return .cancel
+        }
+    }
+
+    /// Whether the archive at `path` has encrypted files, as far as it lists without a password.
+    private static func isEncrypted(_ path: String) -> Bool {
+        switch ArchiveReader.list(path, password: nil) {
+        case .ok(let listing): return listing.hasEncryptedFiles
+        case .wrongPassword: return true
+        case .error: return false
+        }
     }
 
     /// The file a finished compression wrote under the archive's name, which the callers reveal in Finder and open. A

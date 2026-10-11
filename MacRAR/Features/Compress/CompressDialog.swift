@@ -27,9 +27,42 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    // swiftlint:disable:next function_body_length
     private func build(itemCount: Int) {
         guard let content = window?.contentView else { return }
+        let pathRow = makePathRow()
+        setUpChoices()
+        let header = NSTextField(labelWithString: loc.t("compress_item_count", itemCount))
+        header.font = .boldSystemFont(ofSize: 13)
+
+        let grid = makeGrid(pathRow: pathRow)
+
+        let ok = NSButton(title: loc.t("create"), target: self, action: #selector(okPressed))
+        ok.keyEquivalent = "\r"
+        let cancel = NSButton(title: loc.t("cancel"), target: self, action: #selector(cancelPressed))
+        cancel.keyEquivalent = "\u{1b}"
+        let buttons = NSStackView(views: [cancel, ok])
+        buttons.orientation = .horizontal
+
+        let root = NSStackView(views: [header, grid, buttons])
+        root.orientation = .vertical
+        root.alignment = .leading
+        root.spacing = 16
+        root.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(root)
+        NSLayoutConstraint.activate([
+            root.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
+            root.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            root.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
+            root.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),
+            buttons.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            pathRow.widthAnchor.constraint(equalToConstant: 360),
+        ])
+        window?.initialFirstResponder = pathField
+        applyFormatRules()
+    }
+
+    /// The archive's path, with Browse… beside it.
+    private func makePathRow() -> NSStackView {
         pathField.stringValue = CompressOptions.archivePath(options.archivePath, format: options.format, sfx: options.sfx)
         pathField.placeholderString = loc.t("compress_path_placeholder")
         pathField.usesSingleLineMode = true
@@ -40,7 +73,11 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         let pathRow = NSStackView(views: [pathField, browse])
         pathRow.orientation = .horizontal
         pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return pathRow
+    }
 
+    /// The format, level, password, split and option controls, set from the options the dialog opens with.
+    private func setUpChoices() {
         formatPopup.addItems(withTitles: ArchiveFormat.allCases.map { $0.title })
         formatPopup.selectItem(at: ArchiveFormat.allCases.firstIndex(of: options.format) ?? 0)
         formatPopup.target = self
@@ -72,15 +109,15 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         hintLabel.maximumNumberOfLines = 1
         hintLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         hintLabel.widthAnchor.constraint(equalToConstant: 350).isActive = true
+    }
 
+    /// The labels on the left and the controls on the right, one row each.
+    private func makeGrid(pathRow: NSStackView) -> NSGridView {
         func label(_ s: String) -> NSTextField {
             let field = NSTextField(labelWithString: s)
             field.alignment = .right
             return field
         }
-        let header = NSTextField(labelWithString: loc.t("compress_item_count", itemCount))
-        header.font = .boldSystemFont(ofSize: 13)
-
         let formatCell = NSStackView(views: [formatPopup, hintLabel])
         formatCell.orientation = .vertical
         formatCell.alignment = .leading
@@ -103,30 +140,7 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         grid.columnSpacing = 10
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).width = 360
-
-        let ok = NSButton(title: loc.t("create"), target: self, action: #selector(okPressed))
-        ok.keyEquivalent = "\r"
-        let cancel = NSButton(title: loc.t("cancel"), target: self, action: #selector(cancelPressed))
-        cancel.keyEquivalent = "\u{1b}"
-        let buttons = NSStackView(views: [cancel, ok])
-        buttons.orientation = .horizontal
-
-        let root = NSStackView(views: [header, grid, buttons])
-        root.orientation = .vertical
-        root.alignment = .leading
-        root.spacing = 16
-        root.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(root)
-        NSLayoutConstraint.activate([
-            root.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
-            root.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-            root.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
-            root.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),
-            buttons.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            pathRow.widthAnchor.constraint(equalToConstant: 360),
-        ])
-        window?.initialFirstResponder = pathField
-        applyFormatRules()
+        return grid
     }
 
     private var selectedFormat: ArchiveFormat {

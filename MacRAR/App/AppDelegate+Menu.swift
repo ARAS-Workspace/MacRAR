@@ -60,11 +60,22 @@ extension AppDelegate {
         if QuickActions.ownedByThisCopy { QuickActions.relocalize() }
     }
 
-    // swiftlint:disable:next function_body_length
+    /// The menu bar in the current language: the app, File, Edit, View, Window and Help menus.
     func buildMenu() {
         let main = NSMenu()
+        let window = windowMenu(), help = helpMenu()
+        for menu in [appMenu(), fileMenu(), editMenu(), viewMenu(), window, help] {
+            let item = NSMenuItem()
+            main.addItem(item)
+            item.submenu = menu
+        }
+        NSApp.windowsMenu = window
+        NSApp.helpMenu = help
+        NSApp.mainMenu = main
+    }
 
-        let appItem = NSMenuItem(); main.addItem(appItem)
+    /// About, updates, Settings, associations and Quick Actions, then hiding and quitting.
+    private func appMenu() -> NSMenu {
         let app = NSMenu()
         app.addItem(withTitle: loc.t("menu_about", AppInfo.name), action: #selector(showAbout(_:)), keyEquivalent: "")
         app.addItem(withTitle: loc.t("menu_check_for_updates"), action: #selector(checkForUpdates(_:)), keyEquivalent: "")
@@ -81,9 +92,11 @@ extension AppDelegate {
         app.addItem(withTitle: loc.t("menu_show_all"), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
         app.addItem(withTitle: loc.t("menu_quit_app", AppInfo.name), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        appItem.submenu = app
+        return app
+    }
 
-        let fileItem = NSMenuItem(); main.addItem(fileItem)
+    /// Opening, creating, extracting, testing and changing archives.
+    private func fileMenu() -> NSMenu {
         let file = NSMenu(title: loc.t("menu_file"))
         file.addItem(
             withTitle: loc.t("action_open_archive"), action: #selector(ArchiveWindowController.openArchive(_:)), keyEquivalent: "o")
@@ -121,9 +134,11 @@ extension AppDelegate {
             keyEquivalent: "\u{8}")
         file.addItem(.separator())
         file.addItem(withTitle: loc.t("menu_close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        fileItem.submenu = file
+        return file
+    }
 
-        let editItem = NSMenuItem(); main.addItem(editItem)
+    /// The standard editing commands, for the search field and the dialogs' text fields.
+    private func editMenu() -> NSMenu {
         let edit = NSMenu(title: loc.t("menu_edit"))
         edit.addItem(withTitle: loc.t("menu_undo"), action: Selector(("undo:")), keyEquivalent: "z")
         let redo = edit.addItem(withTitle: loc.t("menu_redo"), action: Selector(("redo:")), keyEquivalent: "z")
@@ -133,9 +148,11 @@ extension AppDelegate {
         edit.addItem(withTitle: loc.t("menu_copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         edit.addItem(withTitle: loc.t("menu_paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: loc.t("menu_select_all"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
-        editItem.submenu = edit
+        return edit
+    }
 
-        let viewItem = NSMenuItem(); main.addItem(viewItem)
+    /// Quick Look, expanding and collapsing the tree, refreshing, and showing the archive in Finder.
+    private func viewMenu() -> NSMenu {
         let view = NSMenu(title: loc.t("menu_view"))
         view.addItem(withTitle: loc.t("action_quick_look"), action: #selector(ArchiveWindowController.quickLook(_:)), keyEquivalent: " ")
             .keyEquivalentModifierMask = []
@@ -153,24 +170,24 @@ extension AppDelegate {
         let rv = view.addItem(
             withTitle: loc.t("action_show_in_finder"), action: #selector(ArchiveWindowController.revealArchive(_:)), keyEquivalent: "r")
         rv.keyEquivalentModifierMask = [.command, .shift]
-        viewItem.submenu = view
+        return view
+    }
 
-        let winItem = NSMenuItem(); main.addItem(winItem)
+    /// The Window menu, which AppKit fills with the open windows.
+    private func windowMenu() -> NSMenu {
         let win = NSMenu(title: loc.t("menu_window"))
         win.addItem(withTitle: loc.t("menu_minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         win.addItem(withTitle: loc.t("menu_zoom"), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         win.addItem(.separator())
         win.addItem(withTitle: loc.t("menu_bring_all_to_front"), action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
-        winItem.submenu = win
-        NSApp.windowsMenu = win
+        return win
+    }
 
-        let helpItem = NSMenuItem(); main.addItem(helpItem)
+    /// The README in the app's language and the changelog (Help.swift).
+    private func helpMenu() -> NSMenu {
         let help = NSMenu(title: loc.t("menu_help"))
         help.addItem(withTitle: loc.t("menu_help_app", AppInfo.name), action: #selector(openHelp(_:)), keyEquivalent: "?")
         help.addItem(withTitle: loc.t("menu_release_notes"), action: #selector(openReleaseNotes(_:)), keyEquivalent: "")
-        helpItem.submenu = help
-        NSApp.helpMenu = help
-
-        NSApp.mainMenu = main
+        return help
     }
 }

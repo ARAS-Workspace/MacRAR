@@ -14,31 +14,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Lifecycle
 
-    // swiftlint:disable:next cyclomatic_complexity
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         buildMenu()
         NotificationCenter.default.addObserver(
             self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
         launched = true
-        scheduleDebugSnapshot()
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ABOUT"] != nil { showAbout(nil) }
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_PREFS"] != nil { showPreferences(nil) }
-        if let ext = ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC_APPLY"] {
-            Associations.apply(Associations.types(for: [ext]), quiet: true) { ok, failed in
-                print("assoc \(ext): ok=\(ok) failed=\(failed) handler=\(Associations.currentHandler(for: [ext]))"); exit(0)
-            }
-            return
-        }
-        if let path = ProcessInfo.processInfo.environment["MACRAR_DEBUG_RARINSTALL"] {
-            do {
-                try RarTools.install(from: URL(fileURLWithPath: path))
-                print("RAR installed:", RarTools.version ?? "?", RarTools.installDir)
-            } catch {
-                print("RAR install failed:", error.localizedDescription)
-            }
-            exit(0)
-        }
+        if runDebugLaunch() { return }
         if let cmd = pendingCommand {
             NSApp.activate(ignoringOtherApps: true)
             runCommand(cmd)
@@ -52,6 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             handleOpen(files)
         }
         NSApp.activate(ignoringOtherApps: true)
+        settleWindowedLaunch()
+    }
+
+    /// What a windowed launch does once its windows are up: the Quick Actions of a new install, the daily update
+    /// check, and the questions of a first launch.
+    private func settleWindowedLaunch() {
         // Finder context-menu commands: install silently if not yet installed for this install (path + version)
         let stamp = Bundle.main.bundlePath + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
         if UserDefaults.standard.string(forKey: "QuickActionsInstalledFor") != stamp, QuickActions.ownedByThisCopy {

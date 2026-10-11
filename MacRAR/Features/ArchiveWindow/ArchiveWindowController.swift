@@ -59,10 +59,46 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     // MARK: UI
 
-    // swiftlint:disable:next function_body_length
     private func buildUI() {
         guard let window, let content = window.contentView else { return }
+        setUpOutline()
+        setUpEmptyState()
+        statusLabel.font = .systemFont(ofSize: 11)
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.lineBreakMode = .byTruncatingMiddle
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        let statusBar = NSVisualEffectView()
+        statusBar.material = .titlebar
+        statusBar.blendingMode = .withinWindow
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
+        statusBar.addSubview(statusLabel)
+
+        content.addSubview(scroll)
+        content.addSubview(statusBar)
+        content.addSubview(emptyView)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: content.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
+            statusBar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            statusBar.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: 24),
+            statusLabel.leadingAnchor.constraint(equalTo: statusBar.leadingAnchor, constant: 10),
+            statusLabel.trailingAnchor.constraint(equalTo: statusBar.trailingAnchor, constant: -10),
+            statusLabel.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
+            emptyView.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
+            emptyView.trailingAnchor.constraint(equalTo: scroll.trailingAnchor),
+            emptyView.topAnchor.constraint(equalTo: scroll.topAnchor, constant: 28),
+            emptyView.bottomAnchor.constraint(equalTo: scroll.bottomAnchor),
+        ])
+        updateStatus()
+    }
+
+    /// The archive's tree: its columns, sorting, keys, double-click, and drags in and out, in a scroll view.
+    private func setUpOutline() {
         func col(
             _ id: NSUserInterfaceItemIdentifier, _ title: String, width: CGFloat, min: CGFloat = 40, align: NSTextAlignment = .left
         ) -> NSTableColumn {
@@ -106,12 +142,10 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
+    }
 
-        statusLabel.font = .systemFont(ofSize: 11)
-        statusLabel.textColor = .secondaryLabelColor
-        statusLabel.lineBreakMode = .byTruncatingMiddle
-        statusLabel.translatesAutoresizingMaskIntoConstraints = false
-
+    /// What an empty window shows over the tree: a hint, Open and New, and room to drop files.
+    private func setUpEmptyState() {
         emptyLabel.alignment = .center
         emptyLabel.textColor = .tertiaryLabelColor
         emptyLabel.font = .systemFont(ofSize: 15)
@@ -128,34 +162,6 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
             emptyStack.centerYAnchor.constraint(equalTo: emptyView.centerYAnchor),
             emptyLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 420),
         ])
-
-        let statusBar = NSVisualEffectView()
-        statusBar.material = .titlebar
-        statusBar.blendingMode = .withinWindow
-        statusBar.translatesAutoresizingMaskIntoConstraints = false
-        statusBar.addSubview(statusLabel)
-
-        content.addSubview(scroll)
-        content.addSubview(statusBar)
-        content.addSubview(emptyView)
-        NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: content.topAnchor),
-            scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
-            statusBar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            statusBar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            statusBar.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            statusBar.heightAnchor.constraint(equalToConstant: 24),
-            statusLabel.leadingAnchor.constraint(equalTo: statusBar.leadingAnchor, constant: 10),
-            statusLabel.trailingAnchor.constraint(equalTo: statusBar.trailingAnchor, constant: -10),
-            statusLabel.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
-            emptyView.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
-            emptyView.trailingAnchor.constraint(equalTo: scroll.trailingAnchor),
-            emptyView.topAnchor.constraint(equalTo: scroll.topAnchor, constant: 28),
-            emptyView.bottomAnchor.constraint(equalTo: scroll.bottomAnchor),
-        ])
-        updateStatus()
     }
 
     /// Every text in the window: set when it is built and again whenever the language changes.

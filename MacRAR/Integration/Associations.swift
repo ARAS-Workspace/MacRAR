@@ -62,7 +62,6 @@ enum Associations {
     }
 
     @discardableResult
-    // swiftlint:disable:next function_body_length
     static func show(firstLaunch: Bool = false) -> Bool {
         Dialogs.activate()
         let alert = NSAlert()
@@ -71,41 +70,8 @@ enum Associations {
             ? loc.t("assoc_message_first_launch")
             : loc.t("assoc_message")) + "\n\n" + loc.t("assoc_confirm_note")
         alert.icon = NSApp.applicationIconImage
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        var boxes: [(NSButton, Group)] = []
-        for group in groups {
-            let current = currentHandler(for: group.exts)
-            let mine = current == AppInfo.name
-            let box = NSButton(checkboxWithTitle: group.title, target: nil, action: nil)
-            box.state = (group.defaultOn || mine) ? .on : .off
-            let detail = NSTextField(labelWithString: loc.t("assoc_current", current) + (group.warning.map { "  •  " + $0 } ?? ""))
-            detail.font = .systemFont(ofSize: 10)
-            detail.textColor = group.warning == nil ? .secondaryLabelColor : .systemOrange
-            detail.lineBreakMode = .byTruncatingTail
-            let row = NSStackView(views: [box, detail])
-            row.orientation = .vertical
-            row.alignment = .leading
-            row.spacing = 1
-            detail.translatesAutoresizingMaskIntoConstraints = false
-            detail.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 20).isActive = true
-            stack.addArrangedSubview(row)
-            boxes.append((box, group))
-        }
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 10))
-        container.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: container.topAnchor),
-            container.widthAnchor.constraint(equalToConstant: 400),
-        ])
-        container.layoutSubtreeIfNeeded()
-        container.setFrameSize(NSSize(width: 400, height: stack.fittingSize.height))
-        alert.accessoryView = container
+        let (choices, boxes) = choiceList()
+        alert.accessoryView = choices
         alert.addButton(withTitle: loc.t("assoc_make_default"))
         alert.addButton(withTitle: loc.t("assoc_not_now"))
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] == "show" {
@@ -123,6 +89,51 @@ enum Associations {
         if chosen.isEmpty { return true }
         apply(chosen)
         return true
+    }
+
+    /// A checkbox for each group of types, ticked when it is on by default or already this app's, with the app that
+    /// opens the group now beneath it; and the checkboxes with their groups.
+    private static func choiceList() -> (view: NSView, boxes: [(NSButton, Group)]) {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        var boxes: [(NSButton, Group)] = []
+        for group in groups {
+            let (row, box) = choiceRow(for: group)
+            stack.addArrangedSubview(row)
+            boxes.append((box, group))
+        }
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 10))
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: container.topAnchor),
+            container.widthAnchor.constraint(equalToConstant: 400),
+        ])
+        container.layoutSubtreeIfNeeded()
+        container.setFrameSize(NSSize(width: 400, height: stack.fittingSize.height))
+        return (container, boxes)
+    }
+
+    private static func choiceRow(for group: Group) -> (row: NSStackView, box: NSButton) {
+        let current = currentHandler(for: group.exts)
+        let mine = current == AppInfo.name
+        let box = NSButton(checkboxWithTitle: group.title, target: nil, action: nil)
+        box.state = (group.defaultOn || mine) ? .on : .off
+        let detail = NSTextField(labelWithString: loc.t("assoc_current", current) + (group.warning.map { "  •  " + $0 } ?? ""))
+        detail.font = .systemFont(ofSize: 10)
+        detail.textColor = group.warning == nil ? .secondaryLabelColor : .systemOrange
+        detail.lineBreakMode = .byTruncatingTail
+        let row = NSStackView(views: [box, detail])
+        row.orientation = .vertical
+        row.alignment = .leading
+        row.spacing = 1
+        detail.translatesAutoresizingMaskIntoConstraints = false
+        detail.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 20).isActive = true
+        return (row, box)
     }
 
     /// Make this app the default for the selected types; report the result

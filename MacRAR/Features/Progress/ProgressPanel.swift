@@ -38,14 +38,20 @@ final class ProgressPanel: NSWindowController {
     var onCancel: (() -> Void)?
     private weak var host: NSWindow?
 
-    // swiftlint:disable:next function_body_length
     init(title: String) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: 150),
                          styleMask: [.titled], backing: .buffered, defer: false)
         window.title = AppInfo.name
         window.isReleasedWhenClosed = false
         super.init(window: window)
+        setUpReadout(title: title)
+        setUpButtons()
+        setUpLog()
+        lay(out: window.contentView!)
+    }
 
+    /// The title, the file being worked on, the bar and the details beneath it.
+    private func setUpReadout(title: String) {
         titleLabel.stringValue = title
         titleLabel.font = .boldSystemFont(ofSize: 13)
         titleLabel.lineBreakMode = .byTruncatingMiddle
@@ -67,7 +73,9 @@ final class ProgressPanel: NSWindowController {
         detailLabel.lineBreakMode = .byTruncatingTail
         detailLabel.maximumNumberOfLines = 1
         detailLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    }
 
+    private func setUpButtons() {
         toggleButton.target = self
         toggleButton.action = #selector(toggleDetails)
         toggleButton.bezelStyle = .inline
@@ -78,7 +86,10 @@ final class ProgressPanel: NSWindowController {
         cancelButton.action = #selector(cancelPressed)
         cancelButton.keyEquivalent = "\u{1b}"
         cancelButton.setContentHuggingPriority(.required, for: .horizontal)
+    }
 
+    /// The output the operation writes, hidden until the user asks for the details.
+    private func setUpLog() {
         logView.isEditable = false
         logView.isRichText = false
         logView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -96,7 +107,10 @@ final class ProgressPanel: NSWindowController {
         logScroll.isHidden = true
         logScroll.translatesAutoresizingMaskIntoConstraints = false
         logScroll.heightAnchor.constraint(equalToConstant: 120).isActive = true
+    }
 
+    /// The title, the file, the bar, then the details, the toggle and Cancel in a row, and the log below them.
+    private func lay(out content: NSView) {
         let bottomRow = NSStackView(views: [detailLabel, toggleButton, cancelButton])
         bottomRow.orientation = .horizontal
         bottomRow.spacing = 10
@@ -110,7 +124,6 @@ final class ProgressPanel: NSWindowController {
         stack.setCustomSpacing(14, after: bar)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let content = window.contentView!
         content.addSubview(stack)
         NSLayoutConstraint.activate([
             content.widthAnchor.constraint(equalToConstant: Self.panelWidth),
