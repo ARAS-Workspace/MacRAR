@@ -146,7 +146,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func handleOpen(_ rawFiles: [String]) {
         // The same file can arrive both as an argument and through LaunchServices → deduplicate
         var seen = Set<String>()
-        let files = rawFiles.map { Self.resolved($0) }.filter { seen.insert($0).inserted }
+        let unique = rawFiles.map { Self.resolved($0) }.filter { seen.insert($0).inserted }
+        // A volume set opens once, from its first volume, whichever of its volumes came
+        let files = Self.dedupeVolumes(unique)
         let archives = files.filter { Self.isArchive($0) }
         let others = files.filter { !Self.isArchive($0) }
         for archive in archives { openArchive(archive, reuse: nil) }

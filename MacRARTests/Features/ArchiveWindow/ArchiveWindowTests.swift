@@ -211,24 +211,19 @@ final class ArchiveWindowTests: XCTestCase {
 
     /// Upstream 1.4.3 (533ce7e) brought a set down to its first volume only for the extracting and testing Quick
     /// Actions. Opened from Finder or through the Open Quick Action, and dropped onto the empty window, every volume
-    /// opened in a window of its own, a later one showing only the items that start in it.
-    func testOpeningAVolumeSetOpensItOnceIsAKnownIssue() throws {
+    /// opened in a window of its own, a later one showing only the items that start in it; the set now opens once.
+    func testOpeningAVolumeSetOpensItOnce() throws {
         let sets = try makeVolumeSets()
         app.handleOpen(sets.old)
-        XCTExpectFailure("every volume of an old-style set opens in a window of its own") {
-            XCTAssertEqual(shown, ["old.rar"])
-        }
+        XCTAssertEqual(shown, ["old.rar"], "an old-style set")
         settle()
         app.handleOpen([sets.new[1]])
-        XCTExpectFailure("a later volume opens on its own though the first is beside it") {
-            XCTAssertEqual(shown, ["vol.part1.rar"])
-        }
+        XCTAssertEqual(shown, ["vol.part1.rar"], "a later volume, the first beside it")
         settle()
         let empty = try XCTUnwrap(app.windows.first)
         empty.handleDrop(sets.old.dropFirst().map { URL(fileURLWithPath: $0) })
-        XCTExpectFailure("later volumes dropped onto the empty window open each") {
-            XCTAssertEqual(shown, ["old.rar"])
-        }
+        XCTAssertEqual(shown, ["old.rar"], "later volumes dropped onto the empty window")
+        XCTAssertNotNil(app.windows.first?.info)
     }
 
     // MARK: Failed opens
