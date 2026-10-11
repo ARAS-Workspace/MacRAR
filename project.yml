@@ -51,16 +51,22 @@ targets:
       # stays in tr.json alone. A .strings file may be a property list.
       - name: Localize the archive kinds
         script: |
-          set -euo pipefail
+          set -eu
           for language in en tr; do
             json="${SRCROOT}/MacRAR/Localization/translations/${language}.json"
             folder="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/${language}.lproj"
             strings="${folder}/InfoPlist.strings"
+            # Read before written: a missing or empty text stops the build instead of naming a kind ""
+            rar_archive=$(plutil -extract kind_rar_archive raw -o - "${json}")
+            rar_volume=$(plutil -extract kind_rar_volume raw -o - "${json}")
+            archive=$(plutil -extract kind_archive raw -o - "${json}")
+            : "${rar_archive:?kind_rar_archive is empty in ${json}}" "${rar_volume:?kind_rar_volume is empty in ${json}}" \
+              "${archive:?kind_archive is empty in ${json}}"
             mkdir -p "${folder}"
             plutil -create binary1 "${strings}"
-            plutil -insert "RAR Archive" -string "$(plutil -extract kind_rar_archive raw -o - "${json}")" "${strings}"
-            plutil -insert "Archive" -string "$(plutil -extract kind_archive raw -o - "${json}")" "${strings}"
-            plutil -insert "RAR Volume" -string "$(plutil -extract kind_rar_volume raw -o - "${json}")" "${strings}"
+            plutil -insert "RAR Archive" -string "${rar_archive}" "${strings}"
+            plutil -insert "RAR Volume" -string "${rar_volume}" "${strings}"
+            plutil -insert "Archive" -string "${archive}" "${strings}"
           done
         inputFiles:
           - $(SRCROOT)/MacRAR/Localization/translations/en.json
