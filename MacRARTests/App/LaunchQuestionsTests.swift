@@ -12,6 +12,7 @@ final class LaunchQuestionsTests: XCTestCase {
 
     override func setUp() {
         for key in keys { saved[key] = UserDefaults.standard.object(forKey: key) }
+        UpdateChecker.announced = []
         setDebugAnswers()
     }
 
@@ -185,22 +186,22 @@ final class LaunchQuestionsTests: XCTestCase {
         }
     }
 
-    /// The daily check's alert waits for an open sheet; if the user meanwhile asks from the menu and skips that version,
-    /// the waiting alert must not come as well.
-    func testAWaitingUpdateAlertStaysAwayOnceItsVersionIsSkippedIsAKnownIssue() {
+    /// The daily check's alert waits for an open sheet. If the user meanwhile asks from the menu and skips that version,
+    /// or only says Later, the waiting alert stays away: it used to come as well.
+    func testAWaitingUpdateAlertStaysAwayOnceTheMenuShowedIt() {
         UserDefaults.standard.removeObject(forKey: UpdateChecker.skipKey)
-        let release: [String: Any] = ["tag_name": "mac-v9.9.9+ARAS.Patch.1"]
-        let title = loc.t("update_available_title", "9.9.9+ARAS.Patch.1")
-        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": "skip"]) {
-            let output = printed {
-                _ = openSheet()
-                UpdateChecker.handle(release: release, manual: false)
-                UpdateChecker.handle(release: release, manual: true)
-                closeSheets()
-                spin(2.5)
-            }
-            XCTExpectFailure("the waiting alert comes after the version was skipped") {
-                XCTAssertEqual(output.components(separatedBy: title).count - 1, 1, output)
+        for (answer, version) in [("skip", "9.9.9+ARAS.Patch.1"), ("later", "9.9.9+ARAS.Patch.2")] {
+            let release: [String: Any] = ["tag_name": "mac-v" + version]
+            let title = loc.t("update_available_title", version)
+            withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": answer]) {
+                let output = printed {
+                    _ = openSheet()
+                    UpdateChecker.handle(release: release, manual: false)
+                    UpdateChecker.handle(release: release, manual: true)
+                    closeSheets()
+                    spin(2.5)
+                }
+                XCTAssertEqual(output.components(separatedBy: title).count - 1, 1, "\(answer): \(output)")
             }
         }
     }

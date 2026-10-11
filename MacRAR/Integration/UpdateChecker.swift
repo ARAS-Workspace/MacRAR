@@ -6,6 +6,9 @@ enum UpdateChecker {
     static let releasesPage = URL(string: "https://github.com/ARAS-Workspace/MacRAR/releases/latest")!
     static let lastCheckKey = "UpdateLastCheck"
     static let skipKey = "UpdateSkippedVersion"
+    /// The versions the update alert has shown since launch: the daily check's alert, still waiting, does not show one
+    /// again.
+    static var announced: Set<String> = []
     private static let interval: TimeInterval = 24 * 3600
 
     static var currentVersion: String {
@@ -48,7 +51,12 @@ enum UpdateChecker {
         if isNewer(latest, than: currentVersion) {
             if !manual, UserDefaults.standard.string(forKey: skipKey) == latest { return }
             let show = { present(latest: latest, page: page(of: json, tag: tag)) }
-            if manual { show() } else { Dialogs.whenIdle(show) }
+            if manual { show(); return }
+            Dialogs.whenIdle {
+                // While it waited, the user may have seen this version through the menu's check, and skipped it there
+                guard !announced.contains(latest) else { return }
+                show()
+            }
         } else if manual {
             Dialogs.info(loc.t("update_up_to_date_title"), loc.t("update_up_to_date_message", currentVersion))
         }
@@ -104,6 +112,7 @@ enum UpdateChecker {
     }
 
     private static func present(latest: String, page: URL) {
+        announced.insert(latest)
         Dialogs.activate()
         let alert = alert(latest: latest)
         switch debugAnswer(alert) ?? alert.runModal() {
