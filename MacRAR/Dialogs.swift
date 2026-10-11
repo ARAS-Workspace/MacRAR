@@ -9,6 +9,21 @@ import UniformTypeIdentifiers
 enum Dialogs {
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
 
+    /// Whether something already waits for the user: a modal window (a password question, the Create Archive dialog,
+    /// an alert), a sheet, or a progress window on screen of its own.
+    static var isBusy: Bool {
+        NSApp.modalWindow != nil
+            || NSApp.windows.contains { $0.isVisible && ($0.attachedSheet != nil || $0.windowController is ProgressPanel) }
+    }
+
+    /// Runs `block` once nothing waits for the user (isBusy), looking again every 1.5 s. The questions the app asks on
+    /// its own as it starts, the file associations and the update alert, wait here instead of coming up over another
+    /// one. (Taken from MacRAR 1.4.3, which did not count a progress window.)
+    static func whenIdle(_ block: @escaping () -> Void) {
+        guard isBusy else { block(); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { whenIdle(block) }
+    }
+
     static func askPassword(archiveName: String, wrong: Bool = false) -> String? {
         // Debugging: MACRAR_DEBUG_PASSWORD answers the first prompt, MACRAR_DEBUG_PASSWORD_RETRY the one after a wrong password
         if let answer = ProcessInfo.processInfo.environment[wrong ? "MACRAR_DEBUG_PASSWORD_RETRY" : "MACRAR_DEBUG_PASSWORD"] {

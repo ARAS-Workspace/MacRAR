@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Lifecycle
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    // swiftlint:disable:next cyclomatic_complexity
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         buildMenu()
@@ -96,7 +96,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if Prefs.checkUpdates { UpdateChecker.checkAutomatically() } }
         // Offer file associations on first launch (only when running from /Applications)
         if Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            askAssociationsWhenIdle()
+        }
+    }
+
+    /// The file associations question of the first launch, once no other question, sheet or progress window is up:
+    /// opened with an archive, the app may be asking for its password.
+    func askAssociationsWhenIdle() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            Dialogs.whenIdle {
                 if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
                     Associations.show(firstLaunch: true)
                 } else {

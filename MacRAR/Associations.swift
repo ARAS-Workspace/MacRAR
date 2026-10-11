@@ -32,7 +32,7 @@ enum Associations {
         return url.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL
     }
 
-    private static let shownKey = "AssociationPromptShown"
+    static let shownKey = "AssociationPromptShown"
     static var alreadyShown: Bool { UserDefaults.standard.bool(forKey: shownKey) }
 
     static func types(for exts: [String]) -> [UTType] {
@@ -110,6 +110,12 @@ enum Associations {
         alert.addButton(withTitle: loc.t("assoc_not_now"))
         if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] == "show" {
             // keep the window open for the screenshot
+        }
+        // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is answered Not Now, leaving the user's associations
+        // as they are
+        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
+            print("\(alert.messageText): \(alert.informativeText)")
+            return false
         }
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
         // Do not ask again for types this app already owns
