@@ -60,6 +60,7 @@ targets:
             plutil -create binary1 "${strings}"
             plutil -insert "RAR Archive" -string "$(plutil -extract kind_rar_archive raw -o - "${json}")" "${strings}"
             plutil -insert "Archive" -string "$(plutil -extract kind_archive raw -o - "${json}")" "${strings}"
+            plutil -insert "RAR Volume" -string "$(plutil -extract kind_rar_volume raw -o - "${json}")" "${strings}"
           done
         inputFiles:
           - $(SRCROOT)/MacRAR/Localization/translations/en.json
@@ -117,6 +118,7 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.rarlab.rar-archive
+              - com.arasworkspace.MacRAR.rar-volume
           - CFBundleTypeName: Archive
             CFBundleTypeRole: Editor
             LSHandlerRank: Alternate
@@ -140,9 +142,23 @@ targets:
               - public.data
               - public.archive
             UTTypeTagSpecification:
-              # An old-style set is name.rar, then name.r00 to name.r99
+              public.filename-extension:
+                - rar
+              public.mime-type:
+                - application/vnd.rar
+                - application/x-rar-compressed
+          # An old-style set is name.rar, then name.r00 to name.r99. The
+          # volumes are a type of the app's own: LaunchServices takes one
+          # app's declaration of com.rarlab.rar-archive, often another
+          # archiver's, which may name only rar.
+          - UTTypeIdentifier: com.arasworkspace.MacRAR.rar-volume
+            UTTypeDescription: RAR Volume
+            UTTypeConformsTo:
+              - com.rarlab.rar-archive
+              - public.archive
+              - public.data
+            UTTypeTagSpecification:
               public.filename-extension: [
-                  rar,
                   r00, r01, r02, r03, r04, r05, r06, r07, r08, r09,
                   r10, r11, r12, r13, r14, r15, r16, r17, r18, r19,
                   r20, r21, r22, r23, r24, r25, r26, r27, r28, r29,
@@ -154,9 +170,6 @@ targets:
                   r80, r81, r82, r83, r84, r85, r86, r87, r88, r89,
                   r90, r91, r92, r93, r94, r95, r96, r97, r98, r99
                 ]
-              public.mime-type:
-                - application/vnd.rar
-                - application/x-rar-compressed
           - UTTypeIdentifier: com.arasworkspace.MacRAR.archive
             UTTypeDescription: Archive
             UTTypeConformsTo:

@@ -201,6 +201,7 @@
   "assoc_confirm_note": "macOS will ask you to confirm each file type.",
   "kind_rar_archive": "RAR Archive",
   "kind_archive": "Archive",
+  "kind_rar_volume": "RAR Volume",
   "assoc_group_other": "Other archives: TAR, TGZ, BZ2, XZ, ZST, ZIPX, CAB, LZH, ARJ, CPIO…",
   "assoc_group_disk_images": "Disk images: ISO, DMG, VHD, VMDK",
   "assoc_disk_images_warning": "Not recommended: double-clicking will open it as an archive instead of mounting it.",

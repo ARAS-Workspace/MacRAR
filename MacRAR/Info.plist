@@ -20,6 +20,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.rarlab.rar-archive</string>
+				<string>com.arasworkspace.MacRAR.rar-volume</string>
 			</array>
 		</dict>
 		<dict>
@@ -90,6 +91,29 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>rar</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.rar</string>
+					<string>application/x-rar-compressed</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.rarlab.rar-archive</string>
+				<string>public.archive</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>RAR Volume</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.arasworkspace.MacRAR.rar-volume</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
 					<string>r00</string>
 					<string>r01</string>
 					<string>r02</string>
@@ -190,11 +214,6 @@
 					<string>r97</string>
 					<string>r98</string>
 					<string>r99</string>
-				</array>
-				<key>public.mime-type</key>
-				<array>
-					<string>application/vnd.rar</string>
-					<string>application/x-rar-compressed</string>
 				</array>
 			</dict>
 		</dict>

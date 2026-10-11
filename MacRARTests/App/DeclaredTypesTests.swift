@@ -17,28 +17,27 @@ final class DeclaredTypesTests: XCTestCase {
         return Set(tags?["public.filename-extension"] as? [String] ?? [])
     }
 
-    /// Upstream 1.4.3 (533ce7e): the pieces of an old-style RAR set run from x.r00 to x.r99, and the declaration
-    /// stopped at x.r03, so on a Mac where no other app declares the rest Finder took x.r04 … for unknown files.
-    func testEveryOldStyleRarVolumeIsDeclared() throws {
-        let declared = extensions(try declaration("com.rarlab.rar-archive"))
-        XCTAssertTrue(declared.contains("rar"))
-        let volumes = Set((0...99).map { String(format: "r%02d", $0) })
-        XCTAssertEqual(volumes.subtracting(declared), [], "not declared")
+    /// Upstream 1.4.3 (533ce7e): the pieces of an old-style RAR set run from x.r00 to x.r99, and the declaration stopped
+    /// at x.r03. They are a type of the app's own, which LaunchServices always takes from this app: declared under
+    /// com.rarlab.rar-archive they did nothing wherever another app's declaration of that type won, as BetterZip's does
+    /// on the Mac this was measured on, naming only rar and rev. The type is a RAR archive, so RAR's document type and
+    /// the Quick Actions take its files.
+    func testOldStyleRarVolumesAreATypeOfTheAppsOwn() throws {
+        let volumes = try declaration("com.arasworkspace.MacRAR.rar-volume")
+        XCTAssertEqual(extensions(volumes), Set((0...99).map { String(format: "r%02d", $0) }))
+        let conforms = Set(volumes["UTTypeConformsTo"] as? [String] ?? [])
+        XCTAssertTrue(conforms.isSuperset(of: ["com.rarlab.rar-archive", "public.archive"]), "\(conforms)")
+        XCTAssertEqual(extensions(try declaration("com.rarlab.rar-archive")), ["rar"])
+        let documents = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]])
+        let rar = try XCTUnwrap(documents.first { $0["CFBundleTypeName"] as? String == "RAR Archive" })
+        XCTAssertEqual(rar["LSItemContentTypes"] as? [String], ["com.rarlab.rar-archive", "com.arasworkspace.MacRAR.rar-volume"])
+        XCTAssertTrue(QuickActions.archiveTypes.contains("com.arasworkspace.MacRAR.rar-volume"))
     }
 
-    /// The old-style volumes x.r00 … x.r99 are a type of the app's own, which LaunchServices always takes from this
-    /// app. Declared under com.rarlab.rar-archive they did nothing wherever another app's declaration of that type won:
-    /// on the Mac this was measured on, BetterZip's, which names only rar and rev.
-    func testOldStyleRarVolumesAreATypeOfTheAppsOwnIsAKnownIssue() throws {
-        XCTExpectFailure("the volumes are declared under com.rarlab.rar-archive") {
-            let declarations = (try? declarations()) ?? []
-            let volumes = declarations.first { $0["UTTypeIdentifier"] as? String == "com.arasworkspace.MacRAR.rar-volume" }
-            XCTAssertNotNil(volumes, "no type of the app's own for old-style volumes")
-            let declared = volumes.map(extensions) ?? []
-            XCTAssertEqual(Set((0...99).map { String(format: "r%02d", $0) }).subtracting(declared), [], "not declared")
-            let conforms = Set(volumes?["UTTypeConformsTo"] as? [String] ?? [])
-            XCTAssertTrue(conforms.isSuperset(of: ["com.rarlab.rar-archive", "public.archive"]), "\(conforms)")
-        }
+    /// No extension is named by two of the app's declarations, which would leave LaunchServices to pick one.
+    func testNoExtensionIsDeclaredTwice() throws {
+        let named = try declarations().flatMap { Array(extensions($0)) }
+        XCTAssertEqual(named.count, Set(named).count, "\(Dictionary(grouping: named) { $0 }.filter { $0.value.count > 1 }.keys)")
     }
 
     /// The app's own type, for the formats the system has none for, is a declaration of its own that the Archive
@@ -64,7 +63,7 @@ final class DeclaredTypesTests: XCTestCase {
         let documents = Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]] ?? []
         let names = documents.compactMap { $0["CFBundleTypeName"] as? String }
             + (try declarations()).compactMap { $0["UTTypeDescription"] as? String }
-        XCTAssertEqual(Set(names), ["RAR Archive", "Archive"])
+        XCTAssertEqual(Set(names), ["RAR Archive", "RAR Volume", "Archive"])
         for language in ["en", "tr"] {
             let url = try XCTUnwrap(Bundle.main.url(forResource: language, withExtension: "json", subdirectory: "translations"))
             let text = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: url))
@@ -72,7 +71,8 @@ final class DeclaredTypesTests: XCTestCase {
                 Bundle.main.path(forResource: "InfoPlist", ofType: "strings", inDirectory: nil, forLocalization: language),
                 "no \(language).lproj/InfoPlist.strings")
             let kinds = try XCTUnwrap(NSDictionary(contentsOfFile: path) as? [String: String], path)
-            XCTAssertEqual(kinds, ["RAR Archive": text["kind_rar_archive"], "Archive": text["kind_archive"]], language)
+            let expected = ["RAR Archive": text["kind_rar_archive"], "RAR Volume": text["kind_rar_volume"], "Archive": text["kind_archive"]]
+            XCTAssertEqual(kinds, expected, language)
         }
     }
 }
