@@ -30,7 +30,7 @@ final class ExtractOperationTests: XCTestCase {
 
     private func extract(_ info: ArchiveInfo, into folder: String, password: String? = nil) throws -> Bool {
         let destination = try workspace.makeDirectory(folder)
-        return finished { Ops.extract(info: info, names: nil, dest: destination, password: password, host: nil, completion: $0) }
+        return finished { Ops.extract(.init(info: info, names: nil, dest: destination), password: password, host: nil, completion: $0) }
     }
 
     private let extracted = ["a.txt", "sub", "sub/b.bin", "sub/çalışma ğüş.txt"]

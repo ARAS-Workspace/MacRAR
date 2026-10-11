@@ -493,7 +493,7 @@ extension RARTests {
         let out = try workspace.makeDirectory("out")
         var used: String?
         XCTAssertTrue(finished { done in
-            Ops.extract(info: dataInfo, names: nil, dest: out, password: self.typed, host: nil) { ok, pw in
+            Ops.extract(.init(info: dataInfo, names: nil, dest: out), password: self.typed, host: nil) { ok, pw in
                 used = pw
                 done(ok, pw)
             }

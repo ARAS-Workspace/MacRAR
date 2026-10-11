@@ -59,7 +59,7 @@ extension AppDelegate {
             return
         }
         let target = dest(archive)
-        Ops.extract(info: info, names: nil, dest: target, password: pw, host: nil) { [weak self] ok, _ in
+        Ops.extract(.init(info: info, names: nil, dest: target), password: pw, host: nil) { [weak self] ok, _ in
             if ok, index == archives.count - 1 { Ops.revealExtracted(info: info, names: nil, dest: target) }
             self?.processArchives(archives, dest: dest, index: index + 1)
         }

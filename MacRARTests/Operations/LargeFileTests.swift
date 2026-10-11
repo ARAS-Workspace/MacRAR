@@ -240,7 +240,7 @@ final class LargeFileTests: XCTestCase {
             guard case .ok(let info) = ArchiveReader.list(archive, password: nil) else { return XCTFail("\(archive) did not list") }
             let destination = try workspace.makeDirectory("out-\(kind)")
             let run = watch { done in
-                Ops.extract(info: info, names: nil, dest: destination, password: nil, host: nil) { ok, _ in done(ok) }
+                Ops.extract(.init(info: info, names: nil, dest: destination), password: nil, host: nil) { ok, _ in done(ok) }
             }
             XCTAssertTrue(run.ok, kind)
             if run.visible > 1 { XCTAssertNotNil(run.named, "\(kind): the window was up without naming a file") }

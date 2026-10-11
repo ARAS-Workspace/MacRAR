@@ -52,7 +52,7 @@ extension ArchiveWindowController {
 
     private func doExtract(names: [String]?, dest: String) {
         guard let info else { return }
-        Ops.extract(info: info, names: names, dest: dest, password: password, host: window) { [weak self] ok, pw in
+        Ops.extract(.init(info: info, names: names, dest: dest), password: password, host: window) { [weak self] ok, pw in
             self?.password = pw ?? self?.password
             if ok { Ops.revealExtracted(info: info, names: names, dest: dest) }
         }
@@ -125,7 +125,7 @@ extension ArchiveWindowController {
     private func openNode(_ node: Node) {
         guard let info else { return }
         let tmp = TempDirs.make("open")
-        Ops.extract(info: info, names: [node.path], dest: tmp, password: password, host: window, quiet: true) { [weak self] ok, pw in
+        Ops.extract(.init(info: info, names: [node.path], dest: tmp), password: password, host: window, quiet: true) { [weak self] ok, pw in
             self?.password = pw ?? self?.password
             guard ok else { return }
             let target = (tmp as NSString).appendingPathComponent(node.path)

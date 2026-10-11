@@ -114,7 +114,8 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
             let tmp = TempDirs.make("drag")
             dragTempDir = tmp
             dragExtracted = true
-            Ops.extract(info: info, names: Self.paths(for: nodes), dest: tmp, password: password, host: window, quiet: true) { ok, pw in
+            let extraction = Ops.Extraction(info: info, names: Self.paths(for: nodes), dest: tmp)
+            Ops.extract(extraction, password: password, host: window, quiet: true) { ok, pw in
                 self.password = pw ?? self.password
                 self.dragExtractOK = ok
                 if ok { moveIntoPlace() } else { error = CocoaError(.userCancelled); sem.signal() }

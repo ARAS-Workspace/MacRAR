@@ -305,7 +305,7 @@ final class PasswordTests: XCTestCase {
         for (index, archive) in archives.enumerated() {
             let info = try XCTUnwrap(open(archive, typing: used[index]).info)
             let destination = try workspace.makeDirectory("together-out-\(index)")
-            Ops.extract(info: info, names: nil, dest: destination, password: used[index], host: nil) { ok, _ in
+            Ops.extract(.init(info: info, names: nil, dest: destination), password: used[index], host: nil) { ok, _ in
                 XCTAssertTrue(ok, archive)
                 extracted[index].fulfill()
             }
@@ -514,7 +514,7 @@ extension PasswordTests {
         let destination = try workspace.makeDirectory(folder)
         let done = expectation(description: "extracted")
         var outcome: (ok: Bool, password: String?) = (false, nil)
-        Ops.extract(info: info, names: nil, dest: destination, password: password, host: nil) { ok, used in
+        Ops.extract(.init(info: info, names: nil, dest: destination), password: password, host: nil) { ok, used in
             outcome = (ok, used)
             done.fulfill()
         }

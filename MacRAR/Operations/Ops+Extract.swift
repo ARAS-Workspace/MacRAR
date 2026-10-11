@@ -11,18 +11,27 @@ extension Ops {
         }
     }
 
-    // swiftlint:disable function_parameter_count
-    /// names: nil means the whole archive. completion(success, password used)
-    static func extract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
-                        host: NSWindow?, quiet: Bool = false, completion: @escaping (Bool, String?) -> Void) {
+    /// What an extraction writes: the archive, the items in it (nil for all of them), where they go, and what is done
+    /// about items already there, as the overwrite question decides.
+    struct Extraction {
+        let info: ArchiveInfo
+        let names: [String]?
+        let dest: String
+        var overwrite: SevenZipBridge.Overwrite = .overwrite
+    }
+
+    /// completion(success, password used)
+    static func extract(_ extraction: Extraction, password: String?, host: NSWindow?, quiet: Bool = false,
+                        completion: @escaping (Bool, String?) -> Void) {
+        let info = extraction.info
         var pw = password
-        let encrypted = needsPassword(info: info, names: names)
+        let encrypted = needsPassword(info: info, names: extraction.names)
         if encrypted, pw == nil {
             guard let entered = Dialogs.askPassword(archiveName: name(info.path)) else { completion(false, nil); return }
             pw = entered
         }
         let write = { (password: String?) in
-            extract(info: info, names: names, dest: dest, checkedPassword: password, host: host, quiet: quiet, completion: completion)
+            extract(extraction, checkedPassword: password, host: host, quiet: quiet, completion: completion)
         }
         // The archive's own password is found before anything is written: 7-Zip begins RAR and ZIP items before it finds
         // a password wrong, which emptied a file Overwrite was to replace and left the others behind, empty. Encrypted
@@ -34,37 +43,35 @@ extension Ops {
         }
     }
 
-    private static func extract(info: ArchiveInfo, names: [String]?, dest: String, checkedPassword pw: String?,
-                                host: NSWindow?, quiet: Bool, completion: @escaping (Bool, String?) -> Void) {
+    private static func extract(_ extraction: Extraction, checkedPassword pw: String?, host: NSWindow?, quiet: Bool,
+                                completion: @escaping (Bool, String?) -> Void) {
         // Overwrite check
-        let tops = topLevelNames(info: info, names: names)
-        let existing = tops.filter { FileManager.default.fileExists(atPath: (dest as NSString).appendingPathComponent($0)) }
-        var mode: SevenZipBridge.Overwrite = .overwrite
+        var extraction = extraction
+        let tops = topLevelNames(info: extraction.info, names: extraction.names)
+        let existing = tops.filter { FileManager.default.fileExists(atPath: (extraction.dest as NSString).appendingPathComponent($0)) }
         if !existing.isEmpty {
-            switch Dialogs.askOverwrite(existing: existing, dest: dest) {
-            case .overwrite: mode = .overwrite
-            case .rename: mode = .rename
-            case .skip: mode = .skip
+            switch Dialogs.askOverwrite(existing: existing, dest: extraction.dest) {
+            case .overwrite: extraction.overwrite = .overwrite
+            case .rename: extraction.overwrite = .rename
+            case .skip: extraction.overwrite = .skip
             case .cancel: completion(false, pw); return
             }
         }
-        runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, quiet: quiet, completion: completion)
+        runExtract(extraction, password: pw, host: host, quiet: quiet, completion: completion)
     }
-    // swiftlint:enable function_parameter_count
 
-    // swiftlint:disable:next function_parameter_count
-    private static func runExtract(info: ArchiveInfo, names: [String]?, dest: String, password: String?,
-                                   mode: SevenZipBridge.Overwrite,
-                                   host: NSWindow?, quiet: Bool, completion: @escaping (Bool, String?) -> Void) {
-        let operation = SevenZipBridge.Operation.extract(archive: info.path, destination: dest, items: names, overwrite: mode,
-                                                         password: password)
+    private static func runExtract(_ extraction: Extraction, password: String?, host: NSWindow?, quiet: Bool,
+                                   completion: @escaping (Bool, String?) -> Void) {
+        let info = extraction.info
+        let operation = SevenZipBridge.Operation.extract(archive: info.path, destination: extraction.dest, items: extraction.names,
+                                                         overwrite: extraction.overwrite, password: password)
         let quarantine = Quarantine.value(of: info.path)
         let started = Date()
         func finish(_ result: RarResult) {
             if result.cancelled { completion(false, password); return }
             if result.wrongPassword {
                 guard let pw = Ops.password(after: password, archive: info.path) else { completion(false, password); return }
-                runExtract(info: info, names: names, dest: dest, password: pw, mode: mode, host: host, quiet: quiet, completion: completion)
+                runExtract(extraction, password: pw, host: host, quiet: quiet, completion: completion)
                 return
             }
             if !result.ok {
@@ -80,9 +87,9 @@ extension Ops {
         runJob(title: loc.t("progress_extracting", name(info.path)), operation: operation, host: host) { result in
             // Every item written, including by an interrupted extraction, gets the archive's quarantine (before the result is handled or anything is opened)
             guard let quarantine else { finish(result); return }
-            let tops = topLevelNames(info: info, names: names)
+            let tops = topLevelNames(info: info, names: extraction.names)
             DispatchQueue.global(qos: .userInitiated).async {
-                Quarantine.apply(quarantine, dest: dest, tops: tops, since: started)
+                Quarantine.apply(quarantine, dest: extraction.dest, tops: tops, since: started)
                 DispatchQueue.main.async { finish(result) }
             }
         }

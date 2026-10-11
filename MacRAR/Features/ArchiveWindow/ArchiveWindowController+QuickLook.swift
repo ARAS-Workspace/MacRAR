@@ -13,7 +13,7 @@ extension ArchiveWindowController {
         guard !files.isEmpty else { return }
         let tmp = TempDirs.make("ql")
         Ops.extract(
-            info: info, names: files.map { $0.path }, dest: tmp, password: password, host: window, quiet: true
+            .init(info: info, names: files.map { $0.path }, dest: tmp), password: password, host: window, quiet: true
         ) { [weak self] ok, pw in
             guard let self else { return }
             self.password = pw ?? self.password

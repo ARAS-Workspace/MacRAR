@@ -24,9 +24,8 @@ extension Ops {
         case .cancel:
             completion(false, options.archivePath); return
         }
-        let cwd = (options.archivePath as NSString).deletingLastPathComponent
         let steps = options.buildSteps(items: items)
-        runSteps(steps, index: 0, archive: options.archivePath, cwd: cwd, host: host, completion: completion)
+        runSteps(steps, index: 0, archive: options.archivePath, host: host, completion: completion)
     }
 
     /// What to do about an archive already under the new archive's name.
@@ -96,9 +95,10 @@ extension Ops {
     /// A name is taken by a file or by a split set under it.
     static func isTaken(_ path: String) -> Bool { firstVolume(of: path) != path || FileManager.default.fileExists(atPath: path) }
 
-    // swiftlint:disable:next function_parameter_count
-    private static func runSteps(_ steps: [CompressOptions.Step], index: Int, archive: String, cwd: String,
-                                 host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
+    /// Runs the steps one after another in the archive's folder, where rar writes its temporary archive.
+    private static func runSteps(_ steps: [CompressOptions.Step], index: Int, archive: String, host: NSWindow?,
+                                 completion: @escaping (Bool, String) -> Void) {
+        let cwd = (archive as NSString).deletingLastPathComponent
         guard index < steps.count else { completion(true, firstVolume(of: archive)); return }
         let step = steps[index]
         let suffix = steps.count > 1 ? " (\(index + 1)/\(steps.count))" : ""
@@ -115,7 +115,7 @@ extension Ops {
                 completion(false, archive)
                 return
             }
-            runSteps(steps, index: index + 1, archive: archive, cwd: cwd, host: host, completion: completion)
+            runSteps(steps, index: index + 1, archive: archive, host: host, completion: completion)
         }
         switch step.work {
         case .rar(let args, let password): runRar(title: title, args: args, password: password, cwd: cwd, host: host, completion: next)
