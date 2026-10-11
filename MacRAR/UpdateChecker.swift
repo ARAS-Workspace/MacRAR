@@ -107,7 +107,7 @@ enum UpdateChecker {
         Dialogs.activate()
         let alert = alert(latest: latest)
         switch debugAnswer(alert) ?? alert.runModal() {
-        case .alertFirstButtonReturn: open(page)
+        case .alertFirstButtonReturn: Dialogs.openInBrowser(page)
         case .alertThirdButtonReturn: UserDefaults.standard.set(latest, forKey: skipKey)
         default: break
         }
@@ -124,14 +124,5 @@ enum UpdateChecker {
         case "skip": return .alertThirdButtonReturn
         default: return .alertSecondButtonReturn
         }
-    }
-
-    /// Opens a page in the browser; with MACRAR_DEBUG_CONFIRM its address goes to stdout instead.
-    private static func open(_ page: URL) {
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
-            print("open \(page.absoluteString)")
-            return
-        }
-        NSWorkspace.shared.open(page)
     }
 }

@@ -523,6 +523,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         winItem.submenu = win
         NSApp.windowsMenu = win
 
+        let helpItem = NSMenuItem(); main.addItem(helpItem)
+        let help = NSMenu(title: loc.t("menu_help"))
+        help.addItem(withTitle: loc.t("menu_help_app", AppInfo.name), action: #selector(openHelp(_:)), keyEquivalent: "?")
+        help.addItem(withTitle: loc.t("menu_release_notes"), action: #selector(openReleaseNotes(_:)), keyEquivalent: "")
+        helpItem.submenu = help
+        NSApp.helpMenu = help
+
         NSApp.mainMenu = main
     }
 }

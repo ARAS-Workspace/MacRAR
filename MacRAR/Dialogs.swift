@@ -16,6 +16,15 @@ enum Dialogs {
             || NSApp.windows.contains { $0.isVisible && ($0.attachedSheet != nil || $0.windowController is ProgressPanel) }
     }
 
+    /// Opens a page in the browser; with MACRAR_DEBUG_CONFIRM its address goes to stdout instead.
+    static func openInBrowser(_ page: URL) {
+        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
+            print("open \(page.absoluteString)")
+            return
+        }
+        NSWorkspace.shared.open(page)
+    }
+
     /// Runs `block` once nothing waits for the user (isBusy), looking again every 1.5 s. The questions the app asks on
     /// its own as it starts, the file associations and the update alert, wait here instead of coming up over another
     /// one. (Taken from MacRAR 1.4.3, which did not count a progress window.)
