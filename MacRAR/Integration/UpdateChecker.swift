@@ -113,9 +113,12 @@ enum UpdateChecker {
 
     private static func present(latest: String, page: URL) {
         announced.insert(latest)
-        Dialogs.activate()
         let alert = alert(latest: latest)
-        switch debugAnswer(alert) ?? alert.runModal() {
+        let answer = debugAnswer(alert) ?? {
+            Dialogs.activate()
+            return alert.runModal()
+        }()
+        switch answer {
         case .alertFirstButtonReturn: Dialogs.openInBrowser(page)
         case .alertThirdButtonReturn: UserDefaults.standard.set(latest, forKey: skipKey)
         default: break

@@ -1,5 +1,19 @@
 import AppKit
 
+/// The toolbar's items, as the toolbar saves its configuration.
+private enum ToolbarItemID {
+    static let open = NSToolbarItem.Identifier("open")
+    static let newArchive = NSToolbarItem.Identifier("new")
+    static let extractTo = NSToolbarItem.Identifier("extractTo")
+    static let extractHere = NSToolbarItem.Identifier("extractHere")
+    static let extractFolder = NSToolbarItem.Identifier("extractFolder")
+    static let test = NSToolbarItem.Identifier("test")
+    static let add = NSToolbarItem.Identifier("add")
+    static let delete = NSToolbarItem.Identifier("delete")
+    static let info = NSToolbarItem.Identifier("info")
+    static let search = NSToolbarItem.Identifier("search")
+}
+
 extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [

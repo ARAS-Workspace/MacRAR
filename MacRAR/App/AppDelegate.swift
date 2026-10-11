@@ -71,11 +71,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showAssociations(_ sender: Any?) { Associations.show() }
 
-    /// Command finished: the copy a Finder Quick Action started quits
-    func finishCommand() {
-        NSApp.terminate(nil)
-    }
-
     @objc func checkForUpdates(_ sender: Any?) {
         UpdateChecker.check(manual: true)
     }

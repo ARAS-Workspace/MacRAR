@@ -5,8 +5,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     private(set) var archivePath: String?
     private(set) var info: ArchiveInfo?
     var password: String?
-    var root = Node(name: "", path: "", isDir: true)
-    var filtered: [Node]?
+    private(set) var root = Node(name: "", path: "", isDir: true)
+    private(set) var filtered: [Node]?
     private var filterText = ""
 
     let outline = ArchiveOutlineView()
@@ -198,19 +198,6 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     // MARK: Toolbar
 
-    enum ToolbarItemID {
-        static let open = NSToolbarItem.Identifier("open")
-        static let newArchive = NSToolbarItem.Identifier("new")
-        static let extractTo = NSToolbarItem.Identifier("extractTo")
-        static let extractHere = NSToolbarItem.Identifier("extractHere")
-        static let extractFolder = NSToolbarItem.Identifier("extractFolder")
-        static let test = NSToolbarItem.Identifier("test")
-        static let add = NSToolbarItem.Identifier("add")
-        static let delete = NSToolbarItem.Identifier("delete")
-        static let info = NSToolbarItem.Identifier("info")
-        static let search = NSToolbarItem.Identifier("search")
-    }
-
     private func buildToolbar() {
         let tb = NSToolbar(identifier: "MainToolbar")
         tb.delegate = self
@@ -264,26 +251,6 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         if let dest = ProcessInfo.processInfo.environment["MACRAR_DEBUG_DRAG"] { simulateDrag(to: dest) }
     }
 
-    /// Debugging: writes the first top-level items to the destination as if dragged to Finder
-    private func simulateDrag(to dest: String) {
-        let nodes = Array(root.children.prefix(2))
-        guard !nodes.isEmpty else { return }
-        outlineView(outline, draggingSession: NSDraggingSession(), willBeginAt: .zero, forItems: nodes)
-        for node in nodes {
-            let provider = NSFilePromiseProvider(fileType: "public.data", delegate: self)
-            provider.userInfo = node
-            let url = URL(fileURLWithPath: (dest as NSString).appendingPathComponent(node.name))
-            promiseQueue.addOperation { [self] in
-                let done = DispatchSemaphore(value: 0)
-                filePromiseProvider(provider, writePromiseTo: url) { err in
-                    print("drag-sim:", node.name, err.map { "HATA \($0)" } ?? "OK")
-                    done.signal()
-                }
-                done.wait()
-            }
-        }
-    }
-
     func applyFilter() {
         if filterText.isEmpty {
             filtered = nil
@@ -331,9 +298,6 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         outline.selectedRowIndexes.compactMap { outline.item(atRow: $0) as? Node }
     }
 
-    /// Archive paths of the selected nodes (folders that already cover their children are collapsed)
-    func selectedPaths() -> [String] { Self.paths(for: selectedNodes()) }
-
     static func paths(for nodes: [Node]) -> [String] {
         let dirs = nodes.filter { $0.isDir }.map { $0.path + "/" }
         return nodes.filter { node in !dirs.contains { node.path.hasPrefix($0) } }.map { $0.path }
@@ -344,6 +308,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
     override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) { panel.dataSource = self; panel.delegate = self }
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) { panel.dataSource = nil; panel.delegate = nil }
+
+    // MARK: Search and selection
 
     @objc func searchChanged(_ sender: NSSearchField) {
         filterText = sender.stringValue.trimmingCharacters(in: .whitespaces)

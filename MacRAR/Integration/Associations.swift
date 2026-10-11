@@ -63,7 +63,6 @@ enum Associations {
 
     @discardableResult
     static func show(firstLaunch: Bool = false) -> Bool {
-        Dialogs.activate()
         let alert = NSAlert()
         alert.messageText = loc.t("assoc_title", AppInfo.name)
         alert.informativeText = (firstLaunch
@@ -80,6 +79,7 @@ enum Associations {
             print("\(alert.messageText): \(alert.informativeText)")
             return false
         }
+        Dialogs.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
         // Do not ask again for types this app already owns
         let chosen = boxes.filter { $0.0.state == .on }.flatMap { types(for: $0.1.exts) }.filter { !isMine($0) }

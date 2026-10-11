@@ -1,10 +1,9 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// The command-line modes the Finder Quick Actions start a copy of the app in: each runs, reports and quits.
+/// The command-line modes: those the Finder Quick Actions start a copy of the app in, and --set-default and
+/// --install-quick-actions. Each runs, reports and quits.
 extension AppDelegate {
-    // MARK: Command-line / Finder Quick Action mode
-
     func runCommand(_ cmd: Command) {
         switch cmd {
         case .setDefault:
@@ -78,22 +77,16 @@ extension AppDelegate {
         }
     }
 
-    // MARK: Default app
+    /// The command finished: the copy a Finder Quick Action started quits.
+    private func finishCommand() {
+        NSApp.terminate(nil)
+    }
 
-    func setDefaultHandler(extensions: [String] = ["rar"], completion: @escaping (Error?) -> Void) {
-        var types: [UTType] = []
-        for ext in extensions {
-            if ext == "rar", let utType = UTType("com.rarlab.rar-archive") { types.append(utType); continue }
-            if let utType = UTType(filenameExtension: ext) { types.append(utType) }
+    /// --set-default: this copy becomes the app that opens RAR archives.
+    func setDefaultHandler(completion: @escaping (Error?) -> Void) {
+        guard let rar = UTType("com.rarlab.rar-archive") ?? UTType(filenameExtension: "rar") else { completion(nil); return }
+        NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: rar) { err in
+            DispatchQueue.main.async { completion(err) }
         }
-        func next(_ i: Int) {
-            guard i < types.count else { completion(nil); return }
-            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: types[i]) { err in
-                DispatchQueue.main.async {
-                    if let err { completion(err) } else { next(i + 1) }
-                }
-            }
-        }
-        next(0)
     }
 }

@@ -7,12 +7,10 @@ import XCTest
 struct RarTool {
     let url: URL
 
-    static let external = Repository.external
-
     static func locate() throws -> RarTool {
-        let fetched = (try? FileManager.default.contentsOfDirectory(atPath: external.path)) ?? []
+        let fetched = (try? FileManager.default.contentsOfDirectory(atPath: Repository.external.path)) ?? []
         let tools = fetched.filter { $0.hasPrefix("rarmacos-") }.sorted()
-            .map { external.appendingPathComponent("\($0)/rar/rar") }
+            .map { Repository.external.appendingPathComponent("\($0)/rar/rar") }
             .filter { FileManager.default.isExecutableFile(atPath: $0.path) }
         guard let url = tools.last else { throw XCTSkip("RARLAB's rar is not fetched; run External/fetch-rar.sh") }
         return RarTool(url: url)

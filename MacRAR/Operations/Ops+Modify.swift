@@ -1,6 +1,7 @@
 import AppKit
 
-/// Adding files to an archive that is open, and deleting from it.
+/// Adding files to an existing archive, from its window or from Create Archive's "add to the existing one", and deleting
+/// from it.
 extension Ops {
     static func add(info: ArchiveInfo, items: [String], password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void) {
         let items = itemsToAdd(items, into: info.path)

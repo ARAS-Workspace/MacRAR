@@ -5,7 +5,7 @@ import XCTest
 /// like the media archives people pack, the same on every machine, and one named with a space and Turkish letters. CI
 /// generates them before the tests; on a Mac, run the script once. Without them the tests that pack them skip.
 enum LargeFiles {
-    static let folder = RarTool.external.appendingPathComponent("test-large-files")
+    static let folder = Repository.external.appendingPathComponent("test-large-files")
 
     /// Their absolute paths, in name order.
     static func locate() throws -> [String] {

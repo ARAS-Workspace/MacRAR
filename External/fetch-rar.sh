@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch RARLAB's rar for the RAR tests (MacRARTests/RARTests.swift).
+# Fetch RARLAB's rar for the RAR tests (MacRARTests/Engines/Rar/RARTests.swift).
 # Test use only: the app never bundles or downloads rar (RAR licence 3.2/3.3).
 # Downloads the pinned "RAR for macOS ARM" release, checks its SHA-256 and
 # unpacks it next to this script into a directory named after the archive:

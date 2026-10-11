@@ -24,6 +24,8 @@ extension AppDelegate {
     @objc func openRecent(_ sender: NSMenuItem) { if let path = sender.representedObject as? String { openArchive(path, reuse: nil) } }
     @objc func clearRecent(_ sender: Any?) { NSDocumentController.shared.clearRecentDocuments(nil) }
 
+    // MARK: Quick Actions
+
     @objc func installQuickActionsAction(_ sender: Any?) { installQuickActions() }
 
     // MARK: About

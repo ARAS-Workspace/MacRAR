@@ -1,6 +1,7 @@
 import AppKit
 
-/// Creating archives from the Create Archive dialog's choices: 7-Zip in the app, or the user's rar.
+/// Creating archives from compress options, the Create Archive dialog's or a Quick Action's defaults: 7-Zip in the app, or
+/// the user's rar.
 extension Ops {
     static func compress(items: [String], options: CompressOptions, host: NSWindow?, completion: @escaping (Bool, String) -> Void) {
         var options = options

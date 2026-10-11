@@ -17,7 +17,14 @@ extension Ops {
         let info: ArchiveInfo
         let names: [String]?
         let dest: String
-        var overwrite: SevenZipBridge.Overwrite = .overwrite
+        /// Set by the overwrite question, never by a caller
+        fileprivate(set) var overwrite: SevenZipBridge.Overwrite = .overwrite
+
+        init(info: ArchiveInfo, names: [String]?, dest: String) {
+            self.info = info
+            self.names = names
+            self.dest = dest
+        }
     }
 
     /// completion(success, password used)

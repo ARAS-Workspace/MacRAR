@@ -139,4 +139,7 @@ extension ArchiveWindowController {
     @objc func collapseAll(_ sender: Any?) { outline.collapseItem(nil, collapseChildren: true) }
     @objc func refresh(_ sender: Any?) { reload() }
     @objc func revealArchive(_ sender: Any?) { if let archivePath { Ops.revealInFinder(archivePath) } }
+
+    /// Archive paths of the selected nodes (folders that already cover their children are collapsed)
+    private func selectedPaths() -> [String] { Self.paths(for: selectedNodes()) }
 }
