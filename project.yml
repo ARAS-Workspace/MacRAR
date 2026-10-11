@@ -45,6 +45,28 @@ targets:
           - $(SRCROOT)/Libraries/SevenZipKit/LICENSE
         outputFiles:
           - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/7zip-license.txt
+      # Finder names the archive kinds the app declares in the user's
+      # language: InfoPlist.strings for each language, written from the
+      # kind_* texts in translations/<language>.json, so that the Turkish
+      # stays in tr.json alone. A .strings file may be a property list.
+      - name: Localize the archive kinds
+        script: |
+          set -euo pipefail
+          for language in en tr; do
+            json="${SRCROOT}/MacRAR/Localization/translations/${language}.json"
+            folder="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/${language}.lproj"
+            strings="${folder}/InfoPlist.strings"
+            mkdir -p "${folder}"
+            plutil -create binary1 "${strings}"
+            plutil -insert "RAR Archive" -string "$(plutil -extract kind_rar_archive raw -o - "${json}")" "${strings}"
+            plutil -insert "Archive" -string "$(plutil -extract kind_archive raw -o - "${json}")" "${strings}"
+          done
+        inputFiles:
+          - $(SRCROOT)/MacRAR/Localization/translations/en.json
+          - $(SRCROOT)/MacRAR/Localization/translations/tr.json
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/en.lproj/InfoPlist.strings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tr.lproj/InfoPlist.strings
     settings:
       base:
         ARCHS: "$(ARCHS_STANDARD)"

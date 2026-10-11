@@ -202,6 +202,8 @@
   "assoc_message_first_launch": "Seçtiğiniz dosya türlerine çift tıklayınca bu uygulama açılır. Daha sonra menüden “Dosya İlişkilendirmeleri…” ile değiştirebilirsiniz.",
   "assoc_message": "Seçtiğiniz dosya türlerine çift tıklayınca bu uygulama açılır.",
   "assoc_confirm_note": "macOS her dosya türü için ayrıca onay isteyecek.",
+  "kind_rar_archive": "RAR Arşivi",
+  "kind_archive": "Arşiv",
   "assoc_group_other": "Diğer arşivler: TAR, TGZ, BZ2, XZ, ZST, ZIPX, CAB, LZH, ARJ, CPIO…",
   "assoc_group_disk_images": "Disk görüntüleri: ISO, DMG, VHD, VMDK",
   "assoc_disk_images_warning": "Önerilmez: çift tıklayınca disk bağlanmaz, arşiv gibi açılır.",
