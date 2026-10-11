@@ -3,30 +3,35 @@ import Foundation
 /// What goes into an archive that is open: never the archive itself. rar leaves the archive it updates out of the
 /// items, while 7-Zip packs a copy of it into itself.
 extension Ops {
-    /// Whether two paths name the same file, whatever the Unicode form of their names or the links on the way.
-    static func sameFile(_ lhs: String, _ rhs: String) -> Bool {
-        func identifier(_ path: String) -> (any NSCopying & NSSecureCoding & NSObjectProtocol)? {
-            let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
-            return try? url.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier
-        }
-        guard let left = identifier(lhs), let right = identifier(rhs) else { return false }
-        return left.isEqual(right)
+    /// A file's identity on its volume, whatever the Unicode form of its name or the links on the way to it, and whether
+    /// it is a folder; nil for a path that names nothing.
+    private static func identity(of path: String) -> (id: any NSObjectProtocol, isFolder: Bool)? {
+        let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        guard let values = try? url.resourceValues(forKeys: [.fileResourceIdentifierKey, .isDirectoryKey]),
+              let id = values.fileResourceIdentifier else { return nil }
+        return (id, values.isDirectory ?? false)
     }
 
     /// The items to add to the archive at `archive`: the ones given, the archive itself left out.
     static func itemsToAdd(_ items: [String], into archive: String) -> [String] {
-        items.filter { !sameFile($0, archive) }
+        guard let own = identity(of: archive)?.id else { return items }
+        return items.filter { item in identity(of: item).map { !$0.id.isEqual(own) } ?? true }
     }
 
-    /// The folder among `items` that holds the archive at `archive`, however deep.
+    /// The folder among `items` that holds the archive at `archive`, however deep. The folders above the archive are
+    /// known first, and only the items that are folders are looked at, each once: a drop of thousands of files spent
+    /// seconds here on the main thread when every item was compared with every folder above.
     static func folder(holding archive: String, among items: [String]) -> String? {
-        var ancestors: [String] = []
+        var ancestors: [any NSObjectProtocol] = []
         var parent = URL(fileURLWithPath: archive).resolvingSymlinksInPath().deletingLastPathComponent()
         while parent.path != "/" {
-            ancestors.append(parent.path)
+            if let id = identity(of: parent.path)?.id { ancestors.append(id) }
             parent = parent.deletingLastPathComponent()
         }
-        return items.first { item in ancestors.contains { sameFile($0, item) } }
+        return items.first { item in
+            guard let found = identity(of: item), found.isFolder else { return false }
+            return ancestors.contains { $0.isEqual(found.id) }
+        }
     }
 
     /// Why `items` cannot go into the archive `info` describes, for the user; nil when they can. 7-Zip, which the app
