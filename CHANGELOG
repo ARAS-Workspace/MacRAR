@@ -7,6 +7,116 @@ Each entry is one patch round on top of an original release, versioned
 in the original project.
 
 
+v1.4.2+ARAS.Patch.5 - 2026-10-11
+--------------------------------
+
+TR:
+ - Bu turdaki değişikliklerin çoğu Mesut Çevik'in MacRAR 1.4.3
+   sürümünden alındı ve bu dağıtımın testleriyle yeniden yapıldı.
+   Taban sürüm 1.4.2 olarak kalıyor.
+ - Açık bir arşive dosyalar ve arşivler birlikte bırakıldığında hepsi
+   ekleniyor. Önceden arşiv dosyaları uyarı verilmeden atlanıyordu.
+   Açık arşivin kendisi ise eklenmiyor; 7-Zip onu eklerken arşivin bir
+   kopyasını kendi içine yazardı.
+ - Açık bir 7z ya da ZIP arşivini içeren klasör o arşive eklenmiyor ve
+   nedeni açıklanıyor. Önceden 7-Zip arşivin bir kopyasını kendi içine
+   yazıyordu. RAR arşivleri böyle bir klasörü alıyor, çünkü rar
+   arşivin kendisini dışarıda bırakıyor.
+ - Parçalı bir arşiv, hangi parçası seçilirse seçilsin, bir kez ve ilk
+   parçasından açılıyor, çıkarılıyor ve test ediliyor. Bu davranış
+   Hızlı Eylemlerde, Finder'dan açarken ve pencereye bırakırken
+   geçerli. Eski tarz adlar da tanınıyor, örneğin x.rar ile x.r00 ya
+   da x.zip ile x.z01. Önceden her parça ayrı bir arşiv sayılıyordu.
+   Çıkarma "Headers Error" ile bitiyor ve geride boş bir dosya
+   kalıyordu.
+ - x.r00–x.r99 parçaları uygulamanın kendi türüyle tanımlı. Başka bir
+   arşivleyici bu uzantıları tanımlamıyorsa Finder onları RAR arşivi
+   parçası olarak tanıyor. Önceden yalnızca .r00–.r03 tanımlıydı.
+ - Açılamayan bir dosya, kullanıcının açık olan boş penceresini artık
+   kapatmıyor.
+ - Dosya ilişkilendirme sorusu ve güncelleme uyarısı, açılışta açık
+   bir soru, sayfa ya da süren bir işlem varsa onun bitmesini
+   bekliyor. Önceden bunların üstüne açılıyordu.
+ - Disk görüntüsünden, İndirilenler'den ya da Masaüstü'nden çalışan
+   bir kopya, açılışta Hızlı Eylemlerin ve dosya ilişkilendirmelerinin
+   neden çalışmadığını söylüyor. Bu uyarı "Bir daha gösterme" ile
+   kapatılabiliyor. Hızlı Eylemler menüden artık yalnızca Uygulamalar
+   klasöründeki kopyada kuruluyor; başka bir kopya nedenini söylüyor.
+   Önceden disk görüntüsündeki kopya, kullanıcının Hızlı Eylemlerini
+   kendisine bağlıyordu.
+ - Güncelleme uyarısı sürüm notlarını göstermiyor. Tek düğmesi yeni
+   sürümün GitHub'daki sayfasını açıyor; DMG dosyaları orada. Açılışta
+   bekleyen uyarı, aynı sürüm bu arada menüden gösterildiyse bir daha
+   gelmiyor.
+ - Yardım menüsü eklendi. "MacRAR Yardımı" (⌘?) README'yi uygulamanın
+   diliyle açıyor. "Sürüm Notları" bu CHANGELOG'u açıyor.
+ - Finder, Türkçe bir sistemde arşiv türlerini Türkçe adlandırıyor:
+   "RAR Arşivi", "RAR Arşivi Parçası" ve "Arşiv".
+ - Bir arşive binlerce öğe eklenirken uygulama artık donmuyor. Arşivi
+   içeren klasörün aranması 3000 öğede 1,26 saniyeden 0,04 saniyeye
+   indi.
+ - Geliştirme: Kaynaklar ve testler, yaptıkları işe göre dizinlere
+   ayrıldı. Büyük dosyalar ve uzun fonksiyonlar parçalandı.
+   SwiftLint'i susturan yönerge sayısı 19'dan 1'e indi. Hiçbir menüde
+   olmayan varsayılan uygulama kodu kaldırıldı.
+ - Geliştirme: Her düzeltme, onsuz başarısız olan bir testle ve
+   kasıtlı bozmalarla kanıtlandı. Değişiklikler dört paralel
+   incelemeden geçti; bulunan hatalar da aynı yolla düzeltildi.
+   Testlerin açtığı pencereler artık görünmüyor. Test sayısı
+   124 -> 158.
+
+EN:
+ - Most of this round's changes come from MacRAR 1.4.3 by Mesut Çevik,
+   redone with this distribution's tests. The base release stays
+   1.4.2.
+ - Files and archives dropped together onto an open archive are all
+   added. Archives among them used to be left out without a word. The
+   open archive itself is left out; 7-Zip would pack a copy of it into
+   itself.
+ - A folder that holds an open 7z or ZIP archive is not added to it,
+   and the reason is given. 7-Zip used to pack a copy of the archive
+   into itself. RAR archives take such a folder, since rar leaves the
+   archive itself out.
+ - A split archive is opened, extracted and tested once, from its
+   first volume, whichever of its volumes was chosen. This holds for
+   the Quick Actions, opening from Finder and dropping onto a window.
+   Old-style names are known too, such as x.rar with x.r00, or x.zip
+   with x.z01. Each volume used to count as an archive of its own.
+   Extracting ended in "Headers Error" and left an empty file behind.
+ - The volumes x.r00 to x.r99 are a type of the app's own. Where no
+   other archiver declares these extensions, Finder knows them as RAR
+   volumes. Only .r00 to .r03 used to be declared.
+ - A file that does not open no longer closes the empty window the
+   user had.
+ - The file associations question and the update alert wait at launch
+   until an open question, sheet or running operation is done. They
+   used to come up over it.
+ - A copy running from the disk image, Downloads or the Desktop says
+   at launch why Quick Actions and file associations do not work.
+   "Don't show this again" turns the warning off. Quick Actions are
+   now installed from the menu only by the copy in Applications; any
+   other copy says why. The copy on the disk image used to point the
+   user's Quick Actions at itself.
+ - The update alert no longer shows the release notes. Its one button
+   opens the new version's page on GitHub, where the DMGs are. An
+   alert waiting at launch stays away once the menu showed that
+   version meanwhile.
+ - A Help menu is added. "MacRAR Help" (Command-?) opens the README in
+   the app's language. "Release Notes" opens this CHANGELOG.
+ - On a Turkish system Finder names the archive kinds in Turkish:
+   "RAR Arşivi", "RAR Arşivi Parçası" and "Arşiv".
+ - Adding thousands of items to an archive no longer freezes the app.
+   Looking for the folder that holds the archive took 1.26 s with
+   3000 items, and now 0.04 s.
+ - Development: sources and tests are sorted into folders by what they
+   do. Large files and long functions are split. SwiftLint directives
+   went from 19 to 1. The default-app code no menu offered is gone.
+ - Development: each fix is proved by a test that fails without it and
+   by mutations. The changes went through four parallel reviews, and
+   what they found was fixed the same way. Windows the tests open no
+   longer show. 124 -> 158 tests.
+
+
 v1.4.2+ARAS.Patch.4 - 2026-10-10
 --------------------------------
 
