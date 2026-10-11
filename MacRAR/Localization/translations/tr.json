@@ -10,7 +10,6 @@
   "extract": "Çıkart",
   "create": "Oluştur",
   "install": "Kur",
-  "download": "İndir",
   "later": "Daha Sonra",
   "unknown_error": "Bilinmeyen hata.",
   "could_not_run": "Çalıştırılamadı: %@",
@@ -258,6 +257,7 @@
   "update_up_to_date_message": "MacRAR %@ en son sürüm.",
   "update_available_title": "MacRAR %@ sürümü çıktı",
   "update_available_message": "Kullandığınız sürüm: %@. Yeni sürümü GitHub'dan indirip Uygulamalar klasörüne sürükleyerek güncelleyebilirsiniz.",
+  "update_open_download_page": "İndirme Sayfasını Aç",
   "update_skip_version": "Bu Sürümü Atla",
   "about_developer": "Geliştirici: Mesut Çevik\n",
   "about_third_party": "\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR açma: unRAR kodu © Alexander Roshal"

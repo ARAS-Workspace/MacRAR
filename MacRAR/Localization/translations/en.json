@@ -10,7 +10,6 @@
   "extract": "Extract",
   "create": "Create",
   "install": "Install",
-  "download": "Download",
   "later": "Later",
   "unknown_error": "Unknown error.",
   "could_not_run": "Could not run: %@",
@@ -258,6 +257,7 @@
   "update_up_to_date_message": "MacRAR %@ is the latest version.",
   "update_available_title": "MacRAR %@ is available",
   "update_available_message": "You are using version %@. Download the new version from GitHub and drag it into Applications to update.",
+  "update_open_download_page": "Open Download Page",
   "update_skip_version": "Skip This Version",
   "about_developer": "Developer: Mesut Çevik\n",
   "about_third_party": "\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR extraction: unRAR code © Alexander Roshal"

@@ -34,6 +34,27 @@ extension XCTestCase {
         "MACRAR_DEBUG_OVERWRITE": "cancel",
     ]
 
+    /// What `body` prints, such as an alert MACRAR_DEBUG_CONFIRM sends to the standard output instead of the screen.
+    /// The output goes to a file of its own meanwhile, then back where it went.
+    func printed(_ body: () throws -> Void) rethrows -> String {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("MacRARTests-printed-\(UUID().uuidString)")
+        FileManager.default.createFile(atPath: file.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: file) }
+        fflush(stdout)
+        let earlier = dup(STDOUT_FILENO)
+        let descriptor = Darwin.open(file.path, O_WRONLY)
+        dup2(descriptor, STDOUT_FILENO)
+        close(descriptor)
+        defer {
+            fflush(stdout)
+            dup2(earlier, STDOUT_FILENO)
+            close(earlier)
+        }
+        try body()
+        fflush(stdout)
+        return (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+    }
+
     func setDebugAnswers() {
         for (name, value) in Self.debugAnswers { setenv(name, value, 1) }
     }

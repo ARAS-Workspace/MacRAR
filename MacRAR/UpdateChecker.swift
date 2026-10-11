@@ -45,11 +45,9 @@ enum UpdateChecker {
         }
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
         let latest = version(fromTag: tag)
-        let pageURL = (json["html_url"] as? String).flatMap(URL.init(string:)) ?? releasesPage
-        let notes = (json["body"] as? String) ?? ""
         if isNewer(latest, than: currentVersion) {
             if !manual, UserDefaults.standard.string(forKey: skipKey) == latest { return }
-            let show = { present(latest: latest, page: pageURL, notes: notes) }
+            let show = { present(latest: latest, page: page(of: json, tag: tag)) }
             if manual { show() } else { Dialogs.whenIdle(show) }
         } else if manual {
             Dialogs.info(loc.t("update_up_to_date_title"), loc.t("update_up_to_date_message", currentVersion))
@@ -86,27 +84,28 @@ enum UpdateChecker {
         return Array(release.prefix(3)) + [round]
     }
 
-    private static func present(latest: String, page: URL, notes: String) {
-        Dialogs.activate()
+    /// The new version's release page, where its DMGs are: the address GitHub gives, or else the page of its tag.
+    static func page(of release: [String: Any], tag: String) -> URL {
+        if let given = (release["html_url"] as? String).flatMap(URL.init(string:)) { return given }
+        let path = tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag
+        return URL(string: "https://github.com/\(repo)/releases/tag/\(path)") ?? releasesPage
+    }
+
+    /// The update alert: the new version and the one in use, without the release notes, and a button that opens the
+    /// new version's release page.
+    static func alert(latest: String) -> NSAlert {
         let alert = NSAlert()
         alert.messageText = loc.t("update_available_title", latest)
-        var info = loc.t("update_available_message", currentVersion)
-        // Simplify the Markdown markup, show the first lines
-        let lines = notes.components(separatedBy: "\n").map { line -> String in
-            var trimmed = line.trimmingCharacters(in: .whitespaces)
-            while trimmed.hasPrefix("#") { trimmed.removeFirst() }
-            trimmed = trimmed.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
-            if trimmed.hasPrefix("- ") { trimmed = "• " + trimmed.dropFirst(2) }
-            return trimmed.trimmingCharacters(in: .whitespaces)
-        }.filter { !$0.isEmpty }
-        if !lines.isEmpty {
-            let shown = lines.prefix(7)
-            info += "\n\n" + shown.joined(separator: "\n") + (lines.count > shown.count ? "\n…" : "")
-        }
-        alert.informativeText = info
-        alert.addButton(withTitle: loc.t("download"))
+        alert.informativeText = loc.t("update_available_message", currentVersion)
+        alert.addButton(withTitle: loc.t("update_open_download_page"))
         alert.addButton(withTitle: loc.t("later"))
         alert.addButton(withTitle: loc.t("update_skip_version"))
+        return alert
+    }
+
+    private static func present(latest: String, page: URL) {
+        Dialogs.activate()
+        let alert = alert(latest: latest)
         switch debugAnswer(alert) ?? alert.runModal() {
         case .alertFirstButtonReturn: open(page)
         case .alertThirdButtonReturn: UserDefaults.standard.set(latest, forKey: skipKey)
