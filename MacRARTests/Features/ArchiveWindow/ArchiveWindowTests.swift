@@ -135,16 +135,19 @@ final class ArchiveWindowTests: XCTestCase {
     }
 
     /// The archive is known among the items by the file it is, not by how its path is spelled: a name with Turkish
-    /// letters in the other Unicode form, or a link to it, is left out as well.
+    /// letters in the other Unicode form, in other letter case (the disk ignores case, String comparison does not), or a
+    /// link to it, is left out as well.
     func testTheArchiveIsLeftOutOfItsOwnItemsHoweverItIsNamed() throws {
         let name = "öğrenci arşivi.7z".precomposedStringWithCanonicalMapping
         try workspace.writeComposed(Data(), to: name)
         let archive = workspace.path(name)
         let decomposed = workspace.path(name.decomposedStringWithCanonicalMapping)
+        let upper = workspace.path(name.uppercased())
+        XCTAssertNotEqual(upper, archive)
         let link = workspace.path("link.7z")
         try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: archive)
         let note = workspace.path("src/a.txt")
-        XCTAssertEqual(Ops.itemsToAdd([archive, decomposed, link, note], into: archive), [note])
+        XCTAssertEqual(Ops.itemsToAdd([archive, decomposed, upper, link, note], into: archive), [note])
         XCTAssertEqual(Ops.itemsToAdd([note], into: decomposed), [note])
     }
 
@@ -180,6 +183,51 @@ final class ArchiveWindowTests: XCTestCase {
                 try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: folder)
                 XCTAssertNotNil(Ops.addProblem([link], into: info), "\(format): a link to the folder was taken")
             }
+        }
+    }
+
+    // MARK: Volume sets
+
+    /// A split archive rar writes (vol.part1.rar …) and the same volumes copied under old-style names (old.rar, old.r00
+    /// …), which 7-Zip reads the same; rar 7 no longer writes those itself.
+    private func makeVolumeSets() throws -> (new: [String], old: [String]) {
+        guard let rar else { throw XCTSkip("RARLAB's rar is not fetched; run External/fetch-rar.sh") }
+        let made = try rar.run(RarRunner.addArguments + ["-ma5", "-v300k", "--", workspace.path("vol.rar")] + workspace.sources,
+                               in: workspace.root.path)
+        XCTAssertEqual(made.status, 0, made.output)
+        let parts = try FileManager.default.contentsOfDirectory(atPath: workspace.root.path).filter { $0.hasPrefix("vol.part") }.sorted()
+        XCTAssertGreaterThan(parts.count, 2, "\(parts)")
+        var old: [String] = []
+        for (index, part) in parts.enumerated() {
+            let piece = workspace.path(index == 0 ? "old.rar" : String(format: "old.r%02d", index - 1))
+            try FileManager.default.copyItem(atPath: workspace.path(part), toPath: piece)
+            old.append(piece)
+        }
+        return (parts.map(workspace.path), old)
+    }
+
+    /// The archives the app's windows show, by name.
+    private var shown: [String] { app.windows.compactMap { $0.archivePath.map { ($0 as NSString).lastPathComponent } }.sorted() }
+
+    /// Upstream 1.4.3 (533ce7e) brought a set down to its first volume only for the extracting and testing Quick
+    /// Actions. Opened from Finder or through the Open Quick Action, and dropped onto the empty window, every volume
+    /// opened in a window of its own, a later one showing only the items that start in it.
+    func testOpeningAVolumeSetOpensItOnceIsAKnownIssue() throws {
+        let sets = try makeVolumeSets()
+        app.handleOpen(sets.old)
+        XCTExpectFailure("every volume of an old-style set opens in a window of its own") {
+            XCTAssertEqual(shown, ["old.rar"])
+        }
+        settle()
+        app.handleOpen([sets.new[1]])
+        XCTExpectFailure("a later volume opens on its own though the first is beside it") {
+            XCTAssertEqual(shown, ["vol.part1.rar"])
+        }
+        settle()
+        let empty = try XCTUnwrap(app.windows.first)
+        empty.handleDrop(sets.old.dropFirst().map { URL(fileURLWithPath: $0) })
+        XCTExpectFailure("later volumes dropped onto the empty window open each") {
+            XCTAssertEqual(shown, ["old.rar"])
         }
     }
 

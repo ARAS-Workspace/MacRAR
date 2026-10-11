@@ -51,8 +51,10 @@ final class PlacementTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory), [])
     }
 
-    /// A second copy started the way a user opens it, which with MACRAR_SNAPSHOT saves its windows and quits.
-    private func launch(_ arguments: [String] = [], placement: String? = nil) throws -> AppExit {
+    /// A second copy started the way a user opens it, which with MACRAR_SNAPSHOT saves its windows and quits. The copy
+    /// reads the user's own settings, so "Don't show this again" goes to it as off unless a test passes it on.
+    private func launch(_ arguments: [String] = ["-\(QuickActions.placementWarningOffKey)", "NO"],
+                        placement: String? = nil) throws -> AppExit {
         var environment = ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "2"]
         environment["MACRAR_DEBUG_PLACEMENT"] = placement
         let exit = try launchApp(arguments, environment: environment)

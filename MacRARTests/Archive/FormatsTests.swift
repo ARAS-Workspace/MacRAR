@@ -48,4 +48,13 @@ final class FormatsTests: XCTestCase {
         let picked = AppDelegate.dedupeVolumes(chosen.map(workspace.path))
         XCTAssertEqual(picked, ["x.rar", "v.part1.rar", "s.7z.001", "w.part01.rar"].map(workspace.path))
     }
+
+    /// The set's first volume keeps the spelling of the volume chosen, names with more dots keep them, and files that
+    /// are no volume stay where they were chosen.
+    func testVolumeNamesKeepTheirSpelling() throws {
+        let workspace = try Workspace()
+        for name in ["X.PART1.RAR", "X.PART2.RAR", "a.b.rar", "a.b.r00", "notes.txt"] { try Data().write(to: workspace.url(name)) }
+        let chosen = ["notes.txt", "X.PART2.RAR", "a.b.r00", "other.zip"].map(workspace.path)
+        XCTAssertEqual(AppDelegate.dedupeVolumes(chosen), ["notes.txt", "X.PART1.RAR", "a.b.rar", "other.zip"].map(workspace.path))
+    }
 }

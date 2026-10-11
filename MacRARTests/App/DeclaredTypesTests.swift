@@ -26,6 +26,21 @@ final class DeclaredTypesTests: XCTestCase {
         XCTAssertEqual(volumes.subtracting(declared), [], "not declared")
     }
 
+    /// The old-style volumes x.r00 … x.r99 are a type of the app's own, which LaunchServices always takes from this
+    /// app. Declared under com.rarlab.rar-archive they did nothing wherever another app's declaration of that type won:
+    /// on the Mac this was measured on, BetterZip's, which names only rar and rev.
+    func testOldStyleRarVolumesAreATypeOfTheAppsOwnIsAKnownIssue() throws {
+        XCTExpectFailure("the volumes are declared under com.rarlab.rar-archive") {
+            let declarations = (try? declarations()) ?? []
+            let volumes = declarations.first { $0["UTTypeIdentifier"] as? String == "com.arasworkspace.MacRAR.rar-volume" }
+            XCTAssertNotNil(volumes, "no type of the app's own for old-style volumes")
+            let declared = volumes.map(extensions) ?? []
+            XCTAssertEqual(Set((0...99).map { String(format: "r%02d", $0) }).subtracting(declared), [], "not declared")
+            let conforms = Set(volumes?["UTTypeConformsTo"] as? [String] ?? [])
+            XCTAssertTrue(conforms.isSuperset(of: ["com.rarlab.rar-archive", "public.archive"]), "\(conforms)")
+        }
+    }
+
     /// The app's own type, for the formats the system has none for, is a declaration of its own that the Archive
     /// document type and the Quick Actions name. The original's sat inside the RAR declaration until 1.4.3 and was
     /// never registered; this distribution declared it on its own from the start.

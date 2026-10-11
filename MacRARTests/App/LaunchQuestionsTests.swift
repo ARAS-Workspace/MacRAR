@@ -16,11 +16,7 @@ final class LaunchQuestionsTests: XCTestCase {
     }
 
     override func tearDown() {
-        for (host, sheet) in sheets {
-            host.endSheet(sheet)
-            host.orderOut(nil)
-        }
-        sheets = []
+        closeSheets()
         clearDebugAnswers()
         for key in keys { UserDefaults.standard.set(saved[key], forKey: key) }
     }
@@ -66,7 +62,10 @@ final class LaunchQuestionsTests: XCTestCase {
     }
 
     private func closeSheets() {
-        for (host, sheet) in sheets { host.endSheet(sheet) }
+        for (host, sheet) in sheets {
+            host.endSheet(sheet)
+            host.orderOut(nil)
+        }
         sheets = []
     }
 
@@ -119,6 +118,22 @@ final class LaunchQuestionsTests: XCTestCase {
         XCTAssertTrue(eventually { ran })
     }
 
+    /// An operation shows its progress window only after ProgressPanel.showDelay, and runs all the same until then:
+    /// a question that came up in that time sat over its start, and with runModal called from a queued block, the
+    /// operation's own main-queue updates waited for the question to be answered.
+    func testAnOperationIsWaitedForBeforeItsProgressWindowIsUpIsAKnownIssue() {
+        let panel = ProgressPanel(title: "starting")
+        hide(panel.window)
+        panel.show(on: nil)
+        var ran = false
+        Dialogs.whenIdle { ran = true }
+        XCTExpectFailure("ran before the progress window came up") {
+            XCTAssertFalse(ran, "ran while the operation was starting")
+        }
+        panel.dismiss()
+        XCTAssertTrue(eventually { ran })
+    }
+
     // MARK: The questions
 
     /// Upstream 1.4.3 (533ce7e): the associations question of the first launch came up over whatever was open, such
@@ -147,8 +162,7 @@ final class LaunchQuestionsTests: XCTestCase {
         }
     }
 
-    /// Asked for from the menu, the check answers at once; a version the user skipped stays skipped only for the daily
-    /// check.
+    /// Asked for from the menu, the check answers at once, open sheet or not.
     func testAnUpdateCheckFromTheMenuAnswersAtOnce() {
         withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": "skip"]) {
             UserDefaults.standard.set("9.9.9+ARAS.Patch.1", forKey: UpdateChecker.skipKey)
@@ -157,6 +171,37 @@ final class LaunchQuestionsTests: XCTestCase {
             _ = openSheet()
             UpdateChecker.handle(release: ["tag_name": "mac-v9.9.9+ARAS.Patch.3"], manual: true)
             XCTAssertEqual(UserDefaults.standard.string(forKey: UpdateChecker.skipKey), "9.9.9+ARAS.Patch.3")
+        }
+    }
+
+    /// A version the user skipped stays away from the daily check and still comes when the user asks from the menu.
+    func testASkippedVersionStaysAwayOnlyFromTheDailyCheck() {
+        let release: [String: Any] = ["tag_name": "mac-v9.9.9+ARAS.Patch.1"]
+        let title = loc.t("update_available_title", "9.9.9+ARAS.Patch.1")
+        UserDefaults.standard.set("9.9.9+ARAS.Patch.1", forKey: UpdateChecker.skipKey)
+        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1"]) {
+            XCTAssertFalse(printed { UpdateChecker.handle(release: release, manual: false) }.contains(title), "the daily check showed it")
+            XCTAssertTrue(printed { UpdateChecker.handle(release: release, manual: true) }.contains(title), "the menu's check hid it")
+        }
+    }
+
+    /// The daily check's alert waits for an open sheet; if the user meanwhile asks from the menu and skips that version,
+    /// the waiting alert must not come as well.
+    func testAWaitingUpdateAlertStaysAwayOnceItsVersionIsSkippedIsAKnownIssue() {
+        UserDefaults.standard.removeObject(forKey: UpdateChecker.skipKey)
+        let release: [String: Any] = ["tag_name": "mac-v9.9.9+ARAS.Patch.1"]
+        let title = loc.t("update_available_title", "9.9.9+ARAS.Patch.1")
+        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": "skip"]) {
+            let output = printed {
+                _ = openSheet()
+                UpdateChecker.handle(release: release, manual: false)
+                UpdateChecker.handle(release: release, manual: true)
+                closeSheets()
+                spin(2.5)
+            }
+            XCTExpectFailure("the waiting alert comes after the version was skipped") {
+                XCTAssertEqual(output.components(separatedBy: title).count - 1, 1, output)
+            }
         }
     }
 }
