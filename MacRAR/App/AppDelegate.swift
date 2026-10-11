@@ -143,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var seen = Set<String>()
         let unique = rawFiles.map { Self.resolved($0) }.filter { seen.insert($0).inserted }
         // A volume set opens once, from its first volume, whichever of its volumes came
-        let files = Self.dedupeVolumes(unique)
+        let files = VolumeSets.firstVolumes(unique)
         let archives = files.filter { Self.isArchive($0) }
         let others = files.filter { !Self.isArchive($0) }
         for archive in archives { openArchive(archive, reuse: nil) }

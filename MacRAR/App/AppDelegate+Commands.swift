@@ -13,11 +13,11 @@ extension AppDelegate {
             print("\(count) Quick Actions installed: \(QuickActions.servicesDir)")
             self.finishCommand()
         case .extractHere(let paths):
-            processArchives(Self.dedupeVolumes(paths), dest: { ($0 as NSString).deletingLastPathComponent })
+            processArchives(VolumeSets.firstVolumes(paths), dest: { ($0 as NSString).deletingLastPathComponent })
         case .extractFolder(let paths):
-            processArchives(Self.dedupeVolumes(paths), dest: { Ops.folderNamedAfterArchive($0) })
+            processArchives(VolumeSets.firstVolumes(paths), dest: { Ops.folderNamedAfterArchive($0) })
         case .extractTo(let paths):
-            let list = Self.dedupeVolumes(paths)
+            let list = VolumeSets.firstVolumes(paths)
             guard let first = list.first,
                   let dest = Dialogs.chooseFolder(title: loc.t("panel_extract_destination"), prompt: loc.t("extract"),
                                                initial: (first as NSString).deletingLastPathComponent) else {
@@ -25,7 +25,7 @@ extension AppDelegate {
             }
             processArchives(list, dest: { _ in dest })
         case .test(let paths):
-            testArchives(Self.dedupeVolumes(paths))
+            testArchives(VolumeSets.firstVolumes(paths))
         case .compress(let items):
             let existing = items.filter { FileManager.default.fileExists(atPath: $0) }
             guard !existing.isEmpty else { self.finishCommand(); return }

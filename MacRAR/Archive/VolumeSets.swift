@@ -1,12 +1,12 @@
 import Foundation
 
-/// The volumes of a split archive, chosen in Finder: 7-Zip reads a whole set from its first volume, and fails with
-/// "Headers Error" on any other.
-extension AppDelegate {
+/// The volumes of a split archive, chosen in Finder, opened or dropped: 7-Zip reads a whole set from its first volume,
+/// and reads a later one as an archive of its own, which fails or shows only the items that start in it.
+enum VolumeSets {
     /// One archive per volume set: its first volume when that is chosen or on the disk beside the others, otherwise the
     /// earliest one chosen. Sets are named name.partN.rar (part1, part01 or part001), name.7z.001 … and, the old way,
-    /// name.rar with name.r00, name.r01 … or name.zip with name.z01 …; anything else is kept as it is.
-    static func dedupeVolumes(_ paths: [String]) -> [String] {
+    /// name.rar with name.r00, name.r01 … or name.zip with name.z01 …; anything else is kept as it is, in its place.
+    static func firstVolumes(_ paths: [String]) -> [String] {
         var result: [String] = []
         var placed: [String: (index: Int, number: Int)] = [:]
         for path in paths {

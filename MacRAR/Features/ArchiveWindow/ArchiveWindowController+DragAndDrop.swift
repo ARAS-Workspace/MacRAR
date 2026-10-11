@@ -28,7 +28,7 @@ extension ArchiveWindowController {
         }
         // Archives alone open in windows of their own, a volume set once, from its first volume; other items dropped
         // onto the empty window are compressed
-        let picked = AppDelegate.dedupeVolumes(paths)
+        let picked = VolumeSets.firstVolumes(paths)
         for archive in picked where AppDelegate.isArchive(archive) {
             AppDelegate.shared.openArchive(archive, reuse: info == nil ? self : nil)
         }
