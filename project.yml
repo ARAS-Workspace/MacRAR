@@ -32,14 +32,30 @@ targets:
       - framework: Libraries/SevenZipKit/lib7zip_apple.a
         embed: false
     postCompileScripts:
-      # The LGPL asks a binary distribution of 7-Zip to carry its licence;
-      # it is copied into the resources as 7zip-license.txt, as in 1.4.
-      - name: Copy 7-Zip licence
-        script: cp "${SRCROOT}/Libraries/SevenZipKit/LICENSE" "${SCRIPT_OUTPUT_FILE_0}"
+      # The licences travel with every copy of the app, byte for byte: the
+      # MIT notice of its own code (LICENSE), the third-party notices
+      # (THIRD_PARTY_LICENSES), 7-Zip's licence (as 7zip-license.txt, the
+      # name it has had since 1.4) and the GNU LGPL 2.1 text that 7-Zip's
+      # licence refers to, which the LGPL asks a binary distribution to
+      # supply. Two of the files are named LICENSE, so they are copied by a
+      # step rather than added as resources.
+      - name: Copy the licences
+        script: |
+          set -eu
+          cp "${SCRIPT_INPUT_FILE_0}" "${SCRIPT_OUTPUT_FILE_0}"
+          cp "${SCRIPT_INPUT_FILE_1}" "${SCRIPT_OUTPUT_FILE_1}"
+          cp "${SCRIPT_INPUT_FILE_2}" "${SCRIPT_OUTPUT_FILE_2}"
+          cp "${SCRIPT_INPUT_FILE_3}" "${SCRIPT_OUTPUT_FILE_3}"
         inputFiles:
+          - $(SRCROOT)/LICENSE
+          - $(SRCROOT)/THIRD_PARTY_LICENSES
           - $(SRCROOT)/Libraries/SevenZipKit/LICENSE
+          - $(SRCROOT)/Libraries/SevenZipKit/copying.txt
         outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/LICENSE
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/THIRD_PARTY_LICENSES
           - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/7zip-license.txt
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/lgpl-2.1.txt
       # Finder names the archive kinds the app declares in the user's
       # language: InfoPlist.strings for each language, written from the
       # kind_* texts in translations/<language>.json, so that the Turkish

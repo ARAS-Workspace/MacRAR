@@ -1,0 +1,51 @@
+THIRD PARTY LICENSES
+================================================================================
+
+MacRAR
+Copyright (c) 2026 Mesut Çevik (github.com/mstcvk)
+Licensed under MIT - see LICENSE file for details
+
+This document lists third-party material in this repository and its licences.
+The app carries this file, LICENSE and the licence texts below in its
+resources (Contents/Resources).
+
+================================================================================
+7-ZIP
+================================================================================
+
+The archive formats, codecs and the extract and update logic come from 7-Zip,
+linked statically into the app as Libraries/SevenZipKit/lib7zip_apple.a.
+
+| Component | Version                | License                         | SPDX              |
+|-----------|------------------------|---------------------------------|-------------------|
+| 7-Zip     | 26.04+MacRAR.Patch.5   | GNU LGPL 2.1 or later, with the | LGPL-2.1-or-later |
+|           |                        | unRAR restriction for the RAR   |                   |
+|           |                        | decoder; some files BSD 3-/2-   |                   |
+|           |                        | clause or public domain         |                   |
+
+Copyright (C) 1999-2026 Igor Pavlov. https://www.7-zip.org
+
+The library is a modified build. The fork it comes from adds a C interface and
+its build and release scripts in a directory of its own (7zip-apple/), and
+changes three of 7-Zip's own files, each of which says so with the date:
+- 2026-10-13: on Apple systems, ZIP names stored in a Windows code page are
+  read with the code pages the application gives (CPP/7zip/Archive/Zip/
+  ZipItem.cpp, CPP/Common/StringConvert.cpp, CPP/Common/StringConvert.h).
+
+Source:
+- Repository:  https://github.com/ARAS-Workspace/7zip (branch apple)
+- Release:     https://github.com/ARAS-Workspace/7zip/releases/tag/mac-v26.04%2BMacRAR.Patch.5
+- Upstream:    https://github.com/ip7z/7zip, release 26.04
+
+MacRAR's own source is public, so the app can be rebuilt and relinked against a
+modified build of the library, as the LGPL asks.
+
+Licence texts, byte for byte as 7-Zip 26.04 ships them:
+- 7-Zip's licence (DOC/License.txt): Libraries/SevenZipKit/LICENSE, in the app
+  as 7zip-license.txt.
+- The GNU LGPL 2.1 it refers to (DOC/copying.txt): Libraries/SevenZipKit/
+  copying.txt, in the app as lgpl-2.1.txt.
+
+The unRAR restriction means the RAR decoding code may not be used to develop a
+RAR (WinRAR) compatible archiver. The app only decodes RAR archives with it;
+creating them is left to RARLAB's own rar program, which the user installs.
