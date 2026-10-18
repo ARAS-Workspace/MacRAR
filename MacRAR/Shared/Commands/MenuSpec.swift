@@ -24,6 +24,8 @@ struct MenuSpec: Equatable {
     enum Submenu: Equatable {
         /// File > Open Recent, filled from the recent documents each time it opens.
         case openRecent
+        /// The app menu's Services, which AppKit fills with the system's services.
+        case services
     }
 
     enum Item: Equatable {
@@ -54,8 +56,9 @@ struct MenuSpec: Equatable {
     }
 
     /// The menu for `items`: the app's commands go to `appTarget`, the window's up the responder chain, AppKit's
-    /// actions to AppKit's responders.
-    static func menu(_ title: String, _ items: [Item], appTarget: CommandResponder?, recent: NSMenuDelegate?) -> NSMenu {
+    /// actions to AppKit's responders. A Services submenu is `services` when it is given, and a new one otherwise.
+    static func menu(_ title: String, _ items: [Item], appTarget: CommandResponder?, recent: NSMenuDelegate?,
+                     services: NSMenu? = nil) -> NSMenu {
         let menu = NSMenu(title: title)
         for item in items {
             switch item {
@@ -74,6 +77,10 @@ struct MenuSpec: Equatable {
                 let recentMenu = NSMenu(title: title)
                 recentMenu.delegate = recent
                 parent.submenu = recentMenu
+            case .submenu(.services, let title):
+                let submenu = services ?? NSMenu(title: title)
+                submenu.title = title
+                menu.addItem(withTitle: title, action: nil, keyEquivalent: "").submenu = submenu
             case .separator:
                 menu.addItem(.separator())
             }

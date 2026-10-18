@@ -30,6 +30,7 @@ enum MenuBarTable {
     static let app = ExpectedMenu(titleKey: nil, rows: [
         .item("menu_about"), .item("menu_check_for_updates"), .separator,
         .item("menu_settings", ","), .separator,
+        .item("menu_services"), .separator,
         .item("action_file_associations"), .item("menu_install_quick_actions"), .separator,
         .item("menu_hide_app", "h"), .item("menu_hide_others", "h", [.command, .option]), .item("menu_show_all"), .separator,
         .item("menu_quit_app", "q"),

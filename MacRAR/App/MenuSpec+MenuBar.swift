@@ -9,13 +9,15 @@ extension MenuSpec {
         ]
     }
 
-    /// About, updates, Settings, associations and Quick Actions, then hiding and quitting.
+    /// About, updates, Settings, the system's services, associations and Quick Actions, then hiding and quitting.
     private static func appMenu(_ loc: LocalizationManager, _ appName: String) -> Menu {
         Menu(title: "", role: nil, items: [
             command(.showAbout, loc.t("menu_about", appName)),
             command(.checkForUpdates, loc.t("menu_check_for_updates")),
             .separator,
             command(.showSettings, loc.t("menu_settings"), Shortcut(",")),
+            .separator,
+            .submenu(.services, title: loc.t("menu_services")),
             .separator,
             command(.showAssociations, loc.t("action_file_associations")),
             command(.installQuickActions, loc.t("menu_install_quick_actions")),

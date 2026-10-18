@@ -59,13 +59,15 @@ final class MenuBarTests: XCTestCase {
         }
     }
 
-    func testTheWindowAndHelpMenusAndOpenRecentAreWired() throws {
+    func testTheWindowHelpAndServicesMenusAndOpenRecentAreWired() throws {
         for language in languages {
             loc.current = language
             let items = try XCTUnwrap(NSApp.mainMenu?.items)
             guard items.count == MenuBarTable.menus.count else { return XCTFail("\(language): \(items.count) menus") }
             XCTAssertTrue(NSApp.windowsMenu === items[4].submenu, "\(language): AppKit is not told the Window menu")
             XCTAssertTrue(NSApp.helpMenu === items[5].submenu, "\(language): AppKit is not told the Help menu")
+            let services = items[0].submenu?.items.first { $0.title == loc.t("menu_services") }?.submenu
+            XCTAssertTrue(NSApp.servicesMenu === services, "\(language): AppKit is not told the Services menu")
             let recent = try XCTUnwrap(items[1].submenu?.items.first { $0.title == loc.t("menu_open_recent") }?.submenu)
             XCTAssertTrue(recent.delegate === AppDelegate.shared, "\(language): Open Recent is not filled")
         }
@@ -97,9 +99,11 @@ final class MenuBarTests: XCTestCase {
         }
         XCTAssertEqual(try XCTUnwrap(items.first { Command(sender: $0) == .quickLook }).keyEquivalentModifierMask, [])
         XCTAssertEqual(try XCTUnwrap(items.first { Command(sender: $0) == .extractTo }).keyEquivalentModifierMask, [.command, .shift])
-        XCTAssertTrue(try XCTUnwrap(items.first { $0.submenu != nil }?.submenu).delegate === delegate)
+        XCTAssertTrue(try XCTUnwrap(items.first { $0.title == loc.t("menu_open_recent") }?.submenu).delegate === delegate)
         XCTAssertTrue(menus.windows === menus.main.items[4].submenu)
         XCTAssertTrue(menus.help === menus.main.items[5].submenu)
+        XCTAssertTrue(menus.services === menus.main.items[0].submenu?.items.first { $0.title == loc.t("menu_services") }?.submenu)
+        XCTAssertNotNil(menus.services)
     }
 
     /// A menu bar on a language manager of its own renders again when that language changes, and leaves the app's
