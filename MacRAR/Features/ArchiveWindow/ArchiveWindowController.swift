@@ -63,25 +63,34 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The archive window placed last, which a new one cascades from when no archive window is main: an app in the
-    /// background, or a test run, whose windows never become main. The window server's order is no guide then: on CI
-    /// it kept the first window in front, and the third window came up on top of the second.
-    private static weak var lastPlaced: NSWindow?
+    /// When the window last came to the front through the app: placed, or made main after (`windowDidBecomeMain`). A
+    /// new window cascades from the archive window up with the latest, and not from the window server's order or
+    /// main window, which differ between an app in front and one in the background: on CI, where the test host is the
+    /// app in front, the first window stayed main and first in that order, and the third window came up on top of the
+    /// second; on a Mac, where the test host is in the background, no window was main.
+    private var cameToFront = 0
+    private static var fronts = 0
+
+    private func comeToFront() {
+        Self.fronts += 1
+        cameToFront = Self.fronts
+    }
 
     /// Puts the window where the user's archive windows saved their frame, or in the middle when none is saved, and
-    /// one step down and right of the archive window in front (the main one, or else the one placed last) when one is up. It takes the saved frame once it has its
-    /// toolbar: given it before, the toolbar made the window taller every time it opened. A test run leaves the frame,
-    /// columns, sort order and toolbar the user's windows saved as they were (MACRAR_DEBUG_UNSEEN).
+    /// one step down and right of the archive window last in front when one is up. It takes the saved frame once it
+    /// has its toolbar: given it before, the toolbar made the window taller every time it opened. A test run leaves the
+    /// frame, columns, sort order and toolbar the user's windows saved as they were (MACRAR_DEBUG_UNSEEN).
     private func place(savedFrame: NSWindow.PersistableFrameDescriptor?) {
         guard let window else { return }
-        let front = [NSApp.mainWindow, Self.lastPlaced].compactMap { $0 }
-            .first { $0 !== window && $0.isVisible && $0.windowController is ArchiveWindowController }
+        let front = NSApp.windows.compactMap { $0.windowController as? ArchiveWindowController }
+            .filter { $0 !== self && $0.window?.isVisible == true }
+            .max { $0.cameToFront < $1.cameToFront }?.window
         let saved = savedFrame ?? (UnseenWindows.isOn ? nil : UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.frameName)"))
         if let saved { window.setFrame(from: saved) } else { window.center() }
         // The first archive window up takes the name and saves its frame from then on
         if !UnseenWindows.isOn { window.setFrameAutosaveName(Self.frameName) }
         if let front { window.setFrameTopLeftPoint(window.cascadeTopLeft(from: NSPoint(x: front.frame.minX, y: front.frame.maxY))) }
-        Self.lastPlaced = window
+        comeToFront()
     }
 
     // MARK: UI
@@ -352,6 +361,10 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     // MARK: NSWindowDelegate
+
+    func windowDidBecomeMain(_ notification: Notification) {
+        comeToFront()
+    }
 
     func windowWillClose(_ notification: Notification) {
         AppDelegate.shared.windowClosed(self)

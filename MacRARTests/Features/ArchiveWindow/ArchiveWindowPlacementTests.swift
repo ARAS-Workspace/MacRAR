@@ -76,25 +76,51 @@ final class ArchiveWindowPlacementTests: XCTestCase {
         }
     }
 
-    /// With no archive window main, as in an app in the background or a test run, whose windows never become main, a
-    /// new window cascades from the one placed last, whatever order the window server keeps: on CI the windows kept
-    /// their first order, and the third window came up on top of the second, cascaded from the first.
-    func testANewWindowCascadesFromTheLastOneWhenNoneIsMain() throws {
-        let saved = try saved(at: frame(in: try screen())).descriptor
-        var controllers: [ArchiveWindowController] = []
-        defer { for controller in controllers { controller.close() } }
-        for _ in 0..<2 {
+    /// Opens `count` archive windows at `saved`, one after another, as `showWindow` puts them up.
+    private func open(_ count: Int, at saved: NSWindow.PersistableFrameDescriptor) -> [ArchiveWindowController] {
+        (0..<count).map { _ in
             let controller = ArchiveWindowController(savedFrame: saved)
-            controllers.append(controller)
             controller.showWindow(nil)
+            return controller
         }
-        // The window server's order as CI kept it: the first window in front
+    }
+
+    /// A new window cascades from the one the app last put in front, whatever order the window server keeps and
+    /// whichever window it keeps main: on CI, where the test host is the app in front, the first window stayed main
+    /// and first in that order, and the third window came up on top of the second; on a Mac, where the test host is in
+    /// the background, no window is main. Here the first window goes back to the front of that order.
+    func testANewWindowCascadesFromTheOnePlacedLastWhateverTheWindowServersOrder() throws {
+        let saved = try saved(at: frame(in: try screen())).descriptor
+        var controllers = open(2, at: saved)
+        defer { for controller in controllers { controller.close() } }
         controllers[0].window?.orderFront(nil)
-        let third = ArchiveWindowController(savedFrame: saved)
-        controllers.append(third)
-        let second = try XCTUnwrap(controllers[1].window), placed = try XCTUnwrap(third.window)
-        XCTAssertNil(NSApp.mainWindow?.windowController as? ArchiveWindowController)
+        controllers += open(1, at: saved)
+        let second = try XCTUnwrap(controllers[1].window), placed = try XCTUnwrap(controllers[2].window)
         XCTAssertGreaterThan(placed.frame.minX, second.frame.minX, "not to the right of the window placed last")
         XCTAssertLessThan(placed.frame.maxY, second.frame.maxY, "not below the window placed last")
+    }
+
+    /// A window the user makes main, by clicking it, is the one a new window cascades from: it comes up a step from the
+    /// first window, where the second came up.
+    func testANewWindowCascadesFromTheOneMadeMainLast() throws {
+        let saved = try saved(at: frame(in: try screen())).descriptor
+        var controllers = open(2, at: saved)
+        defer { for controller in controllers { controller.close() } }
+        let second = try XCTUnwrap(controllers[1].window).frame
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: controllers[0].window)
+        controllers += open(1, at: saved)
+        XCTAssertEqual(controllers[2].window?.frame, second)
+    }
+
+    /// With the window in front closed, a new window cascades from the one in front before it: it comes up where the
+    /// closed one was, not on top of the first window.
+    func testANewWindowCascadesFromTheOneBeforeTheWindowClosed() throws {
+        let saved = try saved(at: frame(in: try screen())).descriptor
+        var controllers = open(2, at: saved)
+        defer { for controller in controllers { controller.close() } }
+        let second = try XCTUnwrap(controllers[1].window).frame
+        controllers[1].close()
+        controllers += open(1, at: saved)
+        XCTAssertEqual(controllers[2].window?.frame, second)
     }
 }
