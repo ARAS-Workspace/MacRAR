@@ -7,6 +7,137 @@ Each entry is one patch round on top of an original release, versioned
 in the original project.
 
 
+v1.4.2+ARAS.Patch.6 - 2026-10-18
+--------------------------------
+
+TR:
+ - 7-Zip kütüphanesi 26.04+MacRAR.Patch.5'e geçti
+   (ARAS-Workspace/7zip). Adında * ya da ? olan öğeler yalnızca
+   kendileri olarak işleniyor. Önceden "a*.txt" silinince a1.txt ve
+   a2.txt de siliniyor, iki adla bütün arşiv boşalabiliyordu; seçili
+   öğeyi çıkarmak ya da eklemek kardeşlerini de alıyordu.
+ - ./ ile yapılmış tar arşivlerinde "." ya da ".." silinince bütün
+   arşiv siliniyor, "./a.txt" silinince başka bir a.txt gidiyordu.
+   Artık yalnızca seçilen öğe siliniyor.
+ - Hedef klasörün adında * varsa dosyalar başka bir klasöre
+   çıkarılıyordu; uzantısı olmayan bir arşive ekleme ve silme, yanına
+   yeni bir arşiv yazıp başarı bildiriyordu. İkisi de düzeldi.
+ - Windows'ta yapılmış ZIP arşivlerindeki Türkçe adlar (CP857) doğru
+   listeleniyor ve çıkarılıyor.
+ - Güvenlik: İndirilmiş bir arşivden çıkan salt okunur dosyalar da
+   karantina bilgisini taşıyor. Önceden Gatekeeper etiketi olmadan
+   kalıyorlardı.
+ - Güvenlik: Aç, Hızlı Bakış ve sürükleme, arşivdeki "dir/../../x"
+   gibi bir adla arşivin dışındaki yerel bir dosyayı açmıyor ya da
+   taşımıyor. Adı "/" ile başlayan bir girdi içeren arşiv artık
+   uygulamayı çökertmiyor.
+ - RAR: Adında ya da yolunda *, ? veya satır sonu olan bir öğe rar'a
+   verilmiyor ve nedeni söyleniyor. rar bu adları kalıp olarak okuyup
+   başka dosyaları da alıyor ya da siliyordu.
+ - RAR aracı: RARLAB'ın beta sürümleri (örneğin 7.30 beta 1)
+   kuruluyor. Önceden "bu Mac'te çalışmadı" denerek reddediliyordu.
+   Çalışıp sürümünü bildirmeyen bir araç için artık mimari değil,
+   kendi nedeni söyleniyor.
+ - "Sıkıştırdıktan sonra kaynak dosyaları sil" seçeneği "... Çöp
+   Sepetine taşı" oldu. Dosyalar, arşiv uyarısız yazılıp geri
+   okunduktan sonra Çöp Sepetine gidiyor ve geri alınabiliyor. Önceden
+   kalıcı siliniyor, klasörlerdeki sembolik bağlar izlenip seçilmemiş
+   dosyalar da siliniyor, tar.gz, tar.xz ve tar.bz2'de dosyalar arşiv
+   bitmeden siliniyordu.
+ - Parçalı arşivlere ekleme ve silme sunulmuyor, nedeni söyleniyor.
+   "../a" içeren bir arşiv anlamsız bir ".." üzerine yazma sorusu
+   sormuyor.
+ - Arşiv penceresi: Aynı adlı dosya ve klasörün ikisi de görünüyor; bu
+   dosyayı tek başına silmek reddediliyor, çünkü klasörü de silerdi.
+   Seçimin boyutu her öğeyi bir kez sayıyor. Süzgeç Türkçe büyük/küçük
+   harfleri buluyor ("istanbul", "İstanbul"u buluyor). Pencere
+   kaydedildiği yerde ve boyutta açılıyor; her açılışta uzamıyor.
+ - Dışarı sürüklerken içindeki bir öğeyle birlikte seçilen klasör
+   ikisini de getiriyor. Hedefte var olan öğeler için bir kez
+   soruluyor; değiştirilen öğe Çöp Sepetine gidiyor. Önceden
+   sorulmadan kalıcı siliniyordu.
+ - Arşiv Oluştur penceresinin kapatma düğmesi iptal ediyor; önceden
+   uygulama yanıt veremez hâlde kalıyordu. İlerleme yüzdesi doğru
+   okunuyor (rar'ın %29'u %28 görünüyordu). Biten işlem ilerleme
+   penceresini bırakıyor. Karantina adımı sürerken açılıştaki sorular
+   bekliyor.
+ - Uygulama menüsüne Hizmetler alt menüsü eklendi.
+ - Uygulama lisanslarını paketin içinde taşıyor: MIT metni,
+   THIRD_PARTY_LICENSES, 7-Zip lisansı ve GNU LGPL 2.1 metni. Hakkında
+   penceresi bunlara ve 7-Zip'in kaynağına yönlendiriyor.
+ - Geliştirme: Sorular, menüler, komutlar, ayarlar ve hata ayıklama
+   değişkenleri birer yerde toplandı; hiçbir yerden çağrılmayan kod
+   kaldırıldı.
+ - Geliştirme: Test koşusu kullanıcının ayarlarına, Open Recent
+   listesine ve Çöp Sepetine dokunmuyor; pencereleri görünmüyor ve
+   yanıtsız bir soru gerçek bir uyarı açmıyor. Her düzeltme, onsuz
+   başarısız olan bir testle ve kasıtlı bozmalarla kanıtlandı; tur
+   dört paralel incelemeden geçti ve bulunanlar aynı yolla düzeltildi.
+   Test sayısı 158 -> 284.
+
+EN:
+ - The 7-Zip library moves to 26.04+MacRAR.Patch.5
+   (ARAS-Workspace/7zip). An item with * or ? in its name is that item
+   alone. Deleting "a*.txt" used to delete a1.txt and a2.txt too, and
+   two such names could empty the archive; extracting or adding the
+   selected item took its siblings too.
+ - In a tar written with ./ names, deleting "." or ".." deleted every
+   item, and deleting "./a.txt" deleted another a.txt. Only the item
+   chosen is deleted now.
+ - Files extracted into a folder with * in its name went to another
+   folder, and adding to or deleting from an archive without an
+   extension wrote a new archive beside it and reported success. Both
+   are fixed.
+ - Turkish names in ZIP archives made on Windows (CP857) list and
+   extract correctly.
+ - Security: Read-only files extracted from a downloaded archive carry
+   its quarantine too. They used to come out without Gatekeeper's tag.
+ - Security: Opening an item, Quick Look and a drag no longer open or
+   move a local file outside the archive that a name such as
+   "dir/../../x" points at. An archive with an entry whose name starts
+   with "/" no longer crashes the app.
+ - RAR: An item with *, ? or a line break in its name or path is not
+   given to rar, and the reason is shown. rar read such names as
+   patterns and took or deleted other files with them.
+ - RAR tool: RARLAB's betas (such as 7.30 beta 1) install. They were
+   refused as not running on this Mac. A tool that runs but does not
+   report its version is told so, instead of the architecture.
+ - "Delete source files after archiving" became "Move source files to
+   the Trash after archiving". The files go to the Trash, where they
+   can be put back, once the archive is written without a warning and
+   reads back. They used to be deleted for good, links in folders were
+   followed and files nobody chose deleted, and for tar.gz, tar.xz and
+   tar.bz2 the files were deleted before the archive was written.
+ - Split archives are not offered additions or deletions, and the
+   reason is given. An archive holding "../a" no longer asks whether
+   to replace "..".
+ - Archive window: A file and a folder of one name are both shown;
+   deleting the file alone is refused, as it would delete the folder
+   too. A selection's size counts each item once. The filter finds
+   Turkish case pairs ("istanbul" finds "İstanbul"). The window opens
+   where it was saved and as large, instead of growing each time.
+ - Dragging out a folder with an item inside it brings both. Items
+   already at the destination are asked about once, and what is
+   replaced goes to the Trash. They used to be deleted for good
+   without a question.
+ - Create Archive's close button cancels; the app used to be left
+   unable to respond. The percentage reads right (rar's 29% showed as
+   28%). A finished operation lets go of its progress window. The
+   questions at launch wait while the quarantine is carried over.
+ - The app menu has the Services submenu.
+ - The app carries its licences: the MIT notice, THIRD_PARTY_LICENSES,
+   7-Zip's licence and the GNU LGPL 2.1. The About panel points to
+   them and to 7-Zip's source.
+ - Development: The questions, menus, commands, settings and debug
+   variables each have one place; code no caller reached was removed.
+ - Development: A test run leaves the user's settings, Open Recent and
+   Trash alone, shows no window, and an unanswered question never
+   brings up a real alert. Each fix was proved by a test that failed
+   without it and by deliberate breakages; the round went through four
+   parallel reviews, whose findings were fixed the same way. Tests 158
+   -> 284.
+
+
 v1.4.2+ARAS.Patch.5 - 2026-10-11
 --------------------------------
 
