@@ -33,8 +33,6 @@ final class ProgressPanel: NSWindowController {
     private let logView = NSTextView()
     private let startTime = Date()
     private var lastLogged = ""
-    /// Destination folder prefix in the unrar output (to shorten file names)
-    var stripPrefix: String?
     var onCancel: (() -> Void)?
     private weak var host: NSWindow?
 
@@ -205,8 +203,6 @@ final class ProgressPanel: NSWindowController {
         pendingShow = nil
         guard let window else { return }
         resizeToFit(animate: false)
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_DETAILS"] != nil { toggleDetails() }
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_DETAILS"] == "toggle" { toggleDetails() }
         if let host, host.isVisible {
             host.beginSheet(window)
         } else {
@@ -239,16 +235,7 @@ final class ProgressPanel: NSWindowController {
     /// The file line and the percentage line as they read now
     var readout: (file: String, detail: String) { (fileLabel.stringValue, detailLabel.stringValue) }
 
-    func setFile(_ raw: String) {
-        var name = raw
-        if let stripPrefix, !stripPrefix.isEmpty {
-            let pre = stripPrefix.hasSuffix("/") ? stripPrefix : stripPrefix + "/"
-            if name.hasPrefix(pre) {
-                name = String(name.dropFirst(pre.count))
-            } else if name == stripPrefix {
-                name = (stripPrefix as NSString).lastPathComponent
-            }
-        }
+    func setFile(_ name: String) {
         fileLabel.stringValue = name
         guard name != lastLogged else { return }
         lastLogged = name
@@ -269,23 +256,18 @@ final class ProgressPanel: NSWindowController {
         Int((min(1, max(0, fraction)) * 100 + 1e-9).rounded(.down))
     }
 
-    func setFraction(_ f: Double?) {
-        if let f {
-            let v = min(1, max(0, f))
-            bar.fraction = v
-            var text = loc.t("progress_percent", Self.percent(v))
-            let elapsed = Date().timeIntervalSince(startTime)
-            if v >= 0.02, v < 1, elapsed > 2 {
-                let remaining = elapsed * (1 - v) / v
-                text += loc.t("progress_remaining_elapsed", Self.format(remaining), Self.format(elapsed))
-            } else if elapsed > 2 {
-                text += loc.t("progress_elapsed", Self.format(elapsed))
-            }
-            detailLabel.stringValue = text
-        } else {
-            bar.fraction = 0
-            detailLabel.stringValue = ""
+    func setFraction(_ f: Double) {
+        let v = min(1, max(0, f))
+        bar.fraction = v
+        var text = loc.t("progress_percent", Self.percent(v))
+        let elapsed = Date().timeIntervalSince(startTime)
+        if v >= 0.02, v < 1, elapsed > 2 {
+            let remaining = elapsed * (1 - v) / v
+            text += loc.t("progress_remaining_elapsed", Self.format(remaining), Self.format(elapsed))
+        } else if elapsed > 2 {
+            text += loc.t("progress_elapsed", Self.format(elapsed))
         }
+        detailLabel.stringValue = text
     }
 
     private static func format(_ interval: TimeInterval) -> String {

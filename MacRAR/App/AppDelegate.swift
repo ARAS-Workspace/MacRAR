@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
         launched = true
-        if runDebugLaunch() { return }
+        scheduleDebugSnapshot()
         if let cmd = pendingCommand {
             NSApp.activate(ignoringOtherApps: true)
             runCommand(cmd)
@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Windowed use only, once a day
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if Prefs.checkUpdates { UpdateChecker.checkAutomatically() } }
         // Offer file associations on first launch (only when running from the Applications folder)
-        if QuickActions.ownedByThisCopy || ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
+        if QuickActions.ownedByThisCopy {
             askAssociationsWhenIdle()
         }
         warnAboutPlacementWhenIdle()
@@ -61,13 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// opened with an archive, the app may be asking for its password.
     func askAssociationsWhenIdle() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            Dialogs.whenIdle {
-                if ProcessInfo.processInfo.environment["MACRAR_DEBUG_ASSOC"] != nil {
-                    Associations.show(firstLaunch: true)
-                } else {
-                    Associations.promptIfFirstLaunch()
-                }
-            }
+            Dialogs.whenIdle { Associations.promptIfFirstLaunch() }
         }
     }
 
@@ -78,14 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
-        if let log = ProcessInfo.processInfo.environment["MACRAR_DEBUG_LOG"] {
-            let line = "\(Date().timeIntervalSince1970) openFiles(\(filenames.count)): \(filenames.map { ($0 as NSString).lastPathComponent }) launched=\(launched) modal=\(NSApp.modalWindow != nil)\n"
-            if let h = FileHandle(forWritingAtPath: log) {
-                h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile()
-            } else {
-                try? line.write(toFile: log, atomically: true, encoding: .utf8)
-            }
-        }
         // Answer Finder right away; handle the files outside the Apple event handler, while no modal window is up
         sender.reply(toOpenOrPrint: .success)
         if launched {

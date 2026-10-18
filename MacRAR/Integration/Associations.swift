@@ -93,18 +93,15 @@ enum Associations {
     }
 
     /// Make this app the default for the selected types; report the result
-    static func apply(_ types: [UTType], quiet: Bool = false, completion: ((Int, [String]) -> Void)? = nil) {
+    static func apply(_ types: [UTType]) {
         var ok = 0
         var failed: [String] = []
         func next(_ i: Int) {
             guard i < types.count else {
-                completion?(ok, failed)
-                if !quiet {
-                    if failed.isEmpty {
-                        Dialogs.info(loc.t("ok"), loc.t("assoc_done", AppInfo.name, ok))
-                    } else {
-                        Dialogs.error(loc.t("assoc_partial_failure"), failed.joined(separator: ", "))
-                    }
+                if failed.isEmpty {
+                    Dialogs.info(loc.t("ok"), loc.t("assoc_done", AppInfo.name, ok))
+                } else {
+                    Dialogs.error(loc.t("assoc_partial_failure"), failed.joined(separator: ", "))
                 }
                 return
             }

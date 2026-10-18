@@ -250,21 +250,9 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         if root.children.count == 1, let only = root.children.first, only.isDir {
             outline.expandItem(only)
         }
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_EXPAND"] != nil {
-            outline.expandItem(nil, expandChildren: true)
-        }
-        if let sort = ProcessInfo.processInfo.environment["MACRAR_DEBUG_SORT"] {   // e.g. size:desc
-            let parts = sort.split(separator: ":")
-            outline.sortDescriptors = [NSSortDescriptor(key: String(parts[0]), ascending: parts.count < 2 || parts[1] != "desc")]
-        }
-        if let size = ProcessInfo.processInfo.environment["MACRAR_DEBUG_WINDOW"] {
-            let parts = size.split(separator: "x").compactMap { Double($0) }
-            if parts.count == 2 { window?.setContentSize(NSSize(width: parts[0], height: parts[1])) }
-        }
         updateStatus()
         // A test run leaves the user's Open Recent as it was
         if !UnseenWindows.isOn { NSDocumentController.shared.noteNewRecentDocumentURL(URL(fileURLWithPath: path)) }
-        if let dest = ProcessInfo.processInfo.environment["MACRAR_DEBUG_DRAG"] { simulateDrag(to: dest) }
     }
 
     func applyFilter() {
@@ -309,9 +297,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         if info.headersEncrypted, !det.contains("encrypted headers") { det += ", encrypted headers" }
         det = det.replacingOccurrences(of: "encrypted headers", with: loc.t("status_flag_encrypted_headers"))
             .replacingOccurrences(of: "solid", with: loc.t("status_flag_solid"))
-            .replacingOccurrences(of: "recovery record", with: loc.t("status_flag_recovery_record"))
             .replacingOccurrences(of: "volume", with: loc.t("status_flag_volume"))
-            .replacingOccurrences(of: "lock", with: loc.t("status_flag_locked"))
         if info.hasEncryptedFiles && !info.headersEncrypted { det += loc.t("status_flag_encrypted_files") }
         parts.append(det)
         statusLabel.stringValue = parts.joined(separator: "   •   ")
@@ -345,15 +331,11 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) { panel.dataSource = self; panel.delegate = self }
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) { panel.dataSource = nil; panel.delegate = nil }
 
-    // MARK: Search and selection
+    // MARK: Search
 
     @objc func searchChanged(_ sender: NSSearchField) {
         filterText = sender.stringValue.trimmingCharacters(in: .whitespaces)
         applyFilter()
-    }
-
-    @objc func selectAllItems(_ sender: Any?) {
-        outline.selectAll(nil)
     }
 
     // MARK: Validation

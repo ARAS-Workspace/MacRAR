@@ -171,25 +171,3 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
         completionHandler(error)
     }
 }
-
-extension ArchiveWindowController {
-    /// Debugging, MACRAR_DEBUG_DRAG: writes the first top-level items to the destination as if dragged to Finder.
-    func simulateDrag(to dest: String) {
-        let nodes = Array(root.children.prefix(2))
-        guard !nodes.isEmpty else { return }
-        outlineView(outline, draggingSession: NSDraggingSession(), willBeginAt: .zero, forItems: nodes)
-        for node in nodes {
-            let provider = NSFilePromiseProvider(fileType: "public.data", delegate: self)
-            provider.userInfo = node
-            let url = URL(fileURLWithPath: (dest as NSString).appendingPathComponent(node.name))
-            promiseQueue.addOperation { [self] in
-                let done = DispatchSemaphore(value: 0)
-                filePromiseProvider(provider, writePromiseTo: url) { err in
-                    print("drag-sim:", node.name, err.map { "error \($0)" } ?? "OK")
-                    done.signal()
-                }
-                done.wait()
-            }
-        }
-    }
-}
