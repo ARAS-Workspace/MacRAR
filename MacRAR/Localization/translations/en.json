@@ -265,6 +265,7 @@
   "rar_tool_err_not_found": "No “rar” program was found there. Choose the “RAR for macOS” download from RARLAB.",
   "rar_tool_err_not_rarlab": "That “rar” is not RARLAB's RAR for macOS. Choose the “RAR for macOS” download from rarlab.com.",
   "rar_tool_err_wrong_arch": "The RAR tool did not run on this Mac. Make sure you downloaded the right build (ARM for Apple Silicon, x64 for Intel).",
+  "rar_tool_err_no_version": "The RAR tool ran but did not report its version as RARLAB's rar does. Choose the “RAR for macOS” download from RARLAB.",
   "update_check_failed_title": "Could not check for updates",
   "update_check_failed_message": "GitHub could not be reached. Check your internet connection.",
   "update_up_to_date_title": "You are up to date",

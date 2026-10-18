@@ -47,6 +47,35 @@ final class RarInstallTests: XCTestCase {
         return URL(fileURLWithPath: path)
     }
 
+    /// A program that answers -iver with `answer`, as RARLAB's rar answers it ("7.23", or "7.30 beta 1" for a beta).
+    private func answering(_ answer: String) throws -> URL {
+        let path = workspace.path("answers-\(UUID().uuidString)")
+        try "#!/bin/sh\nprintf '%s\\n' '\(answer)'\n".write(toFile: path, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+        return URL(fileURLWithPath: path)
+    }
+
+    /// RARLAB's rar, quarantined like a download, whose version answer is written "7-23": it passes the light check
+    /// and runs, but does not answer as rar does. Signed again, ad hoc, as its signature no longer matches.
+    private func answeringOtherwise() throws -> URL {
+        let copy = try impostor("otherwise", copying: rar.url.path)
+        var program = try Data(contentsOf: copy)
+        let format = try XCTUnwrap("%d.%02d".data(using: .utf32LittleEndian))
+        let changed = try XCTUnwrap("%d-%02d".data(using: .utf32LittleEndian))
+        let range = try XCTUnwrap(program.range(of: format), "rar's version format")
+        program.replaceSubrange(range, with: changed)
+        try program.write(to: copy)
+        let sign = Process()
+        sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        sign.arguments = ["--sign", "-", "--force", copy.path]
+        sign.standardOutput = FileHandle.nullDevice; sign.standardError = FileHandle.nullDevice
+        try sign.run()
+        sign.waitUntilExit()
+        XCTAssertEqual(sign.terminationStatus, 0)
+        quarantine(copy.path)
+        return copy
+    }
+
     private func assertRefused(_ source: URL, _ key: String, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertThrowsError(try RarTools.install(from: source, into: target), file: file, line: line) { error in
             XCTAssertEqual((error as? RarTools.InstallError)?.message, loc.t(key), file: file, line: line)
@@ -108,6 +137,40 @@ final class RarInstallTests: XCTestCase {
         XCTAssertNotNil(RarTools.reportedVersion(of: installed), "the installed tool is gone")
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: workspace.root.path).filter { $0.contains(".installing-") }
         XCTAssertEqual(leftovers, [])
+    }
+
+    /// A beta of rar answers -iver with its beta number, "7.30 beta 1", and was refused as a build for another Mac.
+    func testABetaIsTakenAtTheVersionItReports() throws {
+        XCTAssertEqual(RarTools.reportedVersion(of: try answering("7.30 beta 1")), "7.30 beta 1")
+        XCTAssertEqual(RarTools.reportedVersion(of: try answering("7.23")), "7.23")
+        XCTAssertNil(RarTools.reportedVersion(of: try answering("7.30 beta")))
+        XCTAssertNil(RarTools.reportedVersion(of: try answering("RAR 7.23")))
+    }
+
+    /// Why a tool gave no version: it did not start, or the system stopped it, as a build for another processor or a
+    /// damaged one (the architecture message); or it ran and failed or answered something else (a message of its own).
+    func testTheVersionAnswerSaysWhetherTheToolRan() throws {
+        XCTAssertEqual(RarTools.versionAnswer(of: try answering("7.30 beta 1")), .version("7.30 beta 1"))
+        XCTAssertEqual(RarTools.versionAnswer(of: try answering("7.23")), .version("7.23"))
+        XCTAssertEqual(RarTools.versionAnswer(of: try answering("hello")), .other)
+        let failing = workspace.path("failing")
+        try "#!/bin/sh\necho 7.23\nexit 1\n".write(toFile: failing, atomically: true, encoding: .utf8)
+        let stopped = workspace.path("stopped")
+        try "#!/bin/sh\necho 7.23\nkill -KILL $$\n".write(toFile: stopped, atomically: true, encoding: .utf8)
+        for path in [failing, stopped] { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path) }
+        XCTAssertEqual(RarTools.versionAnswer(of: URL(fileURLWithPath: failing)), .other)
+        XCTAssertEqual(RarTools.versionAnswer(of: URL(fileURLWithPath: stopped)), .didNotRun)
+        XCTAssertEqual(RarTools.versionAnswer(of: URL(fileURLWithPath: workspace.path("missing"))), .didNotRun)
+    }
+
+    /// A RARLAB build that runs but does not answer -iver as rar does is refused with a message of its own: it was
+    /// told to fetch the build for its processor, which it had.
+    func testAToolThatRunsButAnswersOtherwiseIsToldSo() throws {
+        try RarTools.install(from: rar.url.deletingLastPathComponent(), into: target)
+        let otherwise = try answeringOtherwise()
+        XCTAssertTrue(RarTools.looksLikeRarlabRar(at: otherwise.path))
+        assertRefused(otherwise, "rar_tool_err_no_version")
+        XCTAssertEqual(RarTools.reportedVersion(of: installed), RarTools.reportedVersion(of: rar.url), "the installed tool is gone")
     }
 
     func testAFolderWithoutRarIsRefused() throws {

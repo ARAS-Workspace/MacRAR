@@ -265,6 +265,7 @@
   "rar_tool_err_not_found": "Seçilen yerde “rar” programı bulunamadı. RARLAB'dan indirdiğiniz “RAR for macOS” dosyasını seçin.",
   "rar_tool_err_not_rarlab": "Seçilen “rar”, RARLAB'ın RAR for macOS aracı değil. rarlab.com'dan indirilen “RAR for macOS” dosyasını seçin.",
   "rar_tool_err_wrong_arch": "RAR aracı bu Mac'te çalışmadı. Mac'inize uygun sürümü (Apple Silicon için ARM, Intel için x64) indirdiğinizden emin olun.",
+  "rar_tool_err_no_version": "RAR aracı çalıştı ancak sürümünü RARLAB'ın rar programı gibi bildirmedi. RARLAB'dan indirdiğiniz “RAR for macOS” dosyasını seçin.",
   "update_check_failed_title": "Güncelleme denetlenemedi",
   "update_check_failed_message": "GitHub'a ulaşılamadı. İnternet bağlantınızı kontrol edin.",
   "update_up_to_date_title": "Güncel sürümü kullanıyorsunuz",

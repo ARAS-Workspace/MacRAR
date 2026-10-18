@@ -149,8 +149,10 @@ enum RarTools {
         xattr.arguments = ["-dr", "com.apple.quarantine", staged]
         xattr.standardOutput = FileHandle.nullDevice; xattr.standardError = FileHandle.nullDevice
         try? xattr.run(); xattr.waitUntilExit()
-        guard reportedVersion(of: URL(fileURLWithPath: rar)) != nil else {
-            throw InstallError(message: loc.t("rar_tool_err_wrong_arch"))
+        switch versionAnswer(of: URL(fileURLWithPath: rar)) {
+        case .version: break
+        case .didNotRun: throw InstallError(message: loc.t("rar_tool_err_wrong_arch"))
+        case .other: throw InstallError(message: loc.t("rar_tool_err_no_version"))
         }
         try? fm.removeItem(atPath: directory)
         try fm.moveItem(atPath: staged, toPath: directory)
@@ -166,18 +168,35 @@ enum RarTools {
         return machO.contains(Array(data.prefix(4))) && data.range(of: copyright) != nil
     }
 
-    /// The version the tool reports with -iver ("7.23"); nil when it does not run or answers something else.
-    static func reportedVersion(of rar: URL) -> String? {
+    /// What the tool answers when asked its version with -iver.
+    enum VersionAnswer: Equatable {
+        /// RARLAB's answer: "7.23", or "7.30 beta 1" for a beta.
+        case version(String)
+        /// It did not start, or the system stopped it: a build for another processor, or a damaged one.
+        case didNotRun
+        /// It ran and failed, or answered something else.
+        case other
+    }
+
+    static func versionAnswer(of rar: URL) -> VersionAnswer {
         let process = Process()
         process.executableURL = rar
         process.arguments = ["-iver"]
         let pipe = Pipe()
         process.standardOutput = pipe; process.standardError = FileHandle.nullDevice; process.standardInput = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
+        do { try process.run() } catch { return .didNotRun }
         let output = String(bytes: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         process.waitUntilExit()
+        guard process.terminationReason == .exit else { return .didNotRun }
         let version = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return process.terminationStatus == 0 && version.range(of: #"^\d+\.\d+$"#, options: .regularExpression) != nil ? version : nil
+        let reported = process.terminationStatus == 0 && version.range(of: #"^\d+\.\d+( beta \d+)?$"#, options: .regularExpression) != nil
+        return reported ? .version(version) : .other
+    }
+
+    /// The version the tool reports with -iver; nil when it does not run or answers something else.
+    static func reportedVersion(of rar: URL) -> String? {
+        guard case .version(let version) = versionAnswer(of: rar) else { return nil }
+        return version
     }
 
     private static func findRarDir(in dir: String) -> String? {
