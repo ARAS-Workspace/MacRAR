@@ -206,6 +206,22 @@ final class LiteralNameTests: XCTestCase {
         XCTAssertTrue(workspace.exists("x*y/in.txt"))
     }
 
+    /// A carriage return and line feed, which Swift counts as one character, and a "*" or "?" followed by a combining
+    /// mark, which a name written decomposed can hold, are found as well: rar still reads them as two lines and as a
+    /// wildcard, and both passed the guard.
+    func testRarIsNeverGivenALineBreakOrAWildcardThatCombines() throws {
+        XCTAssertEqual(Ops.rarPattern(in: ["a1.txt\r\na2.txt"]), "a1.txt\r\na2.txt")
+        XCTAssertEqual(Ops.rarPattern(in: ["/x/a*\u{301}.txt"]), "a*\u{301}.txt")
+        XCTAssertEqual(Ops.rarPattern(in: ["/x/b?\u{FE0F}.txt"]), "b?\u{FE0F}.txt")
+        let info = try rarArchive()
+        var deleted = true
+        let told = printed {
+            deleted = finished { Ops.delete(info: info, names: ["a1.txt\r\na2.txt"], password: nil, host: nil, completion: $0) }
+        }
+        XCTAssertFalse(deleted, told)
+        XCTAssertEqual(entries(info.path), names.sorted())
+    }
+
     /// A line break would split a name in rar's list into two names.
     func testRarIsNeverGivenANameWithALineBreak() throws {
         let info = try rarArchive()

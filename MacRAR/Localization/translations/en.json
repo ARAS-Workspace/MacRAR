@@ -151,7 +151,11 @@
   "compress_sfx": "Self-extracting (SFX) archive",
   "compress_delete_sources": "Move source files to the Trash after archiving",
   "compress_sources_kept": "The archive was written, but it could not be read back, so the source files were not moved to the Trash.",
+  "compress_sources_kept_inside": "The archive was saved inside “%@”, one of the chosen items, so the source files were not moved to the Trash.",
+  "compress_sources_kept_warnings": "The archive was written with warnings, so the source files were not moved to the Trash:\n%@",
+  "compress_sources_kept_title": "Source files kept",
   "compress_trash_failed": "These source files could not be moved to the Trash: %@",
+  "compress_trash_failed_title": "Moving to the Trash failed",
   "compress_save_panel_title": "Save Archive",
   "compress_password_mismatch_title": "Passwords do not match",
   "compress_password_mismatch_message": "Enter the same password in both fields.",
@@ -200,6 +204,7 @@
   "rar_wildcard_delete": "“%@” has *, ? or a line break in its name. rar reads such a name as a pattern and would also delete the items it matches, so it cannot be deleted from a RAR archive.",
   "delete_tar_compressed_unsupported": "Entries cannot be deleted from tar.gz / tar.xz archives.",
   "delete_split_unsupported": "Entries cannot be deleted from a split archive.",
+  "delete_shared_name": "“%@” names both a file and a folder in this archive, and deleting the file would delete the folder too. Nothing was deleted.",
   "delete_failed_title": "Deletion failed",
   "assoc_title": "Which files should open with %@?",
   "assoc_message_first_launch": "Double-clicking the selected file types will open them in this app. You can change this later from “File Associations…” in the app menu.",
@@ -269,5 +274,5 @@
   "update_open_download_page": "Open Download Page",
   "update_skip_version": "Skip This Version",
   "about_developer": "Developer: Mesut Çevik\n",
-  "about_third_party": "\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR extraction: unRAR code © Alexander Roshal"
+  "about_third_party": "\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR extraction: unRAR code © Alexander Roshal\nLicences inside the app: THIRD_PARTY_LICENSES, lgpl-2.1.txt\n7-Zip source: github.com/ARAS-Workspace/7zip"
 }

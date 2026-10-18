@@ -51,6 +51,7 @@ final class ArchiveWindowDragTests: XCTestCase {
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(atPath: Ops.testTrash)
         workspace = nil
     }
 
@@ -222,6 +223,9 @@ final class ArchiveWindowDragTests: XCTestCase {
             XCTAssertEqual(results, ["a.txt": "ok", "dir": "ok", "dir/c.txt": "ok"], "\(answer)")
             XCTAssertEqual(Set(contents(destination)), after, "\(answer)")
         }
+        // What Replace replaced went to the Trash, folder and all, where it can be put back: it was deleted for good
+        let trashed = (FileManager.default.subpaths(atPath: Ops.testTrash) ?? []).sorted()
+        XCTAssertTrue(trashed.contains("a.txt") && trashed.contains("dir/old.txt"), "\(trashed)")
     }
 
     /// An item whose name climbs out ("dir/../../x.txt") is the archive's own item, which 7-Zip writes as "dir/x.txt",

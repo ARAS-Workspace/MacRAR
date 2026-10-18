@@ -89,7 +89,9 @@ enum Ops {
     /// first part of `items` holding "*", "?" or a line break, which rar is never given; nil when there is none.
     static func rarPattern(in items: [String]) -> String? {
         for item in items {
-            if let part = item.split(separator: "/").first(where: { $0.contains { "*?\n\r".contains($0) } }) { return String(part) }
+            // By Unicode scalars: Swift's characters join "\r\n" into one, and a mark onto the "*" or "?" before it
+            let part = item.split(separator: "/").first { $0.unicodeScalars.contains { "*?\n\r".unicodeScalars.contains($0) } }
+            if let part { return String(part) }
         }
         return nil
     }

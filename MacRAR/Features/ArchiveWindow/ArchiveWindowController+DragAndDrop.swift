@@ -80,7 +80,8 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
         var target = url
         if FileManager.default.fileExists(atPath: url.path) {
             switch answer {
-            case .overwrite: try FileManager.default.removeItem(at: url)
+            // What is replaced goes to the Trash, where it can be put back: it was deleted for good, folder and all
+            case .overwrite: try Ops.moveToTrash(url)
             case .rename: target = URL(fileURLWithPath: uniquePath(url.path))
             case .skip, .cancel: return
             }

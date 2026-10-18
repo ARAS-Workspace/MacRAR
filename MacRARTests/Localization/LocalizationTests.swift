@@ -42,4 +42,13 @@ final class LocalizationTests: XCTestCase {
         XCTAssertFalse(used.isEmpty)
         XCTAssertEqual(used.subtracting(english.keys), [], "keys used in the sources but missing from en.json")
     }
+
+    /// The Turkish texts call the Trash what macOS calls it, Çöp Sepeti, as Finder and the Dock do.
+    func testTheTurkishTextsCallTheTrashAsMacOSDoes() throws {
+        let url = Repository.root.appendingPathComponent("MacRAR/Localization/translations/tr.json")
+        let texts = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: String])
+        let trash = texts.filter { $0.value.contains("Çöp") }
+        XCTAssertFalse(trash.isEmpty)
+        for (key, text) in trash { XCTAssertTrue(text.contains("Çöp Sepeti"), "\(key): \(text)") }
+    }
 }

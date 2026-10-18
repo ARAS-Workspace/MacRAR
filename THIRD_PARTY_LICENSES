@@ -16,18 +16,19 @@ resources (Contents/Resources).
 The archive formats, codecs and the extract and update logic come from 7-Zip,
 linked statically into the app as Libraries/SevenZipKit/lib7zip_apple.a.
 
-| Component | Version                | License                         | SPDX              |
-|-----------|------------------------|---------------------------------|-------------------|
-| 7-Zip     | 26.04+MacRAR.Patch.5   | GNU LGPL 2.1 or later, with the | LGPL-2.1-or-later |
-|           |                        | unRAR restriction for the RAR   |                   |
-|           |                        | decoder; some files BSD 3-/2-   |                   |
-|           |                        | clause or public domain         |                   |
+| Component | Version                | License                         | SPDX                         |
+|-----------|------------------------|---------------------------------|------------------------------|
+| 7-Zip     | 26.04+MacRAR.Patch.5   | GNU LGPL 2.1 or later, with the | LGPL-2.1-or-later AND        |
+|           |                        | unRAR restriction for the RAR   | BSD-3-Clause AND             |
+|           |                        | decoder; some files BSD 3-/2-   | BSD-2-Clause AND             |
+|           |                        | clause or public domain         | LicenseRef-unRAR-restriction |
 
 Copyright (C) 1999-2026 Igor Pavlov. https://www.7-zip.org
 
 The library is a modified build. The fork it comes from adds a C interface and
 its build and release scripts in a directory of its own (7zip-apple/), and
-changes three of 7-Zip's own files, each of which says so with the date:
+changes three of 7-Zip's own files, each of which says so with the date. The C
+interface is under 7-Zip's licence, the GNU LGPL 2.1 or later. The changes:
 - 2026-10-13: on Apple systems, ZIP names stored in a Windows code page are
   read with the code pages the application gives (CPP/7zip/Archive/Zip/
   ZipItem.cpp, CPP/Common/StringConvert.cpp, CPP/Common/StringConvert.h).

@@ -215,4 +215,36 @@ final class ArchiveWindowCommandTests: XCTestCase {
         waitForOperations()
         XCTAssertEqual(controller.info?.entries.map(\.name).contains("a.txt"), false)
     }
+
+    /// A file and a folder of one name are two rows, but 7-Zip deletes by name, and the file's name selects the folder
+    /// and everything in it too: deleting the file is refused, and says why, where it took the folder's items with it.
+    func testDeletingAFileThatSharesAFoldersNameIsRefused() throws {
+        let zip = workspace.path("shared.zip")
+        try HostileArchive.zip([.file("a", "file"), .file("a/b.txt", "inner"), .file("c.txt")]).write(to: URL(fileURLWithPath: zip))
+        let controller = try opened(zip)
+        defer { controller.close() }
+        let outline = controller.outline
+        outline.expandItem(nil, expandChildren: true)
+        let file = try XCTUnwrap((0..<outline.numberOfRows).first {
+            guard let node = outline.item(atRow: $0) as? Node else { return false }
+            return node.path == "a" && !node.isDir
+        })
+        outline.selectRowIndexes(IndexSet(integer: file), byExtendingSelection: false)
+        let told = printed { controller.deleteSelected(nil) }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
+        XCTAssertTrue(told.contains(loc.t("delete_shared_name", "a")), told)
+        let left = try SevenZipBridge.list(zip, password: nil).get().items.map(\.path).sorted()
+        XCTAssertEqual(left, ["a", "a/b.txt", "c.txt"])
+
+        // Chosen with its folder, the file goes with the folder, as asked
+        let rows = (0..<outline.numberOfRows).filter { (outline.item(atRow: $0) as? Node)?.path == "a" }
+        outline.selectRowIndexes(IndexSet(rows), byExtendingSelection: false)
+        let both = printed { controller.deleteSelected(nil) }
+        let deadline = Date(timeIntervalSinceNow: 10)
+        while (try? SevenZipBridge.list(zip, password: nil).get().items.count) == 3, Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        }
+        XCTAssertFalse(both.contains(loc.t("delete_shared_name", "a")), both)
+        XCTAssertEqual(try SevenZipBridge.list(zip, password: nil).get().items.map(\.path), ["c.txt"])
+    }
 }

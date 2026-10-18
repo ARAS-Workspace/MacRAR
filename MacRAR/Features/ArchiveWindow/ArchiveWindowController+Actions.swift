@@ -85,6 +85,10 @@ extension ArchiveWindowController {
         guard let info else { return }
         let names = selectedPaths()
         guard !names.isEmpty else { return }
+        if let shared = Self.sharedName(among: selectedNodes(), in: root) {
+            Dialogs.error(loc.t("delete_failed_title"), loc.t("delete_shared_name", shared))
+            return
+        }
         let list = names.prefix(5).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ") + (names.count > 5 ? " …" : "")
         guard
             Dialogs.confirm(
@@ -139,6 +143,16 @@ extension ArchiveWindowController {
     @objc func collapseAll(_ sender: Any?) { outline.collapseItem(nil, collapseChildren: true) }
     @objc func refresh(_ sender: Any?) { reload() }
     @objc func revealArchive(_ sender: Any?) { if let archivePath { Ops.revealInFinder(archivePath) } }
+
+    /// The path of a selected file that is also a folder's path in `root`, the folder not selected with it: 7-Zip
+    /// deletes by name, and the file's name takes the folder and everything in it too. nil when there is none.
+    static func sharedName(among nodes: [Node], in root: Node) -> String? {
+        var all: [Node] = []
+        root.flatten(into: &all)
+        let folders = Set(all.filter(\.isDir).map(\.path))
+        let chosenFolders = Set(nodes.filter(\.isDir).map(\.path))
+        return nodes.first { !$0.isDir && folders.contains($0.path) && !chosenFolders.contains($0.path) }?.path
+    }
 
     /// Archive paths of the selected nodes (folders that already cover their children are collapsed)
     private func selectedPaths() -> [String] { Self.paths(for: selectedNodes()) }

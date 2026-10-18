@@ -65,7 +65,7 @@ Several files can follow the flag. When every part of a multi-volume archive (`.
 
 ## Third-party software
 
-- **7-Zip** © Igor Pavlov. GNU LGPL 2.1 or later; the RAR decoder files under the unRAR licence restriction, some files under BSD 3-clause, BSD 2-clause or in the public domain. It is linked into the app as a static library built in the [ARAS-Workspace/7zip](https://github.com/ARAS-Workspace/7zip) fork, where the library's source and build scripts are published; the licence text ships inside the app bundle as `7zip-license.txt`. Details are in [Libraries/SevenZipKit/NOTICE](Libraries/SevenZipKit/NOTICE). See [7-zip.org](https://www.7-zip.org).
+- **7-Zip** © Igor Pavlov. GNU LGPL 2.1 or later; the RAR decoder files under the unRAR licence restriction, some files under BSD 3-clause, BSD 2-clause or in the public domain. It is linked into the app as a static library built in the [ARAS-Workspace/7zip](https://github.com/ARAS-Workspace/7zip) fork, where the library's source and build scripts are published; the library is a modified build, and the app bundle carries its licence as `7zip-license.txt`, the GNU LGPL 2.1 it refers to as `lgpl-2.1.txt`, and [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES), which says what was changed and where the source is. Details are in [Libraries/SevenZipKit/NOTICE](Libraries/SevenZipKit/NOTICE). See [7-zip.org](https://www.7-zip.org).
 - **RAR / UNRAR** © Alexander Roshal, RARLAB. MacRAR does not include RARLAB's tools: RAR archives are read with 7-Zip's unRAR code, and creating RAR runs the `rar` the user installed. See [rarlab.com](https://www.rarlab.com).
 
 Neither project is affiliated with MacRAR. "WinRAR" and "RAR" are trademarks of their owner.

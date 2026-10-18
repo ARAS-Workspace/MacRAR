@@ -30,31 +30,44 @@ extension Ops {
             completion(false, options.archivePath); return
         }
         let steps = options.buildSteps(items: items)
-        runSteps(steps, index: 0, archive: options.archivePath, host: host) { ok, path in
-            if ok, options.deleteAfter { moveSourcesToTrash(items, archive: path, password: options.password) }
+        runSteps(steps, index: 0, archive: options.archivePath, host: host) { ok, path, warnings in
+            if ok, options.deleteAfter { moveSourcesToTrash(items, archive: path, password: options.password, warnings: warnings) }
             completion(ok, path)
         }
     }
 
-    /// "Move source files to the Trash after archiving": once the archive is written and reads back, the chosen items
-    /// go to the Trash, where they can be put back; a link among them goes itself, never what it points to. rar's -df
-    /// and 7-Zip's -sdel deleted for good, followed links into folders nobody chose and deleted what was there, and
-    /// for a compressed tar deleted the items before the archive was written.
-    private static func moveSourcesToTrash(_ items: [String], archive: String, password: String?) {
-        guard case .ok = ArchiveReader.list(archive, password: password.flatMap { $0.isEmpty ? nil : $0 }) else {
-            Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_sources_kept"))
+    /// "Move source files to the Trash after archiving": once the archive is written without a warning and reads back,
+    /// the chosen items go to the Trash, where they can be put back; a link among them goes itself, never what it points
+    /// to. rar's -df and 7-Zip's -sdel deleted for good, followed links into folders nobody chose and deleted what was
+    /// there, and for a compressed tar deleted the items before the archive was written. The sources stay, and the user
+    /// is told why, when the engine left something out with a warning (a file it could not read) or the archive was
+    /// saved inside one of them.
+    private static func moveSourcesToTrash(_ items: [String], archive: String, password: String?, warnings: [String]) {
+        let kept = loc.t("compress_sources_kept_title")
+        if !warnings.isEmpty {
+            Dialogs.error(kept, loc.t("compress_sources_kept_warnings", warnings.joined(separator: "\n")))
             return
         }
-        let failed = items.filter { item in (try? trash(URL(fileURLWithPath: item))) == nil }
+        if let holder = folder(holding: archive, among: items) {
+            Dialogs.error(kept, loc.t("compress_sources_kept_inside", name(holder)))
+            return
+        }
+        guard case .ok = ArchiveReader.list(archive, password: password.flatMap { $0.isEmpty ? nil : $0 }) else {
+            Dialogs.error(kept, loc.t("compress_sources_kept"))
+            return
+        }
+        let failed = items.filter { item in (try? moveToTrash(URL(fileURLWithPath: item))) == nil }
         if !failed.isEmpty {
-            Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_trash_failed", failed.map { name($0) }.joined(separator: ", ")))
+            let names = failed.map { name($0) }.joined(separator: ", ")
+            Dialogs.error(loc.t("compress_trash_failed_title"), loc.t("compress_trash_failed", names))
         }
     }
 
     /// A test run (MACRAR_DEBUG_UNSEEN) leaves the user's Trash alone: what it would trash goes to this folder.
     static let testTrash = (NSTemporaryDirectory() as NSString).appendingPathComponent("MacRARTests-Trash-\(getpid())")
 
-    private static func trash(_ item: URL) throws {
+    /// Moves `item` to the Trash, or to `testTrash` in a test run.
+    static func moveToTrash(_ item: URL) throws {
         guard UnseenWindows.isOn else { try FileManager.default.trashItem(at: item, resultingItemURL: nil); return }
         try FileManager.default.createDirectory(atPath: testTrash, withIntermediateDirectories: true)
         let target = uniquePath((testTrash as NSString).appendingPathComponent(item.lastPathComponent))
@@ -127,11 +140,12 @@ extension Ops {
     /// A name is taken by a file or by a split set under it.
     static func isTaken(_ path: String) -> Bool { firstVolume(of: path) != path || FileManager.default.fileExists(atPath: path) }
 
-    /// Runs the steps one after another in the archive's folder, where rar writes its temporary archive.
+    /// Runs the steps one after another in the archive's folder, where rar writes its temporary archive. The completion
+    /// gets the warnings of the steps that finished with one, each step adding its own.
     private static func runSteps(_ steps: [CompressOptions.Step], index: Int, archive: String, host: NSWindow?,
-                                 completion: @escaping (Bool, String) -> Void) {
+                                 completion: @escaping (Bool, String, [String]) -> Void) {
         let cwd = (archive as NSString).deletingLastPathComponent
-        guard index < steps.count else { completion(true, firstVolume(of: archive)); return }
+        guard index < steps.count else { completion(true, firstVolume(of: archive), []); return }
         let step = steps[index]
         let suffix = steps.count > 1 ? " (\(index + 1)/\(steps.count))" : ""
         let title = "\(step.title): \(name(archive))\(suffix)"
@@ -139,15 +153,18 @@ extension Ops {
             step.cleanup?()
             if result.cancelled {
                 steps[(index + 1)...].forEach { $0.cleanup?() }
-                completion(false, archive); return
+                completion(false, archive, []); return
             }
             if !result.ok {
                 steps[(index + 1)...].forEach { $0.cleanup?() }
                 Dialogs.error(loc.t("compress_failed_title"), result.errorSummary, details: result.output)
-                completion(false, archive)
+                completion(false, archive, [])
                 return
             }
-            runSteps(steps, index: index + 1, archive: archive, host: host, completion: completion)
+            let warning = result.code == 0 ? nil : result.errorSummary
+            runSteps(steps, index: index + 1, archive: archive, host: host) { ok, path, warnings in
+                completion(ok, path, (warning.map { [$0] } ?? []) + warnings)
+            }
         }
         switch step.work {
         case .rar(let args, let password): runRar(title: title, args: args, password: password, cwd: cwd, host: host, completion: next)

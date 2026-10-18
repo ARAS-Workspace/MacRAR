@@ -149,9 +149,13 @@
   "compress_solid": "Katı (solid) arşiv",
   "compress_recovery_record": "Kurtarma kaydı ekle (%3)",
   "compress_sfx": "Kendiliğinden açılan (SFX) arşiv",
-  "compress_delete_sources": "Sıkıştırdıktan sonra kaynak dosyaları Çöp'e taşı",
-  "compress_sources_kept": "Arşiv yazıldı ama geri okunamadı; bu yüzden kaynak dosyalar Çöp'e taşınmadı.",
-  "compress_trash_failed": "Şu kaynak dosyalar Çöp'e taşınamadı: %@",
+  "compress_delete_sources": "Sıkıştırdıktan sonra kaynak dosyaları Çöp Sepetine taşı",
+  "compress_sources_kept": "Arşiv yazıldı ama geri okunamadı; bu yüzden kaynak dosyalar Çöp Sepetine taşınmadı.",
+  "compress_sources_kept_inside": "Arşiv seçilen öğelerden “%@” içine kaydedildi; bu yüzden kaynak dosyalar Çöp Sepetine taşınmadı.",
+  "compress_sources_kept_warnings": "Arşiv uyarılarla yazıldı; bu yüzden kaynak dosyalar Çöp Sepetine taşınmadı:\n%@",
+  "compress_sources_kept_title": "Kaynak dosyalar yerinde bırakıldı",
+  "compress_trash_failed": "Şu kaynak dosyalar Çöp Sepetine taşınamadı: %@",
+  "compress_trash_failed_title": "Çöp Sepetine taşınamadı",
   "compress_save_panel_title": "Arşivi Kaydet",
   "compress_password_mismatch_title": "Şifreler eşleşmiyor",
   "compress_password_mismatch_message": "Her iki şifre alanına aynı şifreyi girin.",
@@ -200,6 +204,7 @@
   "rar_wildcard_delete": "“%@” adında *, ? ya da satır sonu var. rar böyle bir adı kalıp olarak okur ve kalıba uyan öğeleri de silerdi; bu yüzden RAR arşivinden silinemez.",
   "delete_tar_compressed_unsupported": "tar.gz / tar.xz türü arşivlerden dosya silinemez.",
   "delete_split_unsupported": "Parçalı arşivden dosya silinemez.",
+  "delete_shared_name": "Bu arşivde “%@” hem bir dosyanın hem bir klasörün adı; dosyayı silmek klasörü de silerdi. Hiçbir şey silinmedi.",
   "delete_failed_title": "Silme başarısız",
   "assoc_title": "Hangi dosyalar %@ ile açılsın?",
   "assoc_message_first_launch": "Seçtiğiniz dosya türlerine çift tıklayınca bu uygulama açılır. Daha sonra menüden “Dosya İlişkilendirmeleri…” ile değiştirebilirsiniz.",
@@ -269,5 +274,5 @@
   "update_open_download_page": "İndirme Sayfasını Aç",
   "update_skip_version": "Bu Sürümü Atla",
   "about_developer": "Geliştirici: Mesut Çevik\n",
-  "about_third_party": "\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR açma: unRAR kodu © Alexander Roshal"
+  "about_third_party": "\n\n7-Zip © Igor Pavlov (GNU LGPL)\nRAR açma: unRAR kodu © Alexander Roshal\nLisanslar uygulamanın içinde: THIRD_PARTY_LICENSES, lgpl-2.1.txt\n7-Zip kaynağı: github.com/ARAS-Workspace/7zip"
 }

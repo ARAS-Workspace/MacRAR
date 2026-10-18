@@ -47,4 +47,17 @@ final class BundledLicencesTests: XCTestCase {
         XCTAssertTrue(notices.contains("The library is a modified build"), notices)
         XCTAssertTrue(notices.contains(String(release)), "THIRD_PARTY_LICENSES names another release than SOURCE: \(release)")
     }
+
+    /// About shows 7-Zip's notice, and the LGPL asks that it also direct the user to the licence and say where the
+    /// source is: in both languages it names the two texts the app carries and the fork's address.
+    func testAboutPointsToTheLicencesAndTheSource() throws {
+        for language in ["en", "tr"] {
+            let url = Repository.root.appendingPathComponent("MacRAR/Localization/translations/\(language).json")
+            let texts = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: String])
+            let about = try XCTUnwrap(texts["about_third_party"])
+            for needed in ["THIRD_PARTY_LICENSES", "lgpl-2.1.txt", "github.com/ARAS-Workspace/7zip"] {
+                XCTAssertTrue(about.contains(needed), "\(language): \(needed) missing from \(about)")
+            }
+        }
+    }
 }

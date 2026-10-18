@@ -4,14 +4,16 @@ import XCTest
 /// The questions are values the app hands one prompter, Dialogs.prompter: the debug answers in front of the alerts and
 /// panels. Here an unseen screen stands in for those, so what the app asks can be read without an alert.
 final class PrompterTests: XCTestCase {
+    /// The app asks through the debug answers; behind them stand the alerts and panels, or in a test run
+    /// UnansweredPrompter (testATestRunNeverShowsAQuestion).
     func testTheAppAsksThroughTheDebugAnswersInFrontOfTheScreen() throws {
         let prompter = try XCTUnwrap(Dialogs.prompter as? DebugPrompter)
-        XCTAssertTrue(prompter.base is AppKitPrompter)
+        XCTAssertTrue(prompter.base is UnansweredPrompter)
     }
 
     /// With the debug answers set, an unseen screen stands behind them: a question they leave unanswered is held there
     /// and fails the test, rather than coming up as an alert or panel that waits for a click. Clearing them puts the
-    /// alerts and panels back.
+    /// test run's default back.
     func testTheTestsHoldBackUnansweredQuestions() throws {
         setDebugAnswers()
         // Unwrapped rather than asserted: without the screen, the question below would come up as a real alert
@@ -20,7 +22,7 @@ final class PrompterTests: XCTestCase {
         withoutEnvironment([.confirm]) { XCTAssertFalse(Dialogs.confirm("Delete?", "a.txt")) }
         XCTExpectFailure("the confirmation no variable answered is reported") { clearDebugAnswers() }
         let restored = try XCTUnwrap(Dialogs.prompter as? DebugPrompter)
-        XCTAssertTrue(restored.base is AppKitPrompter)
+        XCTAssertTrue(restored.base is UnansweredPrompter)
     }
 
     /// Without the debug variables, everything goes on to the screen, as it is.
@@ -90,7 +92,7 @@ final class PrompterTests: XCTestCase {
     /// cancel. The screen cancels it here, so neither the page nor a panel opens.
     func testTheRarToolQuestionIsAValue() {
         let screen = UnseenScreen()
-        withPrompter(screen) { XCTAssertFalse(RarTools.askForTool()) }
+        withPrompter(screen) { XCTAssertFalse(RarTools.askForTool(into: "/nonexistent/rar")) }
         XCTAssertEqual(screen.reached, [
             .ask(Question(topic: .rarToolMissing, title: loc.t("rar_tool_required_title"), message: loc.t("rar_tool_required_message"),
                           buttons: [loc.t("rar_tool_choose_downloaded"), loc.t("rar_tool_open_download_page"), loc.t("cancel")])),
@@ -108,5 +110,27 @@ final class PrompterTests: XCTestCase {
                           createFolders: true, directory: URL(fileURLWithPath: "/tmp"))),
             .choose(Panel(title: "Open", message: "Open", prompt: "Open", folders: false, multiple: true, archivesOnly: true)),
         ])
+    }
+
+    /// In a test run (MACRAR_DEBUG_UNSEEN) a question no debug variable answers never reaches a real alert or panel,
+    /// whichever test class asks it: behind the debug answers stands UnansweredPrompter, which says what was asked and
+    /// changes nothing. Behind them stood AppKitPrompter, whose alert waits for a click.
+    func testATestRunNeverShowsAQuestion() throws {
+        let front = try XCTUnwrap(Dialogs.defaultPrompter as? DebugPrompter)
+        XCTAssertTrue(front.base is UnansweredPrompter, "\(type(of: front.base))")
+        let unanswered = UnansweredPrompter()
+        let question = Question(topic: .rarToolMissing, title: "Choose?", message: "", buttons: ["Choose", "Open", "Cancel"])
+        var answer: Answer?, password: String? = "set", overwrite = Dialogs.OverwriteMode.overwrite, chosen = [URL(fileURLWithPath: "/")]
+        let told = printed {
+            answer = unanswered.ask(question)
+            password = unanswered.askPassword(archiveName: "x.zip", wrong: false)
+            overwrite = unanswered.askOverwrite(existing: ["a.txt"], dest: "/tmp")
+            chosen = unanswered.choose(Panel(kind: .open, title: "Pick", message: "", prompt: "Open"))
+        }
+        XCTAssertEqual(answer, Answer(button: 2))
+        XCTAssertNil(password)
+        XCTAssertEqual(overwrite, .cancel)
+        XCTAssertEqual(chosen, [])
+        XCTAssertTrue(told.contains("unanswered Choose?") && told.contains("unanswered Pick"), told)
     }
 }

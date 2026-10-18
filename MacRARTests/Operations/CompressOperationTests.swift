@@ -75,6 +75,52 @@ final class CompressOperationTests: XCTestCase {
 
     /// A compressed tar is packed into a tar in the temporary folder first. That tar takes the archive's name, which gzip
     /// keeps in the archive, and goes away once it is compressed; it used to be Archiver-<UUID>.tar.
+    /// A file the engine could not read is left out of the archive with a warning: the sources stay where they are and
+    /// the user is told why. They all went to the Trash, the unread file with them, and nothing was said.
+    func testTheSourcesStayWhenAFileCouldNotBeRead() throws {
+        let folder = try workspace.makeDirectory("unread")
+        try Data("ok".utf8).write(to: URL(fileURLWithPath: "\(folder)/ok.txt"))
+        try Data("secret".utf8).write(to: URL(fileURLWithPath: "\(folder)/locked.txt"))
+        chmod("\(folder)/locked.txt", 0o000)
+        defer { chmod("\(folder)/locked.txt", 0o644) }
+        var options = options(.zip, "unread.zip")
+        options.deleteAfter = true
+        var made = (ok: false, path: "")
+        let told = printed { made = compress([folder], options) }
+        XCTAssertTrue(made.ok, "the archive was written")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: "\(folder)/locked.txt"), "the unread file went to the Trash")
+        XCTAssertTrue(told.contains(loc.t("compress_sources_kept_title")), told)
+    }
+
+    /// An archive saved inside a chosen folder stays: the folder went to the Trash with the new archive in it.
+    func testTheSourcesStayWhenTheArchiveIsInsideThem() throws {
+        let folder = try workspace.makeDirectory("holder")
+        try Data("x".utf8).write(to: URL(fileURLWithPath: "\(folder)/a.txt"))
+        var options = options(.zip, "holder/inside.zip")
+        options.deleteAfter = true
+        var made = (ok: false, path: "")
+        let told = printed { made = compress([folder], options) }
+        XCTAssertTrue(made.ok)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: made.path), "the archive went to the Trash")
+        XCTAssertTrue(told.contains(loc.t("compress_sources_kept_inside", "holder")), told)
+    }
+
+    /// A source that cannot be moved to the Trash is reported under a title of its own, not as a failed compression:
+    /// the archive was written, and it is shown.
+    func testASourceThatCannotBeTrashedIsReportedAsSuch() throws {
+        let parent = try workspace.makeDirectory("fixed")
+        try Data("x".utf8).write(to: URL(fileURLWithPath: "\(parent)/kept.txt"))
+        chmod(parent, 0o555)
+        defer { chmod(parent, 0o755) }
+        var options = options(.zip, "fixed.zip")
+        options.deleteAfter = true
+        var made = (ok: false, path: "")
+        let told = printed { made = compress(["\(parent)/kept.txt"], options) }
+        XCTAssertTrue(made.ok)
+        XCTAssertTrue(told.contains(loc.t("compress_trash_failed_title")), told)
+        XCTAssertFalse(told.contains(loc.t("compress_failed_title")), told)
+    }
+
     func testCompressedTarsPackATarNamedAfterThem() throws {
         let temporary = NSTemporaryDirectory()
         let before = Set(try FileManager.default.contentsOfDirectory(atPath: temporary))

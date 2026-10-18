@@ -21,6 +21,8 @@ Expected output:
 
 ```
 lib7zip_apple.a: OK
+LICENSE: OK
+copying.txt: OK
 ```
 
 The paths inside `CHECKSUM.sha256` are relative to this directory, so `shasum -c` has to run from here; the subshell keeps your own working directory where it was.

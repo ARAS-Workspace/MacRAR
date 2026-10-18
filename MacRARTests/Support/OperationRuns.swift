@@ -81,7 +81,7 @@ extension XCTestCase {
         for variable in Self.debugAnswers.keys { unsetenv(variable.rawValue) }
         XCTAssertEqual(Self.screen?.reached ?? [], [], "a question no debug variable answers came up")
         Self.screen = nil
-        Dialogs.prompter = DebugPrompter(base: AppKitPrompter())
+        Dialogs.prompter = Dialogs.defaultPrompter
     }
 
     /// Runs Ops.compress to its completion and returns what it reports: whether it worked and the archive file the

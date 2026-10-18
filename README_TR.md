@@ -65,7 +65,7 @@ Bayraktan sonra birden çok dosya verilebilir. Çok parçalı arşivlerin (`.par
 
 ## Üçüncü taraf yazılımlar
 
-- **7-Zip** © Igor Pavlov. GNU LGPL 2.1 veya sonrası; RAR çözücü dosyaları unRAR kısıtlamasıyla, bazı dosyalar BSD 3-clause, BSD 2-clause ya da kamu malı. Uygulamaya [ARAS-Workspace/7zip](https://github.com/ARAS-Workspace/7zip) fork'unda derlenen statik bir kütüphane olarak bağlıdır; kütüphanenin kaynak kodu ve derleme betikleri orada yayımlanır, lisans metni uygulama paketinde `7zip-license.txt` olarak bulunur. Ayrıntılar [Libraries/SevenZipKit/NOTICE](Libraries/SevenZipKit/NOTICE) dosyasında. Bkz. [7-zip.org](https://www.7-zip.org).
+- **7-Zip** © Igor Pavlov. GNU LGPL 2.1 veya sonrası; RAR çözücü dosyaları unRAR kısıtlamasıyla, bazı dosyalar BSD 3-clause, BSD 2-clause ya da kamu malı. Uygulamaya [ARAS-Workspace/7zip](https://github.com/ARAS-Workspace/7zip) fork'unda derlenen statik bir kütüphane olarak bağlıdır; kütüphanenin kaynak kodu ve derleme betikleri orada yayımlanır, kütüphane değiştirilmiş bir derlemedir; uygulama paketi lisansını `7zip-license.txt`, başvurduğu GNU LGPL 2.1 metnini `lgpl-2.1.txt` olarak ve neyin değiştiğini, kaynağın nerede olduğunu söyleyen [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES) dosyasını taşır. Ayrıntılar [Libraries/SevenZipKit/NOTICE](Libraries/SevenZipKit/NOTICE) dosyasında. Bkz. [7-zip.org](https://www.7-zip.org).
 - **RAR / UNRAR** © Alexander Roshal, RARLAB. MacRAR RARLAB'ın araçlarını içermez: RAR arşivleri 7-Zip'in unRAR koduyla okunur, RAR oluşturmak için kullanıcının kurduğu `rar` çalıştırılır. Bkz. [rarlab.com](https://www.rarlab.com).
 
 Bu projelerin hiçbiri MacRAR ile bağlantılı değildir. "WinRAR" ve "RAR" sahibinin ticari markalarıdır.

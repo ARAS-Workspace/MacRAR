@@ -3,7 +3,13 @@ import AppKit
 /// The app's questions and reports, asked through Dialogs.prompter, and when the questions it asks on its own come up.
 enum Dialogs {
     /// What asks: the debug answers in front of the alerts and panels on screen.
-    static var prompter: any Prompter = DebugPrompter(base: AppKitPrompter())
+    static var prompter: any Prompter = defaultPrompter
+
+    /// The debug answers in front of the alerts and panels on screen, or in a test run (MACRAR_DEBUG_UNSEEN) in front
+    /// of UnansweredPrompter, so that no test can leave a real alert waiting.
+    static var defaultPrompter: any Prompter {
+        DebugPrompter(base: UnseenWindows.isOn ? UnansweredPrompter() : AppKitPrompter())
+    }
 
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
 
