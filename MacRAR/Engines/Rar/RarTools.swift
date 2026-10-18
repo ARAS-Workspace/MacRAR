@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 
 /// RARLAB's "RAR for macOS" tool. Its licence does not allow shipping it with the app; the user downloads it.
 enum RarTools {
@@ -45,48 +45,46 @@ enum RarTools {
     @discardableResult
     static func ensureAvailable() -> Bool {
         if available { return true }
-        // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is cancelled, so a test never reaches the user's tool
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
-            print("\(loc.t("rar_tool_required_title")): \(loc.t("rar_tool_required_message"))")
-            return false
-        }
-        Dialogs.activate()
-        let alert = NSAlert()
-        alert.messageText = loc.t("rar_tool_required_title")
-        alert.informativeText = loc.t("rar_tool_required_message")
-        alert.addButton(withTitle: loc.t("rar_tool_choose_downloaded"))
-        alert.addButton(withTitle: loc.t("rar_tool_open_download_page"))
-        alert.addButton(withTitle: loc.t("cancel"))
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            return chooseAndInstall()
-        case .alertSecondButtonReturn:
-            NSWorkspace.shared.open(downloadPage)
-            let wait = NSAlert()
-            wait.messageText = loc.t("rar_tool_wait_title")
-            wait.informativeText = loc.t("rar_tool_wait_message")
-            wait.addButton(withTitle: loc.t("rar_tool_choose_file"))
-            wait.addButton(withTitle: loc.t("cancel"))
-            Dialogs.activate()
-            return wait.runModal() == .alertFirstButtonReturn ? chooseAndInstall() : false
+        return askForTool()
+    }
+
+    /// The questions that walk the user through downloading RARLAB's rar and choosing it; true once it is installed into
+    /// `directory`, the app's own folder unless a test gives a scratch one.
+    static func askForTool(into directory: String = installDir) -> Bool {
+        var required = Question(topic: .rarToolMissing)
+        required.title = loc.t("rar_tool_required_title")
+        required.message = loc.t("rar_tool_required_message")
+        required.buttons.append(loc.t("rar_tool_choose_downloaded"))
+        required.buttons.append(loc.t("rar_tool_open_download_page"))
+        required.buttons.append(loc.t("cancel"))
+        switch Dialogs.ask(required).button {
+        case 0:
+            return chooseAndInstall(into: directory)
+        case 1:
+            Dialogs.openInBrowser(downloadPage)
+            var wait = Question(topic: .rarToolDownloading)
+            wait.title = loc.t("rar_tool_wait_title")
+            wait.message = loc.t("rar_tool_wait_message")
+            wait.buttons.append(loc.t("rar_tool_choose_file"))
+            wait.buttons.append(loc.t("cancel"))
+            return Dialogs.ask(wait).button == 0 ? chooseAndInstall(into: directory) : false
         default:
             return false
         }
     }
 
-    private static func chooseAndInstall() -> Bool {
-        let panel = NSOpenPanel()
+    private static func chooseAndInstall(into directory: String) -> Bool {
+        var panel = Panel()
         panel.title = loc.t("rar_tool_panel_title")
         panel.message = loc.t("rar_tool_panel_message")
         panel.prompt = loc.t("install")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-        Dialogs.activate()
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        panel.files = true
+        panel.folders = true
+        panel.multiple = false
+        panel.directory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        guard let url = Dialogs.choose(panel).first else { return false }
         do {
-            try install(from: url)
+            try install(from: url, into: directory)
             Dialogs.info(loc.t("rar_tool_installed_title"), loc.t("rar_tool_installed_message", version ?? "RAR"))
             return true
         } catch {

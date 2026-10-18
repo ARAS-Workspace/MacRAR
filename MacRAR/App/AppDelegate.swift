@@ -5,10 +5,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static var shared: AppDelegate!
 
     var windows: [ArchiveWindowController] = []
-    var pendingCommand: Command?
+    var pendingCommand: LaunchCommand?
     var pendingFiles: [String] = []
     private var launched = false
     var headless: Bool { pendingCommand != nil }
+    /// The menu bar, drawn from MenuSpec in the language chosen; the app's commands come here, Open Recent fills here.
+    private(set) lazy var menuBar = MenuBar(loc: loc, app: NSApp, appTarget: self, recent: self)
 
     static func isArchive(_ path: String) -> Bool { Formats.isArchive(path) }
 
@@ -16,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        buildMenu()
+        menuBar.install()
         NotificationCenter.default.addObserver(
             self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
         launched = true
@@ -113,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) { TempDirs.cleanupAll() }
 
-    @objc func showPreferences(_ sender: Any?) { PreferencesWindowController.shared.show() }
+    @objc func showSettings(_ sender: Any?) { PreferencesWindowController.shared.show() }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag, !headless { showEmptyWindow() }

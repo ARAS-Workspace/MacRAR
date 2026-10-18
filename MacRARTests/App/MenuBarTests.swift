@@ -81,6 +81,44 @@ final class MenuBarTests: XCTestCase {
         }
     }
 
+    /// Rendering sends the app's commands to their target and the window's up the responder chain, and AppKit's own
+    /// actions to AppKit's responders; the modifiers, Open Recent's delegate and the Window and Help roles come along.
+    func testRenderingSendsTheAppsCommandsToTheirTargetAndTheWindowsUpTheChain() throws {
+        let delegate = try XCTUnwrap(AppDelegate.shared)
+        let menus = MenuBar.render(MenuSpec(loc: loc), appTarget: delegate, recent: delegate)
+        let items = menus.main.items.flatMap { $0.submenu?.items ?? [] }
+        // An item with a submenu, Open Recent's, is AppKit's: it sends submenuAction: to its submenu
+        for item in items where item.action != nil && !item.hasSubmenu {
+            if let command = Command(sender: item), command.scope == .app {
+                XCTAssertTrue(item.target === delegate, "\(command) is not sent to the app delegate")
+            } else {
+                XCTAssertNil(item.target, item.title)
+            }
+        }
+        XCTAssertEqual(try XCTUnwrap(items.first { Command(sender: $0) == .quickLook }).keyEquivalentModifierMask, [])
+        XCTAssertEqual(try XCTUnwrap(items.first { Command(sender: $0) == .extractTo }).keyEquivalentModifierMask, [.command, .shift])
+        XCTAssertTrue(try XCTUnwrap(items.first { $0.submenu != nil }?.submenu).delegate === delegate)
+        XCTAssertTrue(menus.windows === menus.main.items[4].submenu)
+        XCTAssertTrue(menus.help === menus.main.items[5].submenu)
+    }
+
+    /// A menu bar on a language manager of its own renders again when that language changes, and leaves the app's
+    /// menu bar as it was.
+    func testTheMenuBarRendersAgainWhenItsLanguageChanges() throws {
+        let suite = "MacRARTests-MenuBar"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
+        let appMenuBar = NSApp.mainMenu
+        let bar = MenuBar(loc: manager, app: nil, appTarget: nil, recent: nil)
+        bar.install()
+        XCTAssertEqual(bar.menus?.main.items[1].submenu?.title, try strings(.en)["menu_file"])
+        manager.current = .tr
+        XCTAssertEqual(bar.menus?.main.items[1].submenu?.title, try strings(.tr)["menu_file"])
+        XCTAssertTrue(NSApp.mainMenu === appMenuBar)
+    }
+
     /// The Help menu opens the README in the app's language and the changelog, on this distribution's repository.
     /// Adapted from MacRAR 1.4.3, whose menu also opened its releases and a new issue. The items run as AppKit runs
     /// them.

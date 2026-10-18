@@ -37,22 +37,11 @@ extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
             s.searchField.sendsWholeSearchString = false
             return s
         }
-        let buttons: [NSToolbarItem.Identifier: (symbol: String, action: Selector)] = [
-            ToolbarItemID.open: ("folder", #selector(openArchive)),
-            ToolbarItemID.newArchive: ("doc.zipper", #selector(newArchive)),
-            ToolbarItemID.extractTo: ("square.and.arrow.down", #selector(extractTo)),
-            ToolbarItemID.extractHere: ("arrow.down.doc", #selector(extractHere)),
-            ToolbarItemID.extractFolder: ("folder.badge.plus", #selector(extractToFolder)),
-            ToolbarItemID.test: ("checkmark.shield", #selector(testArchive)),
-            ToolbarItemID.add: ("plus.rectangle.on.folder", #selector(addFiles)),
-            ToolbarItemID.delete: ("trash", #selector(deleteSelected)),
-            ToolbarItemID.info: ("info.circle", #selector(showInfo)),
-        ]
-        guard let button = buttons[id] else { return nil }
+        guard let button = Self.toolbarButtons[id] else { return nil }
         let item = NSToolbarItem(itemIdentifier: id)
         item.image = NSImage(systemSymbolName: button.symbol, accessibilityDescription: nil)
         item.target = self
-        item.action = button.action
+        item.action = .performCommand
         item.isBordered = true
         localize(item)
         return item
@@ -82,5 +71,18 @@ extension ArchiveWindowController: NSToolbarDelegate, NSToolbarItemValidation {
         item.toolTip = text.tip
         item.image?.accessibilityDescription = text.label
     }
-    func validateToolbarItem(_ item: NSToolbarItem) -> Bool { validate(item.action) }
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool { canPerformCommand(of: item) }
+
+    /// The toolbar's buttons, by the identifiers the toolbar saves its configuration with: their symbol and command.
+    static let toolbarButtons: [NSToolbarItem.Identifier: (symbol: String, command: Command)] = [
+        ToolbarItemID.open: ("folder", .openArchive),
+        ToolbarItemID.newArchive: ("doc.zipper", .newArchive),
+        ToolbarItemID.extractTo: ("square.and.arrow.down", .extractTo),
+        ToolbarItemID.extractHere: ("arrow.down.doc", .extractHere),
+        ToolbarItemID.extractFolder: ("folder.badge.plus", .extractToFolder),
+        ToolbarItemID.test: ("checkmark.shield", .testArchive),
+        ToolbarItemID.add: ("plus.rectangle.on.folder", .addFiles),
+        ToolbarItemID.delete: ("trash", .deleteSelected),
+        ToolbarItemID.info: ("info.circle", .showInfo),
+    ]
 }

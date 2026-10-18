@@ -1,7 +1,10 @@
 import AppKit
-import UniformTypeIdentifiers
 
+/// The app's questions and reports, asked through Dialogs.prompter, and when the questions it asks on its own come up.
 enum Dialogs {
+    /// What asks: the debug answers in front of the alerts and panels on screen.
+    static var prompter: any Prompter = DebugPrompter(base: AppKitPrompter())
+
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
 
     /// Whether something already waits for the user: a modal window (a password question, the Create Archive dialog,
@@ -34,209 +37,71 @@ enum Dialogs {
 
     /// Opens a page in the browser; with MACRAR_DEBUG_CONFIRM its address goes to stdout instead.
     static func openInBrowser(_ page: URL) {
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
-            print("open \(page.absoluteString)")
-            return
-        }
-        NSWorkspace.shared.open(page)
+        prompter.openInBrowser(page)
     }
 
     static func askPassword(archiveName: String, wrong: Bool = false) -> String? {
-        // Debugging: MACRAR_DEBUG_PASSWORD answers the first prompt, MACRAR_DEBUG_PASSWORD_RETRY the one after a wrong password
-        if let answer = ProcessInfo.processInfo.environment[wrong ? "MACRAR_DEBUG_PASSWORD_RETRY" : "MACRAR_DEBUG_PASSWORD"] {
-            print(wrong ? "password again" : "password")
-            return answer == "__cancel__" ? nil : answer
-        }
-        activate()
-        let alert = NSAlert()
-        alert.messageText = wrong ? loc.t("password_wrong_title") : loc.t("password_required_title")
-        alert.informativeText = loc.t("password_prompt_message", archiveName)
-        alert.icon = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil)
-        alert.addButton(withTitle: loc.t("ok"))
-        alert.addButton(withTitle: loc.t("cancel"))
-        let secure = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        secure.placeholderString = loc.t("password_field")
-        let plain = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        plain.placeholderString = loc.t("password_field")
-        plain.isHidden = true
-        let box = PasswordBox(secure: secure, plain: plain)
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 52))
-        secure.frame = NSRect(x: 0, y: 28, width: 300, height: 24)
-        plain.frame = secure.frame
-        box.toggle.frame = NSRect(x: 0, y: 2, width: 200, height: 20)
-        container.addSubview(secure); container.addSubview(plain); container.addSubview(box.toggle)
-        alert.accessoryView = container
-        alert.window.initialFirstResponder = secure
-        let resp = alert.runModal()
-        guard resp == .alertFirstButtonReturn else { return nil }
-        return box.value
-    }
-
-    /// Password field + "Show password" toggle
-    final class PasswordBox: NSObject {
-        let secure: NSSecureTextField
-        let plain: NSTextField
-        let toggle: NSButton
-        init(secure: NSSecureTextField, plain: NSTextField) {
-            self.secure = secure; self.plain = plain
-            toggle = NSButton(checkboxWithTitle: loc.t("password_show"), target: nil, action: nil)
-            super.init()
-            toggle.target = self; toggle.action = #selector(flip)
-            toggle.font = .systemFont(ofSize: 11)
-        }
-        var value: String { plain.isHidden ? secure.stringValue : plain.stringValue }
-        @objc private func flip() {
-            if toggle.state == .on {
-                plain.stringValue = secure.stringValue; plain.isHidden = false; secure.isHidden = true
-                plain.window?.makeFirstResponder(plain)
-            } else {
-                secure.stringValue = plain.stringValue; secure.isHidden = false; plain.isHidden = true
-                secure.window?.makeFirstResponder(secure)
-            }
-        }
+        prompter.askPassword(archiveName: archiveName, wrong: wrong)
     }
 
     enum OverwriteMode { case overwrite, rename, skip, cancel }
 
     static func askOverwrite(existing: [String], dest: String) -> OverwriteMode {
-        // Debugging: MACRAR_DEBUG_OVERWRITE=overwrite|rename|skip|cancel answers the question, which goes to stdout
-        let answers: [String: OverwriteMode] = ["overwrite": .overwrite, "rename": .rename, "skip": .skip, "cancel": .cancel]
-        if let answer = ProcessInfo.processInfo.environment["MACRAR_DEBUG_OVERWRITE"].flatMap({ answers[$0] }) {
-            print("overwrite \(existing.sorted())")
-            return answer
-        }
-        activate()
-        let alert = NSAlert()
-        alert.messageText = loc.t("overwrite_title")
-        let shown = existing.prefix(5).joined(separator: ", ") + (existing.count > 5 ? " …" : "")
-        alert.informativeText = loc.t("overwrite_message", (dest as NSString).lastPathComponent, shown)
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: loc.t("overwrite_replace"))
-        alert.addButton(withTitle: loc.t("overwrite_rename"))
-        alert.addButton(withTitle: loc.t("overwrite_skip"))
-        alert.addButton(withTitle: loc.t("cancel"))
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: return .overwrite
-        case .alertSecondButtonReturn: return .rename
-        case .alertThirdButtonReturn: return .skip
-        default: return .cancel
-        }
-    }
-
-    /// MACRAR_DEBUG_CONFIRM: an alert that only reports goes to stdout instead of waiting for the user
-    private static func reportedForDebugging(_ title: String, _ detail: String) -> Bool {
-        guard ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil else { return false }
-        print("\(title): \(detail)")
-        return true
+        prompter.askOverwrite(existing: existing, dest: dest)
     }
 
     static func error(_ title: String, _ detail: String, details: String? = nil) {
-        if reportedForDebugging(title, detail) { return }
-        activate()
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail.isEmpty ? loc.t("unknown_error") : detail
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: loc.t("ok"))
-        let full = (details ?? "").replacingOccurrences(of: "\u{8}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !full.isEmpty, full != detail {
-            alert.addButton(withTitle: loc.t("error_copy_details"))
-            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 140))
-            let tv = NSTextView(frame: scroll.bounds)
-            tv.isEditable = false
-            tv.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
-            tv.string = full
-            tv.autoresizingMask = [.width]
-            scroll.documentView = tv
-            scroll.hasVerticalScroller = true
-            scroll.borderType = .bezelBorder
-            alert.accessoryView = scroll
-            if alert.runModal() == .alertSecondButtonReturn {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(full, forType: .string)
-            }
-            return
-        }
-        alert.runModal()
+        prompter.report(Report(kind: .error, title: title, detail: detail, details: details))
     }
 
     static func info(_ title: String, _ detail: String) {
-        if reportedForDebugging(title, detail) { return }
-        activate()
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail
-        alert.addButton(withTitle: loc.t("ok"))
-        alert.runModal()
+        prompter.report(Report(kind: .info, title: title, detail: detail))
     }
 
-    /// Shows a question and returns the button chosen; with MACRAR_DEBUG_CONFIRM the question goes to stdout and its
-    /// first, default button answers.
-    static func ask(_ alert: NSAlert) -> NSApplication.ModalResponse {
-        if reportedForDebugging(alert.messageText, alert.informativeText) { return .alertFirstButtonReturn }
-        activate()
-        return alert.runModal()
+    /// Shows a question and returns the answer; with MACRAR_DEBUG_CONFIRM the question goes to stdout and DebugPrompter
+    /// answers it by its topic.
+    static func ask(_ question: Question) -> Answer {
+        prompter.ask(question)
     }
 
     static func confirm(_ title: String, _ detail: String, okTitle: String = loc.t("ok"), destructive: Bool = false) -> Bool {
-        // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is answered yes, or no when the variable says "no"
-        if let answer = ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] {
-            print("confirm \(title)")
-            return answer != "no"
-        }
-        activate()
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail
-        alert.alertStyle = destructive ? .warning : .informational
-        alert.addButton(withTitle: okTitle)
-        alert.addButton(withTitle: loc.t("cancel"))
-        if destructive, #available(macOS 11.0, *) { alert.buttons.first?.hasDestructiveAction = true }
-        return alert.runModal() == .alertFirstButtonReturn
+        var question = Question(topic: .confirmation)
+        question.title = title
+        question.message = detail
+        question.style = destructive ? .warning : .informational
+        question.buttons.append(okTitle)
+        question.buttons.append(loc.t("cancel"))
+        question.destructive = destructive
+        return prompter.ask(question).button == 0
     }
 
-    /// MACRAR_DEBUG_CONFIRM: an open or save panel is not shown; its title goes to stdout as "choose <title>" and it is
-    /// answered by MACRAR_DEBUG_CHOOSE, a path, or cancelled (an empty list). nil without the variable: show the panel.
-    static func debugChoice(_ title: String) -> [String]? {
-        let environment = ProcessInfo.processInfo.environment
-        guard environment["MACRAR_DEBUG_CONFIRM"] != nil else { return nil }
-        print("choose \(title)")
-        return environment["MACRAR_DEBUG_CHOOSE"].map { [$0] } ?? []
+    /// The files or folder chosen in an open or save panel; none when it is cancelled.
+    static func choose(_ panel: Panel) -> [URL] {
+        prompter.choose(panel)
     }
 
     static func chooseFolder(title: String, prompt: String, initial: String? = nil) -> String? {
-        if let chosen = debugChoice(title) { return chosen.first }
-        activate()
-        let panel = NSOpenPanel()
+        var panel = Panel()
         panel.title = title
         panel.message = title
         panel.prompt = prompt
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        if let initial { panel.directoryURL = URL(fileURLWithPath: initial) }
-        return panel.runModal() == .OK ? panel.url?.path : nil
+        panel.folders = true
+        panel.files = false
+        panel.createFolders = true
+        panel.multiple = false
+        if let initial { panel.directory = URL(fileURLWithPath: initial) }
+        return prompter.choose(panel).first?.path
     }
 
     static func chooseFiles(title: String, prompt: String, archivesOnly: Bool) -> [String] {
-        if let chosen = debugChoice(title) { return chosen }
-        activate()
-        let panel = NSOpenPanel()
+        var panel = Panel()
         panel.title = title
         panel.message = title
         panel.prompt = prompt
-        panel.canChooseDirectories = !archivesOnly
-        panel.canChooseFiles = true
-        panel.allowsMultipleSelection = true
-        if archivesOnly {
-            var types: [UTType] = [.archive]
-            if let utType = UTType("com.rarlab.rar-archive") { types.append(utType) }
-            if let utType = UTType("com.arasworkspace.MacRAR.archive") { types.append(utType) }
-            for ext in Formats.openable { if let utType = UTType(filenameExtension: ext) { types.append(utType) } }
-            panel.allowedContentTypes = types
-            panel.allowsOtherFileTypes = true
-        }
-        return panel.runModal() == .OK ? panel.urls.map { $0.path } : []
+        panel.folders = !archivesOnly
+        panel.files = true
+        panel.multiple = true
+        panel.archivesOnly = archivesOnly
+        return prompter.choose(panel).map { $0.path }
     }
 }

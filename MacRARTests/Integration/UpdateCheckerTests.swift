@@ -58,8 +58,8 @@ final class UpdateCheckerTests: XCTestCase {
             XCTAssertFalse(output.contains("only the release page shows"), "the alert shows the release notes")
             XCTAssertTrue(output.contains("open https://github.com/ARAS-Workspace/MacRAR/releases/tag/mac-v9.9.9%2BARAS.Patch.1"), output)
         }
-        let alert = UpdateChecker.alert(latest: "9.9.9+ARAS.Patch.1")
-        XCTAssertEqual(alert.buttons.map(\.title), [loc.t("update_open_download_page"), loc.t("later"), loc.t("update_skip_version")])
+        let question = UpdateChecker.question(latest: "9.9.9+ARAS.Patch.1")
+        XCTAssertEqual(question.buttons, [loc.t("update_open_download_page"), loc.t("later"), loc.t("update_skip_version")])
     }
 
     /// Without the address GitHub gives, the page of the release's tag opens; it used to be the latest release's.

@@ -4,21 +4,40 @@ import XCTest
 /// Items dragged out of an archive window to Finder, as file promises Finder asks the window to keep. A drag asks once
 /// and extracts once, whatever the number of items; a cancelled one writes nothing; an encrypted archive asks for its
 /// password once. The drag is set up as AppKit sets it up, through the outline's delegate, and each promise is kept on
-/// the window's promise queue, as Finder has it kept, into a folder of the test's own. The debug variables answer the
-/// questions, which they print, and the test reads what was asked from that.
+/// the window's promise queue, as Finder has it kept, into a folder of the test's own. The questions go to a
+/// prompter of the test's own, which says yes or no and writes down what it was asked.
 final class ArchiveWindowDragTests: XCTestCase {
-    /// How the drag's questions are answered: the confirmation yes or no, a password with "pw", and an overwrite
-    /// question with `overwrite` (MACRAR_DEBUG_OVERWRITE's words).
-    private struct Answering {
-        var yes = true
-        var overwrite = "cancel"
-        /// What was asked, in order: a confirmation by its title, "password", "overwrite [names]"
-        static func asked(in output: String) -> [String] {
-            output.split(separator: "\n").map(String.init).compactMap { line in
-                if line.hasPrefix("confirm ") { return String(line.dropFirst("confirm ".count)) }
-                return line == "password" || line.hasPrefix("overwrite ") ? line : nil
-            }
+    /// Answers a confirmation with `yes`, a password with "pw" and an overwrite question with `overwrite`, and keeps
+    /// what it was asked, in order.
+    private final class Answering: Prompter {
+        private let yes: Bool
+        private let overwrite: Dialogs.OverwriteMode
+        private(set) var asked: [String] = []
+
+        init(yes: Bool = true, overwrite: Dialogs.OverwriteMode = .cancel) {
+            self.yes = yes
+            self.overwrite = overwrite
         }
+
+        func ask(_ question: Question) -> Answer {
+            asked.append(question.title)
+            return Answer(button: yes ? 0 : 1)
+        }
+
+        func report(_ report: Report) { asked.append("report: \(report.detail)") }
+
+        func askPassword(archiveName: String, wrong: Bool) -> String? {
+            asked.append("password")
+            return "pw"
+        }
+
+        func askOverwrite(existing: [String], dest: String) -> Dialogs.OverwriteMode {
+            asked.append("overwrite \(existing.sorted())")
+            return overwrite
+        }
+
+        func choose(_ panel: Panel) -> [URL] { [] }
+        func openInBrowser(_ page: URL) {}
     }
 
     private var workspace: Workspace!
@@ -34,9 +53,6 @@ final class ArchiveWindowDragTests: XCTestCase {
     override func tearDown() {
         workspace = nil
     }
-
-    /// What the last drag asked
-    private var asked: [String] = []
 
     /// A ZIP of a.txt (100 B) and dir/ holding b.txt (200 B) and c.txt (300 B), open in a window no one sees.
     private func opened(password: String? = nil) throws -> ArchiveWindowController {
@@ -59,16 +75,14 @@ final class ArchiveWindowDragTests: XCTestCase {
     /// Drags the items at `paths` to `destination` and keeps every promise, as Finder does once the user drops them:
     /// what each promise ended with, by path ("ok", or the error's code).
     private func drag(_ paths: [String], from controller: ArchiveWindowController, to destination: URL,
-                      answering answers: Answering = Answering()) throws -> [String: String] {
+                      answering prompter: Answering) throws -> [String: String] {
         let outline = controller.outline
         outline.expandItem(nil, expandChildren: true)
         let shown = (0..<outline.numberOfRows).compactMap { outline.item(atRow: $0) as? Node }
         let nodes = try paths.map { path in try XCTUnwrap(shown.first { $0.path == path }, path) }
         var results: [String: String] = [:]
         let lock = NSLock()
-        let variables = ["MACRAR_DEBUG_CONFIRM": answers.yes ? "1" : "no", "MACRAR_DEBUG_PASSWORD": "pw",
-                         "MACRAR_DEBUG_OVERWRITE": answers.overwrite]
-        let output = printed { withEnvironment(variables) {
+        withPrompter(prompter) {
             controller.outlineView(outline, draggingSession: NSDraggingSession(), willBeginAt: .zero, forItems: nodes)
             for node in nodes {
                 guard let provider = controller.outlineView(outline, pasteboardWriterForItem: node) as? NSFilePromiseProvider else {
@@ -87,8 +101,7 @@ final class ArchiveWindowDragTests: XCTestCase {
                 RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
             }
             XCTAssertEqual(lock.withLock { results.count }, nodes.count, "the promises were not all kept")
-        } }
-        asked = Answering.asked(in: output)
+        }
         return results
     }
 
@@ -113,9 +126,10 @@ final class ArchiveWindowDragTests: XCTestCase {
         let controller = try opened()
         let destination = try folder()
         let before = dragFolders()
-                let results = try drag(["a.txt", "dir/b.txt"], from: controller, to: destination)
+        let prompter = Answering()
+        let results = try drag(["a.txt", "dir/b.txt"], from: controller, to: destination, answering: prompter)
         XCTAssertEqual(results, ["a.txt": "ok", "dir/b.txt": "ok"])
-        XCTAssertEqual(asked, [loc.t("drag_extract_confirm_multiple", 2, destination.lastPathComponent)])
+        XCTAssertEqual(prompter.asked, [loc.t("drag_extract_confirm_multiple", 2, destination.lastPathComponent)])
         XCTAssertEqual(contents(destination), ["a.txt 100", "b.txt 200"])
         XCTAssertEqual(dragFolders().subtracting(before), [], "the temporary folder stays")
     }
@@ -123,10 +137,11 @@ final class ArchiveWindowDragTests: XCTestCase {
     func testACancelledDragWritesNothing() throws {
         let controller = try opened()
         let destination = try folder()
-                let results = try drag(["a.txt", "dir"], from: controller, to: destination, answering: Answering(yes: false))
+        let prompter = Answering(yes: false)
+        let results = try drag(["a.txt", "dir"], from: controller, to: destination, answering: prompter)
         let cancelled = "\(CocoaError.Code.userCancelled.rawValue)"
         XCTAssertEqual(results, ["a.txt": cancelled, "dir": cancelled])
-        XCTAssertEqual(asked.count, 1)
+        XCTAssertEqual(prompter.asked.count, 1)
         XCTAssertEqual(contents(destination), [])
     }
 
@@ -136,8 +151,9 @@ final class ArchiveWindowDragTests: XCTestCase {
         let drags = [(["dir"], ["dir/", "dir/b.txt 200", "dir/c.txt 300"]), (["a.txt", "dir/c.txt"], ["a.txt 100", "c.txt 300"])]
         for (paths, expected) in drags {
             let destination = try folder()
-                        _ = try drag(paths, from: controller, to: destination)
-            XCTAssertEqual(asked.count, 1, "\(paths)")
+            let prompter = Answering()
+            _ = try drag(paths, from: controller, to: destination, answering: prompter)
+            XCTAssertEqual(prompter.asked.count, 1, "\(paths)")
             XCTAssertEqual(contents(destination), expected)
         }
     }
@@ -146,9 +162,10 @@ final class ArchiveWindowDragTests: XCTestCase {
     func testAnEncryptedArchiveAsksItsPasswordOnce() throws {
         let controller = try opened(password: "pw")
         let destination = try folder()
-                let results = try drag(["a.txt", "dir/b.txt"], from: controller, to: destination)
+        let prompter = Answering()
+        let results = try drag(["a.txt", "dir/b.txt"], from: controller, to: destination, answering: prompter)
         XCTAssertEqual(results, ["a.txt": "ok", "dir/b.txt": "ok"])
-        XCTAssertEqual(asked, [loc.t("drag_extract_confirm_multiple", 2, destination.lastPathComponent), "password"])
+        XCTAssertEqual(prompter.asked, [loc.t("drag_extract_confirm_multiple", 2, destination.lastPathComponent), "password"])
         XCTAssertEqual(contents(destination), ["a.txt 100", "b.txt 200"])
     }
 
@@ -159,7 +176,7 @@ final class ArchiveWindowDragTests: XCTestCase {
         let controller = try opened()
         for paths in [["dir", "dir/b.txt"], ["dir/b.txt", "dir"]] {
             let destination = try folder()
-            let results = try drag(paths, from: controller, to: destination)
+            let results = try drag(paths, from: controller, to: destination, answering: Answering())
             XCTAssertEqual(results, ["dir": "ok", "dir/b.txt": "ok"], "\(paths)")
             XCTAssertEqual(contents(destination), ["b.txt 200", "dir/", "dir/b.txt 200", "dir/c.txt 300"], "\(paths)")
         }
@@ -180,11 +197,11 @@ final class ArchiveWindowDragTests: XCTestCase {
     func testItemsAlreadyThereAreAskedAboutOnce() throws {
         let controller = try opened()
         let destination = try crowded()
-                let results = try drag(["a.txt", "dir", "dir/c.txt"], from: controller, to: destination,
-                               answering: Answering(overwrite: "cancel"))
+        let prompter = Answering(overwrite: .cancel)
+        let results = try drag(["a.txt", "dir", "dir/c.txt"], from: controller, to: destination, answering: prompter)
         let cancelled = "\(CocoaError.Code.userCancelled.rawValue)"
         XCTAssertEqual(results, ["a.txt": cancelled, "dir": cancelled, "dir/c.txt": cancelled])
-        XCTAssertEqual(asked, [loc.t("drag_extract_confirm_multiple", 3, destination.lastPathComponent),
+        XCTAssertEqual(prompter.asked, [loc.t("drag_extract_confirm_multiple", 3, destination.lastPathComponent),
                                         "overwrite [\"a.txt\", \"dir\"]"])
         XCTAssertEqual(Set(contents(destination)), ["a.txt 3", "dir/", "dir/old.txt 3"])
     }
@@ -193,15 +210,15 @@ final class ArchiveWindowDragTests: XCTestCase {
     /// under a new name; Skip leaves those there alone. An item not there arrives whatever the answer.
     func testReplaceKeepBothAndSkip() throws {
         let controller = try opened()
-        let expected: [(String, Set<String>)] = [
-            ("overwrite", ["a.txt 100", "c.txt 300", "dir/", "dir/b.txt 200", "dir/c.txt 300"]),
-            ("rename", ["a.txt 3", "a 2.txt 100", "c.txt 300", "dir/", "dir/old.txt 3", "dir 2/", "dir 2/b.txt 200", "dir 2/c.txt 300"]),
-            ("skip", ["a.txt 3", "c.txt 300", "dir/", "dir/old.txt 3"]),
+        let expected: [(Dialogs.OverwriteMode, Set<String>)] = [
+            (.overwrite, ["a.txt 100", "c.txt 300", "dir/", "dir/b.txt 200", "dir/c.txt 300"]),
+            (.rename, ["a.txt 3", "a 2.txt 100", "c.txt 300", "dir/", "dir/old.txt 3", "dir 2/", "dir 2/b.txt 200", "dir 2/c.txt 300"]),
+            (.skip, ["a.txt 3", "c.txt 300", "dir/", "dir/old.txt 3"]),
         ]
         for (answer, after) in expected {
             let destination = try crowded()
-            let results = try drag(["a.txt", "dir", "dir/c.txt"], from: controller, to: destination,
-                                   answering: Answering(overwrite: answer))
+            let prompter = Answering(overwrite: answer)
+            let results = try drag(["a.txt", "dir", "dir/c.txt"], from: controller, to: destination, answering: prompter)
             XCTAssertEqual(results, ["a.txt": "ok", "dir": "ok", "dir/c.txt": "ok"], "\(answer)")
             XCTAssertEqual(Set(contents(destination)), after, "\(answer)")
         }
@@ -221,7 +238,7 @@ final class ArchiveWindowDragTests: XCTestCase {
         controller.open(archive)
         addTeardownBlock { controller.close() }
         let destination = try folder()
-        let results = try drag(["dir/../../\(victimName)"], from: controller, to: destination)
+        let results = try drag(["dir/../../\(victimName)"], from: controller, to: destination, answering: Answering())
         XCTAssertEqual(results.values.first, "ok")
         XCTAssertEqual(try? String(contentsOf: victim, encoding: .utf8), "local", "the local file was taken")
         XCTAssertEqual(try? String(contentsOf: destination.appendingPathComponent(victimName), encoding: .utf8), "archived")

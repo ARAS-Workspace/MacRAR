@@ -67,12 +67,22 @@ extension XCTestCase {
         return (try? String(contentsOf: file, encoding: .utf8)) ?? ""
     }
 
+    /// What stands behind the debug answers while they are set: an unseen screen instead of the alerts and panels, so
+    /// that a question no variable answers fails the test instead of coming up.
+    private static var screen: UnseenScreen?
+
     func setDebugAnswers() {
         for (name, value) in Self.debugAnswers { setenv(name, value, 1) }
+        let screen = UnseenScreen()
+        Self.screen = screen
+        Dialogs.prompter = DebugPrompter(base: screen)
     }
 
     func clearDebugAnswers() {
         for name in Self.debugAnswers.keys { unsetenv(name) }
+        XCTAssertEqual(Self.screen?.reached ?? [], [], "a question no debug variable answers came up")
+        Self.screen = nil
+        Dialogs.prompter = DebugPrompter(base: AppKitPrompter())
     }
 
     /// Runs Ops.compress to its completion and returns what it reports: whether it worked and the archive file the

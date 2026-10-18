@@ -101,40 +101,22 @@ enum UpdateChecker {
 
     /// The update alert: the new version and the one in use, without the release notes, and a button that opens the
     /// new version's release page.
-    static func alert(latest: String) -> NSAlert {
-        let alert = NSAlert()
-        alert.messageText = loc.t("update_available_title", latest)
-        alert.informativeText = loc.t("update_available_message", currentVersion)
-        alert.addButton(withTitle: loc.t("update_open_download_page"))
-        alert.addButton(withTitle: loc.t("later"))
-        alert.addButton(withTitle: loc.t("update_skip_version"))
-        return alert
+    static func question(latest: String) -> Question {
+        var question = Question(topic: .update)
+        question.title = loc.t("update_available_title", latest)
+        question.message = loc.t("update_available_message", currentVersion)
+        question.buttons.append(loc.t("update_open_download_page"))
+        question.buttons.append(loc.t("later"))
+        question.buttons.append(loc.t("update_skip_version"))
+        return question
     }
 
     private static func present(latest: String, page: URL) {
         announced.insert(latest)
-        let alert = alert(latest: latest)
-        let answer = debugAnswer(alert) ?? {
-            Dialogs.activate()
-            return alert.runModal()
-        }()
-        switch answer {
-        case .alertFirstButtonReturn: Dialogs.openInBrowser(page)
-        case .alertThirdButtonReturn: UserDefaults.standard.set(latest, forKey: skipKey)
+        switch Dialogs.ask(question(latest: latest)).button {
+        case 0: Dialogs.openInBrowser(page)
+        case 2: UserDefaults.standard.set(latest, forKey: skipKey)
         default: break
-        }
-    }
-
-    /// MACRAR_DEBUG_CONFIRM: the alert goes to stdout and MACRAR_DEBUG_UPDATE answers it, download, skip or, by
-    /// default, later.
-    private static func debugAnswer(_ alert: NSAlert) -> NSApplication.ModalResponse? {
-        let environment = ProcessInfo.processInfo.environment
-        guard environment["MACRAR_DEBUG_CONFIRM"] != nil else { return nil }
-        print("\(alert.messageText): \(alert.informativeText)")
-        switch environment["MACRAR_DEBUG_UPDATE"] {
-        case "download": return .alertFirstButtonReturn
-        case "skip": return .alertThirdButtonReturn
-        default: return .alertSecondButtonReturn
         }
     }
 }

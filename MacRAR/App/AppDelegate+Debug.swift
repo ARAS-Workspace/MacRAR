@@ -8,7 +8,7 @@ extension AppDelegate {
         let environment = ProcessInfo.processInfo.environment
         scheduleDebugSnapshot()
         if environment["MACRAR_DEBUG_ABOUT"] != nil { showAbout(nil) }
-        if environment["MACRAR_DEBUG_PREFS"] != nil { showPreferences(nil) }
+        if environment["MACRAR_DEBUG_PREFS"] != nil { showSettings(nil) }
         if let ext = environment["MACRAR_DEBUG_ASSOC_APPLY"] {
             Associations.apply(Associations.types(for: [ext]), quiet: true) { ok, failed in
                 print("assoc \(ext): ok=\(ok) failed=\(failed) handler=\(Associations.currentHandler(for: [ext]))"); exit(0)

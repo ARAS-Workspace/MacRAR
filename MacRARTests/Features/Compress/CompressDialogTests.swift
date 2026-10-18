@@ -40,6 +40,39 @@ final class CompressDialogTests: XCTestCase {
         XCTAssertEqual(path.stringValue, "/a/x.7z")
     }
 
+    /// Browse asks for a save panel that starts in the archive's folder with its name; cancelled, it leaves the path
+    /// as it was.
+    func testBrowseAsksForASavePanel() throws {
+        var options = CompressOptions(archivePath: "/a/x.zip")
+        options.format = .zip
+        let dialog = CompressDialog(options: options, itemCount: 1)
+        let content = try XCTUnwrap(dialog.window?.contentView)
+        let path = try XCTUnwrap(views(NSTextField.self, in: content).first { $0.stringValue == "/a/x.zip" })
+        let browse = try XCTUnwrap(views(NSButton.self, in: content).first { $0.title == loc.t("compress_browse") })
+        let screen = UnseenScreen()
+        withPrompter(screen) { browse.performClick(nil) }
+        XCTAssertEqual(screen.reached, [
+            .choose(Panel(kind: .save, title: loc.t("compress_save_panel_title"), directory: URL(fileURLWithPath: "/a"), name: "x.zip")),
+        ])
+        XCTAssertEqual(path.stringValue, "/a/x.zip")
+    }
+
+    /// The path chosen in Browse's save panel goes into the path field (MACRAR_DEBUG_CHOOSE answers the panel).
+    func testBrowseTakesThePathChosen() throws {
+        setDebugAnswers()
+        defer { clearDebugAnswers() }
+        var options = CompressOptions(archivePath: "/a/x.zip")
+        options.format = .zip
+        let dialog = CompressDialog(options: options, itemCount: 1)
+        let content = try XCTUnwrap(dialog.window?.contentView)
+        let path = try XCTUnwrap(views(NSTextField.self, in: content).first { $0.stringValue == "/a/x.zip" })
+        let browse = try XCTUnwrap(views(NSButton.self, in: content).first { $0.title == loc.t("compress_browse") })
+        withEnvironment(["MACRAR_DEBUG_CHOOSE": "/b/çıktı.zip"]) {
+            XCTAssertEqual(printed { browse.performClick(nil) }, "choose \(loc.t("compress_save_panel_title"))\n")
+        }
+        XCTAssertEqual(path.stringValue, "/b/çıktı.zip")
+    }
+
     /// Runs a Create Archive window modally, unseen, with `action` done to it once the run is up: what run() returned,
     /// or nil when the run did not end by itself and was stopped after five seconds.
     @MainActor

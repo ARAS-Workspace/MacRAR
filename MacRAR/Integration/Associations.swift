@@ -63,74 +63,33 @@ enum Associations {
 
     @discardableResult
     static func show(firstLaunch: Bool = false) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = loc.t("assoc_title", AppInfo.name)
-        alert.informativeText = (firstLaunch
+        var question = Question(topic: .associations)
+        question.title = loc.t("assoc_title", AppInfo.name)
+        question.message = (firstLaunch
             ? loc.t("assoc_message_first_launch")
             : loc.t("assoc_message")) + "\n\n" + loc.t("assoc_confirm_note")
-        alert.icon = NSApp.applicationIconImage
-        let (choices, boxes) = choiceList()
-        alert.accessoryView = choices
-        alert.addButton(withTitle: loc.t("assoc_make_default"))
-        alert.addButton(withTitle: loc.t("assoc_not_now"))
-        // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is answered Not Now, leaving the user's associations
-        // as they are
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
-            print("\(alert.messageText): \(alert.informativeText)")
-            return false
-        }
-        Dialogs.activate()
-        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        question.appIcon = true
+        let groups = Self.groups
+        question.choices = groups.map(choice(for:))
+        question.buttons.append(loc.t("assoc_make_default"))
+        question.buttons.append(loc.t("assoc_not_now"))
+        let answer = Dialogs.ask(question)
+        guard answer.button == 0 else { return false }
         // Do not ask again for types this app already owns
-        let chosen = boxes.filter { $0.0.state == .on }.flatMap { types(for: $0.1.exts) }.filter { !isMine($0) }
+        let chosen = answer.chosen.map { groups[$0] }.flatMap { types(for: $0.exts) }.filter { !isMine($0) }
         if chosen.isEmpty { return true }
         apply(chosen)
         return true
     }
 
-    /// A checkbox for each group of types, ticked when it is on by default or already this app's, with the app that
-    /// opens the group now beneath it; and the checkboxes with their groups.
-    private static func choiceList() -> (view: NSView, boxes: [(NSButton, Group)]) {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        var boxes: [(NSButton, Group)] = []
-        for group in groups {
-            let (row, box) = choiceRow(for: group)
-            stack.addArrangedSubview(row)
-            boxes.append((box, group))
-        }
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 10))
-        container.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: container.topAnchor),
-            container.widthAnchor.constraint(equalToConstant: 400),
-        ])
-        container.layoutSubtreeIfNeeded()
-        container.setFrameSize(NSSize(width: 400, height: stack.fittingSize.height))
-        return (container, boxes)
-    }
-
-    private static func choiceRow(for group: Group) -> (row: NSStackView, box: NSButton) {
+    /// A box for a group of types, ticked when it is on by default or already this app's, with the app that opens the
+    /// group now beneath it.
+    private static func choice(for group: Group) -> Question.Choice {
         let current = currentHandler(for: group.exts)
         let mine = current == AppInfo.name
-        let box = NSButton(checkboxWithTitle: group.title, target: nil, action: nil)
-        box.state = (group.defaultOn || mine) ? .on : .off
-        let detail = NSTextField(labelWithString: loc.t("assoc_current", current) + (group.warning.map { "  •  " + $0 } ?? ""))
-        detail.font = .systemFont(ofSize: 10)
-        detail.textColor = group.warning == nil ? .secondaryLabelColor : .systemOrange
-        detail.lineBreakMode = .byTruncatingTail
-        let row = NSStackView(views: [box, detail])
-        row.orientation = .vertical
-        row.alignment = .leading
-        row.spacing = 1
-        detail.translatesAutoresizingMaskIntoConstraints = false
-        detail.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 20).isActive = true
-        return (row, box)
+        return Question.Choice(
+            title: group.title, detail: loc.t("assoc_current", current) + (group.warning.map { "  •  " + $0 } ?? ""),
+            warns: group.warning != nil, isOn: group.defaultOn || mine)
     }
 
     /// Make this app the default for the selected types; report the result

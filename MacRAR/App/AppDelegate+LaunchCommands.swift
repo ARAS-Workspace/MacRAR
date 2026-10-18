@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 /// The command-line modes: those the Finder Quick Actions start a copy of the app in, and --set-default and
 /// --install-quick-actions. Each runs, reports and quits.
 extension AppDelegate {
-    func runCommand(_ cmd: Command) {
+    func runCommand(_ cmd: LaunchCommand) {
         switch cmd {
         case .setDefault:
             setDefaultHandler { _ in self.finishCommand() }

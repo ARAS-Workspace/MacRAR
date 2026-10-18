@@ -6,7 +6,7 @@ final class LaunchArgumentsTests: XCTestCase {
     func testEveryModeParses() {
         let given = ["/a/x.zip", "/a/../b/y.part1.rar"]
         let paths = ["/a/x.zip", "/b/y.part1.rar"]
-        let modes: [(flag: String, command: Command)] = [
+        let modes: [(flag: String, command: LaunchCommand)] = [
             ("--extract-here", .extractHere(paths)),
             ("--extract-folder", .extractFolder(paths)),
             ("--extract-to", .extractTo(paths)),

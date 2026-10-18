@@ -78,23 +78,22 @@ extension Ops {
         let existingSet = options.isSplit ? firstVolume(of: path) : path
         let setExists = existingSet != path
         guard FileManager.default.fileExists(atPath: path) || setExists else { return .write(path) }
-        let alert = NSAlert()
-        alert.messageText = loc.t("compress_exists_title", name(existingSet))
+        var question = Question(topic: .question, title: loc.t("compress_exists_title", name(existingSet)))
         guard options.format.supportsAppend, !setExists else {
-            alert.informativeText = loc.t(setExists ? "compress_exists_split_message" : "compress_exists_no_append_message")
-            alert.addButton(withTitle: loc.t("compress_create_new"))
-            alert.addButton(withTitle: loc.t("cancel"))
-            return Dialogs.ask(alert) == .alertFirstButtonReturn ? .write(uniquePath(path, taken: isTaken)) : .cancel
+            question.message = loc.t(setExists ? "compress_exists_split_message" : "compress_exists_no_append_message")
+            question.buttons.append(loc.t("compress_create_new"))
+            question.buttons.append(loc.t("cancel"))
+            return Dialogs.ask(question).button == 0 ? .write(uniquePath(path, taken: isTaken)) : .cancel
         }
         let encrypted = isEncrypted(path)
-        alert.informativeText = loc.t(encrypted ? "compress_exists_encrypted_message" : "compress_exists_message")
-        alert.addButton(withTitle: loc.t("compress_create_new"))
-        alert.addButton(withTitle: loc.t(encrypted ? "compress_add_to_encrypted" : "compress_add_to_existing"))
-        alert.addButton(withTitle: loc.t("cancel"))
-        switch Dialogs.ask(alert) {
-        case .alertFirstButtonReturn:
+        question.message = loc.t(encrypted ? "compress_exists_encrypted_message" : "compress_exists_message")
+        question.buttons.append(loc.t("compress_create_new"))
+        question.buttons.append(loc.t(encrypted ? "compress_add_to_encrypted" : "compress_add_to_existing"))
+        question.buttons.append(loc.t("cancel"))
+        switch Dialogs.ask(question).button {
+        case 0:
             return .write(uniquePath(path, taken: isTaken))
-        case .alertSecondButtonReturn:
+        case 1:
             // An encrypted archive is opened first, which asks for its password; any other is written into as it is
             guard encrypted else { return .write(path) }
             var password: String?

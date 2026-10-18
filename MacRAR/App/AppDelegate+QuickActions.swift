@@ -8,14 +8,12 @@ extension AppDelegate {
         guard QuickActions.placement == .downloaded,
               !UserDefaults.standard.bool(forKey: QuickActions.placementWarningOffKey) else { return }
         Dialogs.whenIdle {
-            let alert = NSAlert()
-            alert.messageText = loc.t("quick_actions_need_applications_title", AppInfo.name)
-            alert.informativeText = loc.t("quick_actions_need_applications_message", AppInfo.name, AppInfo.name)
-            alert.addButton(withTitle: loc.t("ok"))
-            alert.showsSuppressionButton = true
-            alert.suppressionButton?.title = loc.t("dont_show_again")
-            _ = Dialogs.ask(alert)
-            if alert.suppressionButton?.state == .on {
+            var question = Question(topic: .question)
+            question.title = loc.t("quick_actions_need_applications_title", AppInfo.name)
+            question.message = loc.t("quick_actions_need_applications_message", AppInfo.name, AppInfo.name)
+            question.buttons.append(loc.t("ok"))
+            question.suppression = loc.t("dont_show_again")
+            if Dialogs.ask(question).suppressed {
                 UserDefaults.standard.set(true, forKey: QuickActions.placementWarningOffKey)
             }
         }

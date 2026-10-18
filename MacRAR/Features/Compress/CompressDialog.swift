@@ -188,16 +188,12 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate, NSWindowDel
         }
     }
 
-    @objc func browse() {
-        if let chosen = Dialogs.debugChoice(loc.t("compress_save_panel_title")) {
-            if let path = chosen.first { pathField.stringValue = path }
-            return
-        }
-        let panel = NSSavePanel()
+    @objc private func browse() {
+        var panel = Panel(kind: .save)
         panel.title = loc.t("compress_save_panel_title")
-        panel.nameFieldStringValue = (pathField.stringValue as NSString).lastPathComponent
-        panel.directoryURL = URL(fileURLWithPath: (pathField.stringValue as NSString).deletingLastPathComponent)
-        if panel.runModal() == .OK, let url = panel.url { pathField.stringValue = url.path }
+        panel.name = (pathField.stringValue as NSString).lastPathComponent
+        panel.directory = URL(fileURLWithPath: (pathField.stringValue as NSString).deletingLastPathComponent)
+        if let url = Dialogs.choose(panel).first { pathField.stringValue = url.path }
     }
 
     @objc private func okPressed() {

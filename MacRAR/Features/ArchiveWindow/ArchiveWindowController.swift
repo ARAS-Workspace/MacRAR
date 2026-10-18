@@ -208,15 +208,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     private func buildContextMenu() -> NSMenu {
-        let m = NSMenu()
-        m.addItem(withTitle: loc.t("open"), action: #selector(openSelected), keyEquivalent: "")
-        m.addItem(withTitle: loc.t("action_quick_look"), action: #selector(quickLook(_:)), keyEquivalent: "")
-        m.addItem(.separator())
-        m.addItem(withTitle: loc.t("action_extract_selected_here"), action: #selector(extractSelectedHere), keyEquivalent: "")
-        m.addItem(withTitle: loc.t("action_extract_selected_to"), action: #selector(extractSelectedTo), keyEquivalent: "")
-        m.addItem(.separator())
-        m.addItem(withTitle: loc.t("action_delete_from_archive"), action: #selector(deleteSelected), keyEquivalent: "")
-        return m
+        MenuSpec.menu("", MenuSpec.archiveContextMenu(loc: loc), appTarget: nil, recent: nil)
     }
 
     // MARK: Toolbar
@@ -367,29 +359,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     // MARK: Validation
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        validate(item.action)
-    }
-
-    func validate(_ action: Selector?) -> Bool {
-        guard let action else { return false }
-        switch action {
-        case #selector(openArchive), #selector(newArchive):
-            return true
-        case #selector(extractHere), #selector(extractToFolder), #selector(extractTo), #selector(testArchive), #selector(showInfo):
-            return info != nil
-        case #selector(addFiles):
-            return info == nil || info?.supportsModification == true
-        case #selector(deleteSelected):
-            return info?.supportsModification == true && !outline.selectedRowIndexes.isEmpty
-        case #selector(extractSelectedHere), #selector(extractSelectedTo), #selector(openSelected):
-            return info != nil && !outline.selectedRowIndexes.isEmpty
-        case #selector(quickLook(_:)):
-            return info != nil && selectedNodes().contains { !$0.isDir }
-        case #selector(expandAll(_:)), #selector(collapseAll(_:)), #selector(refresh(_:)), #selector(revealArchive(_:)):
-            return info != nil
-        default:
-            return true
-        }
+        canPerformCommand(of: item)
     }
 
     // MARK: NSWindowDelegate

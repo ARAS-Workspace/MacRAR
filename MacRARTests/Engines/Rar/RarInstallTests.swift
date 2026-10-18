@@ -60,6 +60,18 @@ final class RarInstallTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: "\(target)/default.sfx"))
     }
 
+    /// The whole way through the app's questions: MACRAR_DEBUG_RARTOOL chooses the tool already downloaded, and
+    /// MACRAR_DEBUG_CHOOSE gives the panel RARLAB's tar.gz; the tool is installed where the questions are told to.
+    func testTheToolChosenThroughTheQuestionsIsInstalled() throws {
+        let tarball = try download()
+        setDebugAnswers()
+        defer { clearDebugAnswers() }
+        withEnvironment(["MACRAR_DEBUG_RARTOOL": "choose", "MACRAR_DEBUG_CHOOSE": tarball.path]) {
+            _ = printed { XCTAssertTrue(RarTools.askForTool(into: target)) }
+        }
+        XCTAssertEqual(RarTools.reportedVersion(of: installed), RarTools.reportedVersion(of: rar.url))
+    }
+
     func testTheRarFolderAndTheProgramAreTakenToo() throws {
         try RarTools.install(from: rar.url.deletingLastPathComponent(), into: target)
         XCTAssertNotNil(RarTools.reportedVersion(of: installed))
