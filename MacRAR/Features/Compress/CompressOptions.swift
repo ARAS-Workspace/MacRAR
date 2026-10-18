@@ -140,7 +140,6 @@ struct CompressOptions {
             if recoveryRecord { args.append("-rr3") }
             if let v = volumeSize, !v.isEmpty { args.append("-v\(v)") }
             if sfx { args.append("-sfx" + (RarTools.sfxModule?.path ?? "")) }
-            if deleteAfter { args.append("-df") }
             args += RarRunner.passwordSwitch(password, encryptHeaders: encryptNames)
             return [Step(title: loc.t("progress_compressing"), work: .rar(args + ["--", writtenPath] + items, password: password))]
 
@@ -148,19 +147,16 @@ struct CompressOptions {
             var sevenZip = SevenZipBridge.UpdateOptions(format: "7z", level: mx, solid: solid ? 1 : 0, password: password)
             sevenZip.encryptHeaders = password != nil && encryptNames
             sevenZip.volumeSize = split
-            sevenZip.deleteSources = deleteAfter
             return [Step(title: loc.t("progress_compressing"), work: update(archivePath, items, sevenZip))]
 
         case .zip:
             var zip = SevenZipBridge.UpdateOptions(format: "zip", level: mx, password: password)
             zip.zipAES256 = password != nil
             zip.volumeSize = split
-            zip.deleteSources = deleteAfter
             return [Step(title: loc.t("progress_compressing"), work: update(archivePath, items, zip))]
 
         case .tar:
-            var tar = SevenZipBridge.UpdateOptions(format: "tar")
-            tar.deleteSources = deleteAfter
+            let tar = SevenZipBridge.UpdateOptions(format: "tar")
             return [Step(title: loc.t("progress_packing"), work: update(archivePath, items, tar))]
 
         case .tgz, .txz, .tbz2:
@@ -170,8 +166,7 @@ struct CompressOptions {
             let folder = TempDirs.make()
             let tmpTar = (folder as NSString).appendingPathComponent(
                 ArchiveFormat.tar.replacingExtension(in: (archivePath as NSString).lastPathComponent))
-            var tar = SevenZipBridge.UpdateOptions(format: "tar")
-            tar.deleteSources = deleteAfter
+            let tar = SevenZipBridge.UpdateOptions(format: "tar")
             let stream = SevenZipBridge.UpdateOptions(format: outer, level: mx)
             return [
                 Step(title: loc.t("progress_packing"), work: update(tmpTar, items, tar)),

@@ -43,6 +43,7 @@ final class ProgressPanel: NSWindowController {
                          styleMask: [.titled], backing: .buffered, defer: false)
         window.title = AppInfo.name
         window.isReleasedWhenClosed = false
+        UnseenWindows.apply(to: window)
         super.init(window: window)
         setUpReadout(title: title)
         setUpButtons()
@@ -216,7 +217,10 @@ final class ProgressPanel: NSWindowController {
         }
     }
 
+    /// Takes the window off the screen, or keeps it from coming up, and lets go of what Cancel would stop: the job
+    /// holds the window while it runs, so holding the job back kept both once the operation had ended.
     func dismiss() {
+        onCancel = nil
         uncount()
         if let pendingShow {
             pendingShow.cancel()
@@ -259,11 +263,17 @@ final class ProgressPanel: NSWindowController {
         logView.scrollToEndOfDocument(nil)
     }
 
+    /// A fraction as a whole percentage, rounded down, with a margin of 1e-9 that keeps what floating point leaves just
+    /// under a whole one at it: rar's 29% came as 0.29, and 0.29 × 100 is 28.999…, which read 28%.
+    static func percent(_ fraction: Double) -> Int {
+        Int((min(1, max(0, fraction)) * 100 + 1e-9).rounded(.down))
+    }
+
     func setFraction(_ f: Double?) {
         if let f {
             let v = min(1, max(0, f))
             bar.fraction = v
-            var text = loc.t("progress_percent", Int(v * 100))
+            var text = loc.t("progress_percent", Self.percent(v))
             let elapsed = Date().timeIntervalSince(startTime)
             if v >= 0.02, v < 1, elapsed > 2 {
                 let remaining = elapsed * (1 - v) / v

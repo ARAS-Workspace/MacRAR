@@ -27,6 +27,7 @@ final class PreferencesWindowController: NSWindowController {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 360),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
+        UnseenWindows.apply(to: window)
         super.init(window: window)
         build()
         applyLanguage()

@@ -69,6 +69,7 @@ enum ArchiveReader {
         info.headersEncrypted = listing.headersEncrypted
         info.type = listing.type
         info.tarCompressed = tarCompressed
+        info.volumes = max(1, Int(listing.volumes))
         return info
     }
 }

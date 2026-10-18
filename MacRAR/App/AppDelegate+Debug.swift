@@ -45,7 +45,9 @@ extension AppDelegate {
                 guard let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { continue }
                 frame.cacheDisplay(in: frame.bounds, to: rep)
                 if let png = rep.representation(using: .png, properties: [:]) {
-                    try? png.write(to: URL(fileURLWithPath: "\(prefix)-\(i).png"))
+                    let path = "\(prefix)-\(i).png"
+                    try? png.write(to: URL(fileURLWithPath: path))
+                    print("snapshot \(path) alpha \(window.alphaValue)")
                     i += 1
                 }
             }

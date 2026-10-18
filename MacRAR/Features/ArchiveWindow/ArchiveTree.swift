@@ -53,15 +53,20 @@ final class Node: NSObject {
 
     static func buildTree(_ entries: [ArchiveEntry]) -> Node {
         let root = Node(name: "", path: "", isDir: true)
-        var map: [String: Node] = ["": root]
+        // The folders by path. A file is never in it, so one named like a folder does not take in the folder's items.
+        var folders: [String: Node] = ["": root]
+        // A name starting with "/" sits at the top, where 7-Zip extracts it; "/" above it was looked for without end
+        func parent(of path: String) -> String {
+            let above = (path as NSString).deletingLastPathComponent
+            return above == "/" ? "" : above
+        }
         func ensure(_ path: String) -> Node {
-            if let existing = map[path] { return existing }
-            let parentPath = (path as NSString).deletingLastPathComponent
-            let parent = ensure(parentPath)
+            if let existing = folders[path] { return existing }
+            let parent = ensure(parent(of: path))
             let node = Node(name: (path as NSString).lastPathComponent, path: path, isDir: true)
             node.parent = parent
             parent.children.append(node)
-            map[path] = node
+            folders[path] = node
             return node
         }
         for entry in entries {
@@ -69,12 +74,11 @@ final class Node: NSObject {
             if entry.isDirectory {
                 ensure(clean).entry = entry
             } else {
-                let parent = ensure((clean as NSString).deletingLastPathComponent)
+                let parent = ensure(parent(of: clean))
                 let node = Node(name: (clean as NSString).lastPathComponent, path: clean, isDir: false)
                 node.entry = entry
                 node.parent = parent
                 parent.children.append(node)
-                map[clean] = node
             }
         }
         root.sortRecursively()

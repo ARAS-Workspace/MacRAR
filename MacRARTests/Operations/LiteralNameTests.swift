@@ -21,6 +21,7 @@ final class LiteralNameTests: XCTestCase {
 
     override func tearDown() {
         clearDebugAnswers()
+        try? FileManager.default.removeItem(atPath: Ops.testTrash)
         workspace = nil
     }
 
@@ -133,5 +134,83 @@ final class LiteralNameTests: XCTestCase {
         XCTAssertTrue(finished { Ops.delete(info: info, names: ["bx.txt"], password: nil, host: nil, completion: $0) })
         XCTAssertEqual(entries(info.path), ["a1.txt"])
         XCTAssertFalse(workspace.exists("noext.zip") || workspace.exists("noext.7z"), "a change went to another archive")
+    }
+
+    // MARK: rar
+
+    /// rar reads every name and path it is given as a pattern, and has no switch to stop it, so a name or path with
+    /// "*", "?" or a line break in it never goes to rar: the app says so instead, and the archive and the files stay
+    /// as they were. rar deleted a1.txt and a2.txt with "a*.txt", added them with it, and archived and deleted them
+    /// with "delete source files after archiving".
+    private func usingRar() throws -> RarTool {
+        let tool = try RarTool.locate()
+        let defaults = UserDefaults.standard
+        let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        defaults.removeVolatileDomain(forName: UserDefaults.argumentDomain)
+        defaults.setVolatileDomain(arguments.merging(["RarPath": tool.url.path]) { $1 }, forName: UserDefaults.argumentDomain)
+        addTeardownBlock {
+            defaults.removeVolatileDomain(forName: UserDefaults.argumentDomain)
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        }
+        return tool
+    }
+
+    /// A RAR archive of the names, written by rar from a list; a wildcard among them matches only items in it anyway.
+    private func rarArchive() throws -> ArchiveInfo {
+        let tool = try usingRar()
+        try Data(names.map { "\($0)\n" }.joined().utf8).write(to: workspace.url("list.txt"))
+        let result = try tool.run(["a", "-y", "-scfl", workspace.path("names.rar"), "@" + workspace.path("list.txt")],
+                                  in: workspace.path("names"))
+        XCTAssertEqual(result.status, 0, result.output)
+        XCTAssertEqual(entries(workspace.path("names.rar")), names.sorted())
+        return try listed(workspace.path("names.rar"))
+    }
+
+    func testRarIsNeverGivenANameWithAWildcardToDelete() throws {
+        let info = try rarArchive()
+        var deleted = true
+        let told = printed { deleted = finished { Ops.delete(info: info, names: ["a*.txt"], password: nil, host: nil, completion: $0) } }
+        XCTAssertFalse(deleted)
+        XCTAssertTrue(told.contains(loc.t("rar_wildcard_delete", "a*.txt")), told)
+        XCTAssertEqual(entries(info.path), names.sorted())
+    }
+
+    func testRarIsNeverGivenAFileWithAWildcardToAdd() throws {
+        let info = try rarArchive()
+        try Data("new".utf8).write(to: workspace.url("names/n?w.txt"))
+        var added = true
+        let told = printed {
+            added = finished { Ops.add(info: info, items: [workspace.path("names/n?w.txt")], password: nil, host: nil, completion: $0) }
+        }
+        XCTAssertFalse(added)
+        XCTAssertTrue(told.contains(loc.t("rar_wildcard_add", "n?w.txt")), told)
+        XCTAssertEqual(entries(info.path), names.sorted())
+    }
+
+    /// Archiving with rar names the first part of the path with a wildcard character, a parent folder's too, and
+    /// writes and deletes nothing.
+    func testRarIsNeverGivenAPathWithAWildcardToArchive() throws {
+        _ = try usingRar()
+        _ = try workspace.makeDirectory("x*y")
+        try Data("in".utf8).write(to: workspace.url("x*y/in.txt"))
+        for (item, named) in [("names/a*.txt", "a*.txt"), ("x*y/in.txt", "x*y")] {
+            var options = CompressOptions(archivePath: workspace.path("out.rar"), format: .rar5)
+            options.deleteAfter = true
+            var created = (ok: true, path: "")
+            let told = printed { created = compress([workspace.path(item)], options) }
+            XCTAssertFalse(created.ok, item)
+            XCTAssertTrue(told.contains(loc.t("rar_wildcard_compress", named)), told)
+            XCTAssertFalse(workspace.exists("out.rar"), item)
+        }
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: workspace.path("names")).sorted(), names.sorted())
+        XCTAssertTrue(workspace.exists("x*y/in.txt"))
+    }
+
+    /// A line break would split a name in rar's list into two names.
+    func testRarIsNeverGivenANameWithALineBreak() throws {
+        let info = try rarArchive()
+        let told = printed { _ = finished { Ops.delete(info: info, names: ["a1.txt\na2.txt"], password: nil, host: nil, completion: $0) } }
+        XCTAssertTrue(told.contains(loc.t("rar_wildcard_delete", "a1.txt\na2.txt")), told)
+        XCTAssertEqual(entries(info.path), names.sorted())
     }
 }

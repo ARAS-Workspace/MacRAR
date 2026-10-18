@@ -7,6 +7,10 @@ extension Ops {
         var options = options
         // A self-extracting RAR is written as name.sfx: the checks below and the reported path are about that file
         options.archivePath = options.writtenPath
+        if options.format.isRar, let part = rarPattern(in: items) {
+            Dialogs.error(loc.t("compress_failed_title"), loc.t("rar_wildcard_compress", part))
+            completion(false, options.archivePath); return
+        }
         if options.format.isRar, !RarTools.ensureAvailable() { completion(false, options.archivePath); return }
         if let problem = passwordProblem(options.password, format: options.format) {
             Dialogs.error(loc.t("compress_failed_title"), problem)
@@ -26,7 +30,35 @@ extension Ops {
             completion(false, options.archivePath); return
         }
         let steps = options.buildSteps(items: items)
-        runSteps(steps, index: 0, archive: options.archivePath, host: host, completion: completion)
+        runSteps(steps, index: 0, archive: options.archivePath, host: host) { ok, path in
+            if ok, options.deleteAfter { moveSourcesToTrash(items, archive: path, password: options.password) }
+            completion(ok, path)
+        }
+    }
+
+    /// "Move source files to the Trash after archiving": once the archive is written and reads back, the chosen items
+    /// go to the Trash, where they can be put back; a link among them goes itself, never what it points to. rar's -df
+    /// and 7-Zip's -sdel deleted for good, followed links into folders nobody chose and deleted what was there, and
+    /// for a compressed tar deleted the items before the archive was written.
+    private static func moveSourcesToTrash(_ items: [String], archive: String, password: String?) {
+        guard case .ok = ArchiveReader.list(archive, password: password.flatMap { $0.isEmpty ? nil : $0 }) else {
+            Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_sources_kept"))
+            return
+        }
+        let failed = items.filter { item in (try? trash(URL(fileURLWithPath: item))) == nil }
+        if !failed.isEmpty {
+            Dialogs.error(loc.t("compress_failed_title"), loc.t("compress_trash_failed", failed.map { name($0) }.joined(separator: ", ")))
+        }
+    }
+
+    /// A test run (MACRAR_DEBUG_UNSEEN) leaves the user's Trash alone: what it would trash goes to this folder.
+    static let testTrash = (NSTemporaryDirectory() as NSString).appendingPathComponent("MacRARTests-Trash-\(getpid())")
+
+    private static func trash(_ item: URL) throws {
+        guard UnseenWindows.isOn else { try FileManager.default.trashItem(at: item, resultingItemURL: nil); return }
+        try FileManager.default.createDirectory(atPath: testTrash, withIntermediateDirectories: true)
+        let target = uniquePath((testTrash as NSString).appendingPathComponent(item.lastPathComponent))
+        try FileManager.default.moveItem(at: item, to: URL(fileURLWithPath: target))
     }
 
     /// What to do about an archive already under the new archive's name.

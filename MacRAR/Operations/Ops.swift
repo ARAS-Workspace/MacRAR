@@ -85,12 +85,21 @@ enum Ops {
         return (ns.deletingLastPathComponent as NSString).appendingPathComponent(base)
     }
 
+    /// rar reads every name and path it is given as a pattern, a list's names too, and has no switch to stop it: the
+    /// first part of `items` holding "*", "?" or a line break, which rar is never given; nil when there is none.
+    static func rarPattern(in items: [String]) -> String? {
+        for item in items {
+            if let part = item.split(separator: "/").first(where: { $0.contains { "*?\n\r".contains($0) } }) { return String(part) }
+        }
+        return nil
+    }
+
     /// Top-level names to extract (names nil → whole archive)
     static func topLevelNames(info: ArchiveInfo, names: [String]?) -> [String] {
         guard let names else { return info.topLevelNames }
         var seen = Set<String>()
         return names.compactMap { entryName in
-            let top = entryName.split(separator: "/", maxSplits: 1).first.map(String.init) ?? entryName
+            guard let top = ArchiveInfo.topName(of: entryName) else { return nil }
             return seen.insert(top).inserted ? top : nil
         }
     }

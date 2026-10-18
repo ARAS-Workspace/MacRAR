@@ -45,6 +45,11 @@ enum RarTools {
     @discardableResult
     static func ensureAvailable() -> Bool {
         if available { return true }
+        // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is cancelled, so a test never reaches the user's tool
+        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil {
+            print("\(loc.t("rar_tool_required_title")): \(loc.t("rar_tool_required_message"))")
+            return false
+        }
         Dialogs.activate()
         let alert = NSAlert()
         alert.messageText = loc.t("rar_tool_required_title")

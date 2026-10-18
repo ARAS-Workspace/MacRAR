@@ -128,7 +128,7 @@ extension ArchiveWindowController {
         Ops.extract(.init(info: info, names: [node.path], dest: tmp), password: password, host: window, quiet: true) { [weak self] ok, pw in
             self?.password = pw ?? self?.password
             guard ok else { return }
-            let target = (tmp as NSString).appendingPathComponent(node.path)
+            let target = Self.extracted(node, in: tmp)
             NSWorkspace.shared.open(URL(fileURLWithPath: target))
         }
     }

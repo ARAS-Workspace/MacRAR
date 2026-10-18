@@ -5,9 +5,11 @@ enum Dialogs {
     static func activate() { NSApp.activate(ignoringOtherApps: true) }
 
     /// Whether something already waits for the user: a modal window (a password question, the Create Archive dialog,
-    /// an alert), a sheet, or an operation, its progress window up or not yet.
+    /// an alert), a sheet, or an operation, its progress window up or not yet, or an extraction carrying the archive's
+    /// quarantine over once its window has gone.
     static var isBusy: Bool {
-        NSApp.modalWindow != nil || ProgressPanel.running > 0 || NSApp.windows.contains { $0.isVisible && $0.attachedSheet != nil }
+        NSApp.modalWindow != nil || ProgressPanel.running > 0 || Ops.carryingQuarantine > 0
+            || NSApp.windows.contains { $0.isVisible && $0.attachedSheet != nil }
     }
 
     /// Blocks waiting in whenIdle.
@@ -42,6 +44,7 @@ enum Dialogs {
     static func askPassword(archiveName: String, wrong: Bool = false) -> String? {
         // Debugging: MACRAR_DEBUG_PASSWORD answers the first prompt, MACRAR_DEBUG_PASSWORD_RETRY the one after a wrong password
         if let answer = ProcessInfo.processInfo.environment[wrong ? "MACRAR_DEBUG_PASSWORD_RETRY" : "MACRAR_DEBUG_PASSWORD"] {
+            print(wrong ? "password again" : "password")
             return answer == "__cancel__" ? nil : answer
         }
         activate()
@@ -96,13 +99,11 @@ enum Dialogs {
     enum OverwriteMode { case overwrite, rename, skip, cancel }
 
     static func askOverwrite(existing: [String], dest: String) -> OverwriteMode {
-        // Debugging: MACRAR_DEBUG_OVERWRITE=overwrite|rename|skip|cancel answers the question
-        switch ProcessInfo.processInfo.environment["MACRAR_DEBUG_OVERWRITE"] {
-        case "overwrite": return .overwrite
-        case "rename": return .rename
-        case "skip": return .skip
-        case "cancel": return .cancel
-        default: break
+        // Debugging: MACRAR_DEBUG_OVERWRITE=overwrite|rename|skip|cancel answers the question, which goes to stdout
+        let answers: [String: OverwriteMode] = ["overwrite": .overwrite, "rename": .rename, "skip": .skip, "cancel": .cancel]
+        if let answer = ProcessInfo.processInfo.environment["MACRAR_DEBUG_OVERWRITE"].flatMap({ answers[$0] }) {
+            print("overwrite \(existing.sorted())")
+            return answer
         }
         activate()
         let alert = NSAlert()
@@ -178,7 +179,11 @@ enum Dialogs {
     }
 
     static func confirm(_ title: String, _ detail: String, okTitle: String = loc.t("ok"), destructive: Bool = false) -> Bool {
-        if ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] != nil { return true }
+        // MACRAR_DEBUG_CONFIRM: the question goes to stdout and is answered yes, or no when the variable says "no"
+        if let answer = ProcessInfo.processInfo.environment["MACRAR_DEBUG_CONFIRM"] {
+            print("confirm \(title)")
+            return answer != "no"
+        }
         activate()
         let alert = NSAlert()
         alert.messageText = title
@@ -190,7 +195,17 @@ enum Dialogs {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
+    /// MACRAR_DEBUG_CONFIRM: an open or save panel is not shown; its title goes to stdout as "choose <title>" and it is
+    /// answered by MACRAR_DEBUG_CHOOSE, a path, or cancelled (an empty list). nil without the variable: show the panel.
+    static func debugChoice(_ title: String) -> [String]? {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["MACRAR_DEBUG_CONFIRM"] != nil else { return nil }
+        print("choose \(title)")
+        return environment["MACRAR_DEBUG_CHOOSE"].map { [$0] } ?? []
+    }
+
     static func chooseFolder(title: String, prompt: String, initial: String? = nil) -> String? {
+        if let chosen = debugChoice(title) { return chosen.first }
         activate()
         let panel = NSOpenPanel()
         panel.title = title
@@ -205,6 +220,7 @@ enum Dialogs {
     }
 
     static func chooseFiles(title: String, prompt: String, archivesOnly: Bool) -> [String] {
+        if let chosen = debugChoice(title) { return chosen }
         activate()
         let panel = NSOpenPanel()
         panel.title = title

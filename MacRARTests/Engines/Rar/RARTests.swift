@@ -22,6 +22,7 @@ final class RARTests: XCTestCase {
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(atPath: Ops.testTrash)
         if let savedArguments {
             clearDebugAnswers()
             UserDefaults.standard.removeVolatileDomain(forName: UserDefaults.argumentDomain)

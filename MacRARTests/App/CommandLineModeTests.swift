@@ -59,19 +59,35 @@ final class CommandLineModeTests: XCTestCase {
         }
     }
 
-    /// The two modes that ask first are still waiting on their window when the snapshot hook saves the
-    /// open windows and quits, and they have written nothing.
-    func testExtractToAndCompressDialogWaitForTheUser() throws {
-        let archive = makeZip()
+    /// --compress-dialog is still waiting on Create Archive's window when the snapshot hook saves the open windows and
+    /// quits, and it has written nothing.
+    func testTheCompressDialogWaitsForTheUser() throws {
         let before = try FileManager.default.contentsOfDirectory(atPath: workspace.path("src")).sorted()
-        for (index, arguments) in [["--extract-to", archive], ["--compress-dialog", workspace.path("src/a.txt")]].enumerated() {
-            let exit = try launchApp(arguments, environment: ["MACRAR_SNAPSHOT": workspace.path("shot\(index)"), "MACRAR_SNAPSHOT_DELAY": "3"])
-            XCTAssertEqual(exit.status, 0, exit.output)
-            XCTAssertGreaterThanOrEqual(exit.seconds, 3, arguments[0])
-            XCTAssertTrue(workspace.exists("shot\(index)-0.png"), "\(arguments[0]) showed no window")
-        }
-        XCTAssertFalse(workspace.exists("a.txt"))
+        let exit = try launchApp(["--compress-dialog", workspace.path("src/a.txt")],
+                                 environment: ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "3"])
+        XCTAssertEqual(exit.status, 0, exit.output)
+        XCTAssertGreaterThanOrEqual(exit.seconds, 3)
+        XCTAssertTrue(workspace.exists("shot-0.png"), "--compress-dialog showed no window")
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: workspace.path("src")).sorted(), before)
+    }
+
+    /// --extract-to asks for the destination folder, which MACRAR_DEBUG_CHOOSE answers in the copy; unanswered, the
+    /// panel is cancelled and nothing is written. The panel used to come up and wait.
+    func testExtractTo() throws {
+        let archive = makeZip()
+        let asked = "choose \(try english("panel_extract_destination"))"
+        try FileManager.default.createDirectory(atPath: workspace.path("out"), withIntermediateDirectories: true)
+        let chosen = try launchApp(["--extract-to", archive], environment: ["MACRAR_DEBUG_CHOOSE": workspace.path("out")])
+        XCTAssertEqual(chosen.status, 0, chosen.output)
+        XCTAssertTrue(chosen.output.contains(asked), chosen.output)
+        XCTAssertEqual(workspace.contents("out/a.txt"), workspace.contents("src/a.txt"))
+        XCTAssertEqual(workspace.contents("out/sub/b.bin"), workspace.contents("src/sub/b.bin"))
+
+        let cancelled = try launchApp(["--extract-to", archive])
+        XCTAssertEqual(cancelled.status, 0, cancelled.output)
+        XCTAssertTrue(cancelled.output.contains(asked), cancelled.output)
+        XCTAssertFalse(workspace.exists("a.txt"))
+        XCTAssertFalse(workspace.exists("sample"))
     }
 
     /// 7-Zip writes ZIP only with a password of printable ASCII. One with letters such as ü or ş is explained before

@@ -26,6 +26,18 @@ extension XCTestCase {
         try body()
     }
 
+    /// Runs `body` with these variables removed from the test host, then puts back what they were.
+    func withoutEnvironment(_ names: [String], _ body: () throws -> Void) rethrows {
+        let earlier = names.map { ($0, getenv($0).map { String(cString: $0) }) }
+        for name in names { unsetenv(name) }
+        defer {
+            for (name, value) in earlier {
+                if let value { setenv(name, value, 1) } else { unsetenv(name) }
+            }
+        }
+        try body()
+    }
+
     /// The answers a test that drives the operations starts from, so the app never waits at a real alert: an error
     /// prints instead (MACRAR_DEBUG_CONFIRM), and a password or overwrite question the test does not answer itself is
     /// cancelled, which fails the test where it would have kept a dialog open.

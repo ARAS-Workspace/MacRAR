@@ -67,6 +67,10 @@ extension Ops {
         runExtract(extraction, password: pw, host: host, quiet: quiet, completion: completion)
     }
 
+    /// Extractions carrying the archive's quarantine over to what they wrote, past their progress window; the app
+    /// counts as busy meanwhile (Dialogs.isBusy).
+    private(set) static var carryingQuarantine = 0
+
     private static func runExtract(_ extraction: Extraction, password: String?, host: NSWindow?, quiet: Bool,
                                    completion: @escaping (Bool, String?) -> Void) {
         let info = extraction.info
@@ -95,9 +99,14 @@ extension Ops {
             // Every item written, including by an interrupted extraction, gets the archive's quarantine (before the result is handled or anything is opened)
             guard let quarantine else { finish(result); return }
             let tops = topLevelNames(info: info, names: extraction.names)
+            // The step runs once the job and its progress window have ended, and still counts as the extraction
+            carryingQuarantine += 1
             DispatchQueue.global(qos: .userInitiated).async {
                 Quarantine.apply(quarantine, dest: extraction.dest, tops: tops, since: started)
-                DispatchQueue.main.async { finish(result) }
+                DispatchQueue.main.async {
+                    carryingQuarantine -= 1
+                    finish(result)
+                }
             }
         }
     }

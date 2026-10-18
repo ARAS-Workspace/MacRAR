@@ -39,4 +39,44 @@ final class CompressDialogTests: XCTestCase {
         XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(format.action), to: format.target, from: format))
         XCTAssertEqual(path.stringValue, "/a/x.7z")
     }
+
+    /// Runs a Create Archive window modally, unseen, with `action` done to it once the run is up: what run() returned,
+    /// or nil when the run did not end by itself and was stopped after five seconds.
+    @MainActor
+    private func leave(by action: @escaping @MainActor (NSWindow) -> Void) -> CompressOptions?? {
+        let dialog = CompressDialog(options: CompressOptions(archivePath: NSTemporaryDirectory() + "unwritten.zip"), itemCount: 1)
+        defer { dialog.close() }
+        var stopped = false
+        RunLoop.main.perform(inModes: [.modalPanel]) {
+            MainActor.assumeIsolated { if let window = dialog.window { action(window) } }
+        }
+        let stop = DispatchWorkItem {
+            guard NSApp.modalWindow != nil else { return }
+            stopped = true
+            NSApp.abortModal()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: stop)
+        let returned = dialog.run()
+        stop.cancel()
+        return stopped ? nil : .some(returned)
+    }
+
+    @MainActor
+    func testEscCancels() {
+        let returned = leave { window in
+            let esc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                       windowNumber: window.windowNumber, context: nil, characters: "\u{1b}",
+                                       charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)
+            if let esc { window.sendEvent(esc) }
+        }
+        XCTAssertEqual(returned.map { $0 == nil }, true, "the run did not end")
+    }
+
+    /// The close button cancels, as Esc does. It took the window off the screen and left the app in its modal run,
+    /// with no window to answer.
+    @MainActor
+    func testTheCloseButtonCancels() {
+        let returned = leave { $0.performClose(nil) }
+        XCTAssertEqual(returned.map { $0 == nil }, true, "the run did not end")
+    }
 }

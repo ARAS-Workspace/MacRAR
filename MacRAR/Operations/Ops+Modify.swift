@@ -7,11 +7,16 @@ extension Ops {
         let items = itemsToAdd(items, into: info.path)
         guard !items.isEmpty else { completion(false, password); return }
         guard info.supportsModification else {
-            Dialogs.error(loc.t("not_supported_title"), loc.t("add_tar_compressed_unsupported"))
+            Dialogs.error(loc.t("not_supported_title"),
+                          loc.t(info.tarCompressed ? "add_tar_compressed_unsupported" : "add_split_unsupported"))
             completion(false, password); return
         }
         if let problem = addProblem(items, into: info) {
             Dialogs.error(loc.t("add_failed_title"), problem)
+            completion(false, password); return
+        }
+        if info.kind == .rar, let part = rarPattern(in: items) {
+            Dialogs.error(loc.t("add_failed_title"), loc.t("rar_wildcard_add", part))
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }
@@ -66,7 +71,12 @@ extension Ops {
         info: ArchiveInfo, names: [String], password: String?, host: NSWindow?, completion: @escaping (Bool, String?) -> Void
     ) {
         guard info.supportsModification else {
-            Dialogs.error(loc.t("not_supported_title"), loc.t("delete_tar_compressed_unsupported"))
+            Dialogs.error(loc.t("not_supported_title"),
+                          loc.t(info.tarCompressed ? "delete_tar_compressed_unsupported" : "delete_split_unsupported"))
+            completion(false, password); return
+        }
+        if info.kind == .rar, let part = rarPattern(in: names) {
+            Dialogs.error(loc.t("delete_failed_title"), loc.t("rar_wildcard_delete", part))
             completion(false, password); return
         }
         if info.kind == .rar, !RarTools.ensureAvailable() { completion(false, password); return }

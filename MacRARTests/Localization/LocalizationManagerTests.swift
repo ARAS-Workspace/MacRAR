@@ -1,14 +1,16 @@
 import XCTest
 @testable import MacRAR
 
-/// The language layer on its own: an instance with defaults of its own, so the app's saved choice is untouched.
+/// The language layer on its own: an instance with defaults of its own, so the app's saved choice is untouched. The
+/// suite is the same one every time and each test starts it empty: removing a suite leaves its file in
+/// ~/Library/Preferences, so a suite named anew for each test left a file behind every run.
 final class LocalizationManagerTests: XCTestCase {
-    private var suiteName: String!
+    private let suiteName = "MacRARTests-LocalizationManager"
     private var defaults: UserDefaults!
 
     override func setUpWithError() throws {
-        suiteName = "MacRARTests-\(UUID().uuidString)"
         defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
     }
 
     override func tearDown() {

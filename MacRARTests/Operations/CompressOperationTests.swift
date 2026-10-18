@@ -13,7 +13,56 @@ final class CompressOperationTests: XCTestCase {
 
     override func tearDown() {
         clearDebugAnswers()
+        try? FileManager.default.removeItem(atPath: Ops.testTrash)
         workspace = nil
+    }
+
+    /// "Move source files to the Trash after archiving" trashes the chosen items once the archive is written and
+    /// reads back, in every format; a folder goes with the link in it, and what the link points to stays. 7-Zip's
+    /// -sdel and rar's -df deleted for good and followed the link: the folder it pointed to was emptied.
+    func testMovingSourcesToTheTrashTakesTheChosenItemsAlone() throws {
+        var formats: [ArchiveFormat] = [.zip, .sevenZip, .tar, .tgz]
+        if let rar = try? RarTool.locate() {
+            formats.append(.rar5)
+            let defaults = UserDefaults.standard
+            let arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+            defaults.removeVolatileDomain(forName: UserDefaults.argumentDomain)
+            defaults.setVolatileDomain(arguments.merging(["RarPath": rar.url.path]) { $1 }, forName: UserDefaults.argumentDomain)
+            addTeardownBlock {
+                defaults.removeVolatileDomain(forName: UserDefaults.argumentDomain)
+                defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            }
+        }
+        for format in formats {
+            let base = try workspace.makeDirectory("trash-\(format.ext)")
+            for (path, text) in [("chosen.txt", "chosen"), ("folder/inside.txt", "inside"), ("real/keep.txt", "keep")] {
+                let url = URL(fileURLWithPath: "\(base)/\(path)")
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(text.utf8).write(to: url)
+            }
+            try FileManager.default.createSymbolicLink(atPath: "\(base)/folder/link", withDestinationPath: "../real")
+            var options = options(format, "trash-\(format.ext)/out.\(format.ext)")
+            options.deleteAfter = true
+            let made = compress(["\(base)/chosen.txt", "\(base)/folder"], options)
+            XCTAssertTrue(made.ok, "\(format)")
+            guard case .ok(let info) = ArchiveReader.list(made.path, password: nil) else { XCTFail("\(format) did not list"); continue }
+            XCTAssertTrue(info.entries.contains { $0.name == "chosen.txt" }, "\(format)")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: "\(base)/chosen.txt") || FileManager.default.fileExists(atPath: "\(base)/folder"),
+                           "\(format): a chosen item stayed")
+            XCTAssertEqual(try? String(contentsOfFile: "\(base)/real/keep.txt", encoding: .utf8), "keep", "\(format): the linked folder lost its file")
+        }
+        let trashed = try FileManager.default.contentsOfDirectory(atPath: Ops.testTrash)
+        XCTAssertEqual(trashed.filter { $0.hasPrefix("chosen") }.count, formats.count, "\(trashed)")
+
+        // An archive whose names are encrypted reads back with its password, and its sources go too
+        let locked = try workspace.makeDirectory("trash-locked")
+        try Data("secret".utf8).write(to: URL(fileURLWithPath: "\(locked)/secret.txt"))
+        var options = options(.sevenZip, "trash-locked/out.7z")
+        options.password = "pw"
+        options.encryptNames = true
+        options.deleteAfter = true
+        let told = printed { XCTAssertTrue(compress(["\(locked)/secret.txt"], options).ok) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: "\(locked)/secret.txt"), told)
     }
 
     private func options(_ format: ArchiveFormat, _ name: String, split: String? = nil) -> CompressOptions {

@@ -28,11 +28,6 @@ targets:
       - path: MacRAR/AppIcon.icon
         type: file
         buildPhase: resources
-    scheme:
-      testTargets:
-        - MacRARTests
-      environmentVariables:
-        MACRAR_NO_UPDATE_CHECK: "1"
     dependencies:
       - framework: Libraries/SevenZipKit/lib7zip_apple.a
         embed: false
@@ -250,3 +245,29 @@ targets:
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: GZUHTM7439
         SWIFT_VERSION: "5.0"
+
+# ── Scheme ────────────────────────────────────────────────
+
+# A project scheme rather than the target's: XcodeGen gives a target
+# scheme's variables to the run, test and profile actions alike, and
+# MACRAR_DEBUG_UNSEEN belongs to the test action alone. It keeps every
+# window the test host opens unseen, from its launch on; the app run
+# from Xcode shows its windows.
+schemes:
+  MacRAR:
+    build:
+      targets:
+        MacRAR: all
+    run:
+      environmentVariables:
+        MACRAR_NO_UPDATE_CHECK: "1"
+    test:
+      targets:
+        - name: MacRARTests
+          parallelizable: false
+      environmentVariables:
+        MACRAR_NO_UPDATE_CHECK: "1"
+        MACRAR_DEBUG_UNSEEN: "1"
+    profile:
+      environmentVariables:
+        MACRAR_NO_UPDATE_CHECK: "1"

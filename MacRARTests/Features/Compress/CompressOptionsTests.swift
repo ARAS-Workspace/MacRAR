@@ -56,7 +56,7 @@ final class CompressOptionsTests: XCTestCase {
         XCTAssertEqual(update.options.password, "pw")
         XCTAssertTrue(update.options.encryptHeaders)
         XCTAssertEqual(update.options.volumeSize, 100 << 20)
-        XCTAssertTrue(update.options.deleteSources)
+        XCTAssertFalse(update.options.deleteSources, "7-Zip deletes for good and follows links: the app trashes once done")
     }
 
     func testEmptyPasswordMeansNoEncryption() throws {
@@ -83,7 +83,7 @@ final class CompressOptionsTests: XCTestCase {
         let pack = try XCTUnwrap(sevenZip(steps[0]))
         let compress = try XCTUnwrap(sevenZip(steps[1]))
         XCTAssertEqual(pack.options.format, "tar")
-        XCTAssertTrue(pack.options.deleteSources)
+        XCTAssertFalse(pack.options.deleteSources, "the tar deleted the items before the archive was written")
         XCTAssertTrue(pack.archive.hasSuffix(".tar"))
         XCTAssertEqual(compress.options.format, "gzip")
         XCTAssertEqual(compress.options.level, 9)

@@ -33,6 +33,59 @@ final class ExtractOperationTests: XCTestCase {
         return finished { Ops.extract(.init(info: info, names: nil, dest: destination), password: password, host: nil, completion: $0) }
     }
 
+    /// The app stays busy (Dialogs.isBusy) until the extraction has carried the quarantine over, so the questions it
+    /// asks on its own wait for it. The step runs once the job and its progress window have ended; for 4000 items it
+    /// took about 80 ms, during which the app counted as idle.
+    func testTheAppStaysBusyWhileTheQuarantineIsCarriedOver() throws {
+        let many = try workspace.makeDirectory("many")
+        for index in 0..<4000 { try Data("\(index)".utf8).write(to: URL(fileURLWithPath: "\(many)/\(index).txt")) }
+        var options = SevenZipBridge.UpdateOptions(format: "7z")
+        options.level = 0
+        let archive = workspace.path("many.7z")
+        update(archive, [many], options)
+        let quarantine = Data("0083;66f1a2b3;Safari;".utf8)
+        _ = quarantine.withUnsafeBytes { setxattr(archive, "com.apple.quarantine", $0.baseAddress, quarantine.count, 0, 0) }
+        guard case .ok(let info) = ArchiveReader.list(archive, password: nil) else { return XCTFail("not listed") }
+        let destination = try workspace.makeDirectory("out")
+
+        var done = false, idle = 0
+        let deadline = Date(timeIntervalSinceNow: 60)
+        Ops.extract(.init(info: info, names: nil, dest: destination), password: nil, host: nil) { _, _ in done = true }
+        while !done, Date() < deadline {
+            if !Dialogs.isBusy { idle += 1 }
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.002))
+        }
+        XCTAssertTrue(done)
+        XCTAssertEqual(idle, 0, "the app was idle while the extraction ran")
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        XCTAssertFalse(Dialogs.isBusy, "the extraction still counts once it has ended")
+    }
+
+    /// Items an archive marks read-only get the archive's quarantine too, and keep their mode: 7-Zip writes them
+    /// read-only, the quarantine could not be set on them, and a downloaded read-only script came out untagged.
+    func testReadOnlyItemsCarryTheQuarantine() throws {
+        let archive = workspace.path("readonly.zip")
+        try HostileArchive.zip([
+            HostileArchive.ZipEntry(name: "run.command", data: Data("echo hi\n".utf8), mode: 0o100555),
+            HostileArchive.ZipEntry(name: "locked/", data: Data(), mode: 0o040555),
+            HostileArchive.ZipEntry(name: "locked/inner.txt", data: Data("x".utf8), mode: 0o100444),
+        ]).write(to: URL(fileURLWithPath: archive))
+        let quarantine = Data("0083;66f1a2b3;Safari;".utf8)
+        _ = quarantine.withUnsafeBytes { setxattr(archive, "com.apple.quarantine", $0.baseAddress, quarantine.count, 0, 0) }
+        guard case .ok(let info) = ArchiveReader.list(archive, password: nil) else { return XCTFail("not listed") }
+        let destination = try workspace.makeDirectory("readonly")
+        XCTAssertTrue(finished { Ops.extract(.init(info: info, names: nil, dest: destination), password: nil, host: nil, completion: $0) })
+        for (item, mode) in [("run.command", 0o555), ("locked/inner.txt", 0o444)] {
+            let path = workspace.path("readonly/\(item)")
+            XCTAssertEqual(Quarantine.value(of: path), quarantine, item)
+            let attributes = try FileManager.default.attributesOfItem(atPath: path)
+            XCTAssertEqual((attributes[.posixPermissions] as? Int).map { $0 & 0o777 }, mode, "\(item) kept its mode")
+        }
+        XCTAssertEqual(Quarantine.value(of: workspace.path("readonly/locked")), quarantine, "the folder")
+        // The workspace goes in tearDown, which a read-only folder would stop
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: workspace.path("readonly/locked"))
+    }
+
     private let extracted = ["a.txt", "sub", "sub/b.bin", "sub/çalışma ğüş.txt"]
 
     /// An archive downloaded from the internet hands its quarantine to every item it writes, so what comes out of it

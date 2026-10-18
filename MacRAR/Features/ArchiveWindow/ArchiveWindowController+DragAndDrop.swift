@@ -68,6 +68,54 @@ extension ArchiveWindowController {
 }
 
 extension ArchiveWindowController: NSFilePromiseProviderDelegate {
+    /// Whether `folder` holds `item`, at any depth.
+    static func holds(_ folder: Node, _ item: Node) -> Bool { folder.isDir && item.path.hasPrefix(folder.path + "/") }
+
+    /// Puts `node`, extracted into `tmp`, at `url`. An item already there is replaced, kept with the new one beside it
+    /// under a new name, or left alone, as `answer` says. A folder dragged with an item inside it, and that item, are
+    /// copied: moved, either would leave the other short, whichever Finder asks for first. The rest is moved, and what
+    /// is left goes with the temporary folder.
+    static func putInPlace(_ node: Node, of nodes: [Node], from tmp: String, at url: URL, answer: Dialogs.OverwriteMode) throws {
+        let src = URL(fileURLWithPath: extracted(node, in: tmp))
+        var target = url
+        if FileManager.default.fileExists(atPath: url.path) {
+            switch answer {
+            case .overwrite: try FileManager.default.removeItem(at: url)
+            case .rename: target = URL(fileURLWithPath: uniquePath(url.path))
+            case .skip, .cancel: return
+            }
+        }
+        if nodes.contains(where: { holds($0, node) || holds(node, $0) }) {
+            try FileManager.default.copyItem(at: src, to: target)
+        } else {
+            try FileManager.default.moveItem(at: src, to: target)
+        }
+    }
+
+    /// The drag's questions, asked once for all its items with its first promise: whether to extract them to
+    /// `destination`, and, when some are there already, what to do with those. Whether to go on.
+    private func askAboutDrag(_ nodes: [Node], to destination: URL, from info: ArchiveInfo) -> Bool {
+        if dragDecision == nil {
+            let list = nodes.prefix(6).map { $0.name }.joined(separator: ", ") + (nodes.count > 6 ? " …" : "")
+            let destName = destination.lastPathComponent
+            let title = nodes.count == 1
+                ? loc.t("drag_extract_confirm_single", nodes[0].name, destName)
+                : loc.t("drag_extract_confirm_multiple", nodes.count, destName)
+            dragDecision = Dialogs.confirm(
+                title,
+                loc.t("drag_extract_details", (info.path as NSString).lastPathComponent, AppInfo.abbreviate(destination.path), list),
+                okTitle: loc.t("extract"))
+            if dragDecision == true {
+                var seen = Set<String>()
+                let there = nodes.map(\.name).filter {
+                    seen.insert($0).inserted && FileManager.default.fileExists(atPath: destination.appendingPathComponent($0).path)
+                }
+                dragOverwrite = there.isEmpty ? .overwrite : Dialogs.askOverwrite(existing: there, dest: destination.path)
+            }
+        }
+        return dragDecision == true && dragOverwrite != .cancel
+    }
+
     func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
         (filePromiseProvider.userInfo as? Node)?.name ?? "file"
     }
@@ -76,34 +124,22 @@ extension ArchiveWindowController: NSFilePromiseProviderDelegate {
     func filePromiseProvider(
         _ filePromiseProvider: NSFilePromiseProvider, writePromiseTo url: URL, completionHandler: @escaping (Error?) -> Void
     ) {
-        guard let node = filePromiseProvider.userInfo as? Node, let info else { completionHandler(nil); return }
+        guard let node = filePromiseProvider.userInfo as? Node else { completionHandler(nil); return }
         let sem = DispatchSemaphore(value: 0)
         var error: Error?
 
+        // The window's state is read on the main thread alone: this runs on the promise queue
         DispatchQueue.main.async { [self] in
+            guard let info else { sem.signal(); return }
             let nodes = dragNodes.isEmpty ? [node] : dragNodes
             let destFolder = url.deletingLastPathComponent()
 
-            // Ask once per session
-            if dragDecision == nil {
-                let list = nodes.prefix(6).map { $0.name }.joined(separator: ", ") + (nodes.count > 6 ? " …" : "")
-                let destName = destFolder.lastPathComponent
-                let title = nodes.count == 1
-                    ? loc.t("drag_extract_confirm_single", nodes[0].name, destName)
-                    : loc.t("drag_extract_confirm_multiple", nodes.count, destName)
-                dragDecision = Dialogs.confirm(
-                    title,
-                    loc.t("drag_extract_details", (info.path as NSString).lastPathComponent, AppInfo.abbreviate(destFolder.path), list),
-                    okTitle: loc.t("extract"))
-            }
-            guard dragDecision == true else { error = CocoaError(.userCancelled); sem.signal(); return }
+            guard askAboutDrag(nodes, to: destFolder, from: info) else { error = CocoaError(.userCancelled); sem.signal(); return }
 
             func moveIntoPlace() {
                 guard let tmp = dragTempDir else { error = CocoaError(.fileNoSuchFile); sem.signal(); return }
                 do {
-                    let src = URL(fileURLWithPath: (tmp as NSString).appendingPathComponent(node.path))
-                    if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
-                    try FileManager.default.moveItem(at: src, to: url)
+                    try Self.putInPlace(node, of: nodes, from: tmp, at: url, answer: dragOverwrite ?? .overwrite)
                 } catch let failure { error = failure }
                 sem.signal()
             }

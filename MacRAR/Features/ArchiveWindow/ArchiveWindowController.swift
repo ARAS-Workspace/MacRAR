@@ -25,6 +25,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     // Drag-to-Finder session (the question is asked once, the items are extracted in one go)
     var dragNodes: [Node] = []
     var dragDecision: Bool?
+    /// What to do with the dragged items already at the destination, asked with the drag's first promise.
+    var dragOverwrite: Dialogs.OverwriteMode?
     var dragTempDir: String?
     var dragExtracted = false
     var dragExtractOK = false
@@ -38,24 +40,42 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     static let crcCol = NSUserInterfaceItemIdentifier("crc")
     static let lockCol = NSUserInterfaceItemIdentifier("lock")
 
-    init() {
+    /// The name AppKit saves the archive windows' frame under, in the app's defaults.
+    static let frameName = "ArchiveWindow"
+
+    /// `savedFrame` is a frame as AppKit writes one, which a test gives in place of the one the user's windows saved.
+    init(savedFrame: NSWindow.PersistableFrameDescriptor? = nil) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
                          backing: .buffered, defer: false)
         window.title = AppInfo.name
         window.minSize = NSSize(width: 560, height: 300)
         window.isReleasedWhenClosed = false
-        window.setFrameAutosaveName("ArchiveWindow")
+        UnseenWindows.apply(to: window)
         super.init(window: window)
         window.delegate = self
         buildUI()
         buildToolbar()
         applyLanguage()
-        window.center()
+        place(savedFrame: savedFrame)
         NotificationCenter.default.addObserver(
             self, selector: #selector(languageDidChange), name: LocalizationManager.didChange, object: loc)
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Puts the window where the user's archive windows saved their frame, or in the middle when none is saved, and
+    /// one step down and right of the archive window in front when one is up. It takes the saved frame once it has its
+    /// toolbar: given it before, the toolbar made the window taller every time it opened. A test run leaves the frame,
+    /// columns, sort order and toolbar the user's windows saved as they were (MACRAR_DEBUG_UNSEEN).
+    private func place(savedFrame: NSWindow.PersistableFrameDescriptor?) {
+        guard let window else { return }
+        let front = NSApp.orderedWindows.first { $0 !== window && $0.isVisible && $0.windowController is ArchiveWindowController }
+        let saved = savedFrame ?? (UnseenWindows.isOn ? nil : UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.frameName)"))
+        if let saved { window.setFrame(from: saved) } else { window.center() }
+        // The first archive window up takes the name and saves its frame from then on
+        if !UnseenWindows.isOn { window.setFrameAutosaveName(Self.frameName) }
+        if let front { window.setFrameTopLeftPoint(window.cascadeTopLeft(from: NSPoint(x: front.frame.minX, y: front.frame.maxY))) }
+    }
 
     // MARK: UI
 
@@ -120,8 +140,11 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
             column.sortDescriptorPrototype = NSSortDescriptor(key: column.identifier.rawValue, ascending: true)
         }
         outline.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
-        outline.autosaveName = "ArchiveOutline"
-        outline.autosaveTableColumns = true
+        // A test run leaves the columns and sort order the user's windows saved as they were
+        if !UnseenWindows.isOn {
+            outline.autosaveName = "ArchiveOutline"
+            outline.autosaveTableColumns = true
+        }
         outline.onReturn = { [weak self] in self?.openSelected(nil) }
         outline.onSpace = { [weak self] in self?.quickLook(nil) }
         outline.outlineTableColumn = outline.tableColumns[0]
@@ -203,7 +226,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         tb.delegate = self
         tb.displayMode = .iconAndLabel
         tb.allowsUserCustomization = true
-        tb.autosavesConfiguration = true
+        tb.autosavesConfiguration = !UnseenWindows.isOn
         window?.toolbar = tb
         window?.toolbarStyle = .expanded
     }
@@ -247,7 +270,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
             if parts.count == 2 { window?.setContentSize(NSSize(width: parts[0], height: parts[1])) }
         }
         updateStatus()
-        NSDocumentController.shared.noteNewRecentDocumentURL(URL(fileURLWithPath: path))
+        // A test run leaves the user's Open Recent as it was
+        if !UnseenWindows.isOn { NSDocumentController.shared.noteNewRecentDocumentURL(URL(fileURLWithPath: path)) }
         if let dest = ProcessInfo.processInfo.environment["MACRAR_DEBUG_DRAG"] { simulateDrag(to: dest) }
     }
 
@@ -257,12 +281,21 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         } else {
             var all: [Node] = []
             root.flatten(into: &all)
-            filtered = all.filter { $0.path.localizedCaseInsensitiveContains(filterText) }
+            filtered = all.filter { Self.matches($0.path, filterText) }
                 .sorted { Node.compare($0, $1, key: sortKey, ascending: sortAscending) }
         }
         outline.reloadData()
         updateStatus()
     }
+
+    /// Whether `path` holds `text` whatever the case, by the default rules or by Turkish ones, in any language and
+    /// region: "istanbul" finds "İstanbul", and "I" finds "ılık" as well as "IRMAK".
+    static func matches(_ path: String, _ text: String) -> Bool {
+        path.range(of: text, options: .caseInsensitive) != nil
+            || path.range(of: text, options: .caseInsensitive, locale: turkish) != nil
+    }
+
+    private static let turkish = Locale(identifier: "tr")
 
     func updateStatus() {
         emptyView.isHidden = info != nil
@@ -273,7 +306,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         var parts: [String] = []
         let sel = selectedNodes()
         if !sel.isEmpty {
-            let size = sel.reduce(0) { $0 + $1.totalSize }
+            let size = Self.outermost(sel).reduce(0) { $0 + $1.totalSize }
             parts.append(loc.t("status_selection", sel.count, Fmt.size(size)))
         } else if let f = filtered {
             parts.append(loc.t("status_matches", f.count))
@@ -298,9 +331,20 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
         outline.selectedRowIndexes.compactMap { outline.item(atRow: $0) as? Node }
     }
 
-    static func paths(for nodes: [Node]) -> [String] {
+    /// The nodes no other one of `nodes` holds: a file inside a selected folder is in the folder already.
+    static func outermost(_ nodes: [Node]) -> [Node] {
         let dirs = nodes.filter { $0.isDir }.map { $0.path + "/" }
-        return nodes.filter { node in !dirs.contains { node.path.hasPrefix($0) } }.map { $0.path }
+        return nodes.filter { node in !dirs.contains { node.path.hasPrefix($0) } }
+    }
+
+    static func paths(for nodes: [Node]) -> [String] { outermost(nodes).map { $0.path } }
+
+    /// Where 7-Zip writes `node` when it extracts it into `folder`: its name without empty, "." and ".." parts, which
+    /// 7-Zip takes out. Joined as it was, a name such as "dir/../../x.txt" pointed outside the folder, at a local file
+    /// that opening, Quick Look and a drag then took for the archive's item.
+    static func extracted(_ node: Node, in folder: String) -> String {
+        let parts = node.path.split(separator: "/").map(String.init).filter { $0 != "." && $0 != ".." }
+        return (folder as NSString).appendingPathComponent(parts.joined(separator: "/"))
     }
 
     // MARK: Quick Look

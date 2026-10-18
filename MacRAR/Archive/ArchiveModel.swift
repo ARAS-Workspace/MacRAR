@@ -40,11 +40,20 @@ struct ArchiveInfo {
     var topLevelNames: [String] {
         var seen = Set<String>(); var out: [String] = []
         for entry in entries {
-            let top = entry.name.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? entry.name
+            guard let top = Self.topName(of: entry.name) else { continue }
             if seen.insert(top).inserted { out.append(top) }
         }
         return out
     }
-    /// Are adding / deleting files supported?
-    var supportsModification: Bool { !tarCompressed }
+
+    /// The first part of `name` as 7-Zip writes it into a folder: "." and ".." are dropped, so "../a.txt" lands as
+    /// "a.txt", and a leading "/" too. Nil for a name with nothing else.
+    static func topName(of name: String) -> String? {
+        name.split(separator: "/").lazy.map(String.init).first { $0 != "." && $0 != ".." }
+    }
+    /// The volumes the archive is split into; 1 for an archive in one file
+    var volumes = 1
+    /// Are adding / deleting files supported? Not for a compressed tar, nor for an archive in volumes, which neither
+    /// 7-Zip nor rar can change.
+    var supportsModification: Bool { !tarCompressed && volumes <= 1 }
 }

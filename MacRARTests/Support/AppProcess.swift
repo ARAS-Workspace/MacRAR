@@ -10,10 +10,11 @@ struct AppExit {
 
 extension XCTestCase {
     /// Runs a second copy of the app with the arguments a Finder Quick Action passes after "--args", and waits for it.
-    /// MACRAR_DEBUG_CONFIRM prints the alerts that report a result, and the argument domain keeps the result from being
-    /// revealed in Finder; "-Key value" pairs in `arguments` set further defaults for that copy only. The copy is
-    /// started with posix_spawn rather than Process, which hands arguments and the environment over decomposed (NFD):
-    /// what reaches the copy is byte for byte what the test gives, such as a password typed with letters like ü or ş.
+    /// MACRAR_DEBUG_CONFIRM prints the alerts that report a result, MACRAR_DEBUG_UNSEEN keeps the copy's windows
+    /// unseen, and the argument domain keeps the result from being revealed in Finder; "-Key value" pairs in
+    /// `arguments` set further defaults for that copy only. The copy is started with posix_spawn rather than Process,
+    /// which hands arguments and the environment over decomposed (NFD): what reaches the copy is byte for byte what the
+    /// test gives, such as a password typed with letters like ü or ş.
     func launchApp(_ arguments: [String], environment: [String: String] = [:], timeout: TimeInterval = 60,
                    file: StaticString = #filePath, line: UInt = #line) throws -> AppExit {
         let executable = try XCTUnwrap(Bundle.main.executablePath)
@@ -21,7 +22,7 @@ extension XCTestCase {
         // A fresh environment: the test host's XCTest variables would load the tests into the copy as well
         let variables = [
             "HOME": NSHomeDirectory(), "TMPDIR": NSTemporaryDirectory(), "PATH": "/usr/bin:/bin",
-            "MACRAR_LANG": "en", "MACRAR_NO_UPDATE_CHECK": "1", "MACRAR_DEBUG_CONFIRM": "1",
+            "MACRAR_LANG": "en", "MACRAR_NO_UPDATE_CHECK": "1", "MACRAR_DEBUG_CONFIRM": "1", "MACRAR_DEBUG_UNSEEN": "1",
             // Questions the test leaves unanswered are cancelled rather than shown in the copy. With MACRAR_DEBUG_FORMAT,
             // MACRAR_DEBUG_PASSWORD is the password the archive is made with instead, so it is left to the test.
             "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__", "MACRAR_DEBUG_OVERWRITE": "cancel",

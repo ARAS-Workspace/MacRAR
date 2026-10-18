@@ -1,6 +1,6 @@
 import AppKit
 
-final class CompressDialog: NSWindowController, NSTextFieldDelegate {
+final class CompressDialog: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
     private let pathField = NSTextField()
     private let formatPopup = NSPopUpButton()
     private let levelPopup = NSPopUpButton()
@@ -22,7 +22,9 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = loc.t("compress_title")
         window.isReleasedWhenClosed = false
+        UnseenWindows.apply(to: window)
         super.init(window: window)
+        window.delegate = self
         build(itemCount: itemCount)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -186,7 +188,11 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
         }
     }
 
-    @objc private func browse() {
+    @objc func browse() {
+        if let chosen = Dialogs.debugChoice(loc.t("compress_save_panel_title")) {
+            if let path = chosen.first { pathField.stringValue = path }
+            return
+        }
         let panel = NSSavePanel()
         panel.title = loc.t("compress_save_panel_title")
         panel.nameFieldStringValue = (pathField.stringValue as NSString).lastPathComponent
@@ -226,6 +232,13 @@ final class CompressDialog: NSWindowController, NSTextFieldDelegate {
     }
 
     @objc private func cancelPressed() { NSApp.stopModal(withCode: .cancel) }
+
+    /// The close button cancels, as Cancel and Esc do, and leaves the window to run(), which takes it away once the
+    /// modal run has ended. Closed, the window went and left the app in its modal run, with no window to answer.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        cancelPressed()
+        return false
+    }
 
     /// Shows modally; returns nil on cancel.
     func run() -> CompressOptions? {

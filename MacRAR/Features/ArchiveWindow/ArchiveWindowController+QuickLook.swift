@@ -18,7 +18,7 @@ extension ArchiveWindowController {
             guard let self else { return }
             self.password = pw ?? self.password
             guard ok else { return }
-            self.previewURLs = files.map { URL(fileURLWithPath: (tmp as NSString).appendingPathComponent($0.path)) }
+            self.previewURLs = files.map { URL(fileURLWithPath: Self.extracted($0, in: tmp)) }
             completion()
         }
     }

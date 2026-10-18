@@ -138,6 +138,13 @@ enum SevenZipBridge {
 
     static var version: String { String(cString: sevenzip_get_version()) }
 
+    /// The code pages ZIP names stored in a Windows code page are read with. nil, as before the app sets them for the
+    /// user's region at launch, reads them as 7-Zip does on macOS: each byte past ASCII becomes an escape. Set it only
+    /// while no operation runs.
+    static var windowsCodePages: WindowsCodePages? {
+        didSet { sevenzip_set_code_pages(windowsCodePages?.oem ?? 0, windowsCodePages?.ansi ?? 0) }
+    }
+
     private static var lastError: String { String(cString: sevenzip_last_error()) }
 
     // MARK: - Job

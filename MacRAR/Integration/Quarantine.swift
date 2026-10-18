@@ -27,8 +27,17 @@ enum Quarantine {
             let ctime = Double(st.st_ctimespec.tv_sec) + Double(st.st_ctimespec.tv_nsec) / 1e9
             return (ctime >= limit, (st.st_mode & S_IFMT) == S_IFDIR)
         }
+        func set(_ path: String) -> Int32 {
+            value.withUnsafeBytes { setxattr(path, attr, $0.baseAddress, value.count, 0, XATTR_NOFOLLOW) }
+        }
+        // An item written read-only takes no attribute: its owner may write it for a moment, then it gets its mode
+        // back; a downloaded read-only script used to come out without the quarantine. Links are left alone.
         func tag(_ path: String) {
-            _ = value.withUnsafeBytes { setxattr(path, attr, $0.baseAddress, value.count, 0, XATTR_NOFOLLOW) }
+            guard set(path) != 0, errno == EACCES else { return }
+            var st = stat()
+            guard lstat(path, &st) == 0, (st.st_mode & S_IFMT) != S_IFLNK, chmod(path, st.st_mode | S_IWUSR) == 0 else { return }
+            _ = set(path)
+            chmod(path, st.st_mode & 0o7777)
         }
 
         // Top-level names + new items extracted under a new name (-aou)
