@@ -63,18 +63,25 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    /// The archive window placed last, which a new one cascades from when no archive window is main: an app in the
+    /// background, or a test run, whose windows never become main. The window server's order is no guide then: on CI
+    /// it kept the first window in front, and the third window came up on top of the second.
+    private static weak var lastPlaced: NSWindow?
+
     /// Puts the window where the user's archive windows saved their frame, or in the middle when none is saved, and
-    /// one step down and right of the archive window in front when one is up. It takes the saved frame once it has its
+    /// one step down and right of the archive window in front (the main one, or else the one placed last) when one is up. It takes the saved frame once it has its
     /// toolbar: given it before, the toolbar made the window taller every time it opened. A test run leaves the frame,
     /// columns, sort order and toolbar the user's windows saved as they were (MACRAR_DEBUG_UNSEEN).
     private func place(savedFrame: NSWindow.PersistableFrameDescriptor?) {
         guard let window else { return }
-        let front = NSApp.orderedWindows.first { $0 !== window && $0.isVisible && $0.windowController is ArchiveWindowController }
+        let front = [NSApp.mainWindow, Self.lastPlaced].compactMap { $0 }
+            .first { $0 !== window && $0.isVisible && $0.windowController is ArchiveWindowController }
         let saved = savedFrame ?? (UnseenWindows.isOn ? nil : UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.frameName)"))
         if let saved { window.setFrame(from: saved) } else { window.center() }
         // The first archive window up takes the name and saves its frame from then on
         if !UnseenWindows.isOn { window.setFrameAutosaveName(Self.frameName) }
         if let front { window.setFrameTopLeftPoint(window.cascadeTopLeft(from: NSPoint(x: front.frame.minX, y: front.frame.maxY))) }
+        Self.lastPlaced = window
     }
 
     // MARK: UI

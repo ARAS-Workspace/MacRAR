@@ -75,4 +75,26 @@ final class ArchiveWindowPlacementTests: XCTestCase {
             XCTAssertLessThan(later.frame.minX - earlier.frame.minX, 60, "more than a step")
         }
     }
+
+    /// With no archive window main, as in an app in the background or a test run, whose windows never become main, a
+    /// new window cascades from the one placed last, whatever order the window server keeps: on CI the windows kept
+    /// their first order, and the third window came up on top of the second, cascaded from the first.
+    func testANewWindowCascadesFromTheLastOneWhenNoneIsMain() throws {
+        let saved = try saved(at: frame(in: try screen())).descriptor
+        var controllers: [ArchiveWindowController] = []
+        defer { for controller in controllers { controller.close() } }
+        for _ in 0..<2 {
+            let controller = ArchiveWindowController(savedFrame: saved)
+            controllers.append(controller)
+            controller.showWindow(nil)
+        }
+        // The window server's order as CI kept it: the first window in front
+        controllers[0].window?.orderFront(nil)
+        let third = ArchiveWindowController(savedFrame: saved)
+        controllers.append(third)
+        let second = try XCTUnwrap(controllers[1].window), placed = try XCTUnwrap(third.window)
+        XCTAssertNil(NSApp.mainWindow?.windowController as? ArchiveWindowController)
+        XCTAssertGreaterThan(placed.frame.minX, second.frame.minX, "not to the right of the window placed last")
+        XCTAssertLessThan(placed.frame.maxY, second.frame.maxY, "not below the window placed last")
+    }
 }
