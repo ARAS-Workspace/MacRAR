@@ -41,13 +41,19 @@ final class LocalizationManagerTests: XCTestCase {
         XCTAssertEqual(LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"]).current, .en)
     }
 
-    func testChoosingALanguageAppliesSavesAndAnnouncesIt() throws {
+    /// The menus, the AppKit windows and the Quick Actions apply the language on didChange: it comes once, before
+    /// the setter returns, and finds the new strings and the saved choice in place.
+    func testChoosingALanguageAppliesSavesAndAnnouncesItOnce() throws {
         let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
-        let announced = expectation(forNotification: LocalizationManager.didChange, object: manager)
+        var announced: [String] = []
+        let observer = NotificationCenter.default.addObserver(forName: LocalizationManager.didChange, object: manager,
+                                                              queue: nil) { _ in
+            let saved = self.defaults.string(forKey: LocalizationManager.defaultsKey) ?? "unsaved"
+            announced.append("\(manager.current.rawValue) \(manager.t("menu_file")) \(saved)")
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
         manager.current = .tr
-        wait(for: [announced], timeout: 1)
-        XCTAssertEqual(manager.t("menu_file"), try text("menu_file", in: .tr))
-        XCTAssertEqual(defaults.string(forKey: LocalizationManager.defaultsKey), "tr")
+        XCTAssertEqual(announced, ["tr \(try text("menu_file", in: .tr)) tr"])
     }
 
     func testChoosingTheCurrentLanguageChangesNothing() {
@@ -57,5 +63,23 @@ final class LocalizationManagerTests: XCTestCase {
         manager.current = .en
         wait(for: [announced], timeout: 0.2)
         XCTAssertNil(defaults.string(forKey: LocalizationManager.defaultsKey))
+    }
+
+    /// Operations read their texts on their own threads, while the main thread may be changing the language.
+    func testTextsCanBeReadOffTheMainThreadWhileTheLanguageChanges() throws {
+        let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
+        let texts = Set(try LocalizationManager.Language.allCases.map { try text("menu_file", in: $0) })
+        let readers = 4
+        let read = expectation(description: "every text read off the main thread is one of the two")
+        read.expectedFulfillmentCount = readers
+        for _ in 0..<readers {
+            DispatchQueue.global().async {
+                if (0..<2_000).allSatisfy({ _ in texts.contains(manager.t("menu_file")) }) { read.fulfill() }
+            }
+        }
+        for _ in 0..<100 {
+            for language in LocalizationManager.Language.allCases { manager.current = language }
+        }
+        wait(for: [read], timeout: 10)
     }
 }

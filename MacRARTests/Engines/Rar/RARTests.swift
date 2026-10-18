@@ -239,7 +239,10 @@ final class RARTests: XCTestCase {
         let tested = try launchApp(["--test", archive])
         XCTAssertTrue(tested.output.contains(try english("test_passed_title")), tested.output)
 
-        let rarDefault = ["-RarPath", rar.url.path, "-DefaultFormat", "\(ArchiveFormat.rar5.rawValue)"]
+        // The copy reads the user's own settings for whatever it is not given; solid and the recovery record would show
+        // in the archive's details
+        let rarDefault = ["-RarPath", rar.url.path, "-DefaultFormat", "\(ArchiveFormat.rar5.rawValue)",
+                          "-DefaultSolid", "NO", "-DefaultRecovery", "NO"]
         let compressed = try launchApp(rarDefault + ["--compress", workspace.path("src/a.txt")])
         XCTAssertEqual(compressed.status, 0, compressed.output)
         let info = try XCTUnwrap(info(workspace.path("src/a.rar")))
