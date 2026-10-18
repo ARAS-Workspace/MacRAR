@@ -15,9 +15,9 @@ extension XCTestCase {
     }
 
     /// Runs `body` with these variables set in the test host, then puts back what they were.
-    func withEnvironment(_ variables: [String: String], _ body: () throws -> Void) rethrows {
-        let earlier = variables.keys.map { ($0, getenv($0).map { String(cString: $0) }) }
-        for (name, value) in variables { setenv(name, value, 1) }
+    func withEnvironment(_ variables: [DebugVariable: String], _ body: () throws -> Void) rethrows {
+        let earlier = variables.keys.map { ($0.rawValue, getenv($0.rawValue).map { String(cString: $0) }) }
+        for (variable, value) in variables { setenv(variable.rawValue, value, 1) }
         defer {
             for (name, value) in earlier {
                 if let value { setenv(name, value, 1) } else { unsetenv(name) }
@@ -27,9 +27,9 @@ extension XCTestCase {
     }
 
     /// Runs `body` with these variables removed from the test host, then puts back what they were.
-    func withoutEnvironment(_ names: [String], _ body: () throws -> Void) rethrows {
-        let earlier = names.map { ($0, getenv($0).map { String(cString: $0) }) }
-        for name in names { unsetenv(name) }
+    func withoutEnvironment(_ variables: [DebugVariable], _ body: () throws -> Void) rethrows {
+        let earlier = variables.map { ($0.rawValue, getenv($0.rawValue).map { String(cString: $0) }) }
+        for variable in variables { unsetenv(variable.rawValue) }
         defer {
             for (name, value) in earlier {
                 if let value { setenv(name, value, 1) } else { unsetenv(name) }
@@ -41,9 +41,8 @@ extension XCTestCase {
     /// The answers a test that drives the operations starts from, so the app never waits at a real alert: an error
     /// prints instead (MACRAR_DEBUG_CONFIRM), and a password or overwrite question the test does not answer itself is
     /// cancelled, which fails the test where it would have kept a dialog open.
-    private static let debugAnswers = [
-        "MACRAR_DEBUG_CONFIRM": "1", "MACRAR_DEBUG_PASSWORD": "__cancel__", "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__",
-        "MACRAR_DEBUG_OVERWRITE": "cancel",
+    private static let debugAnswers: [DebugVariable: String] = [
+        .confirm: "1", .password: "__cancel__", .passwordRetry: "__cancel__", .overwrite: "cancel",
     ]
 
     /// What `body` prints, such as an alert MACRAR_DEBUG_CONFIRM sends to the standard output instead of the screen.
@@ -72,14 +71,14 @@ extension XCTestCase {
     private static var screen: UnseenScreen?
 
     func setDebugAnswers() {
-        for (name, value) in Self.debugAnswers { setenv(name, value, 1) }
+        for (variable, value) in Self.debugAnswers { setenv(variable.rawValue, value, 1) }
         let screen = UnseenScreen()
         Self.screen = screen
         Dialogs.prompter = DebugPrompter(base: screen)
     }
 
     func clearDebugAnswers() {
-        for name in Self.debugAnswers.keys { unsetenv(name) }
+        for variable in Self.debugAnswers.keys { unsetenv(variable.rawValue) }
         XCTAssertEqual(Self.screen?.reached ?? [], [], "a question no debug variable answers came up")
         Self.screen = nil
         Dialogs.prompter = DebugPrompter(base: AppKitPrompter())
@@ -107,4 +106,9 @@ extension XCTestCase {
         guard head.count > 10, head[0] == 0x1f, head[1] == 0x8b, head[3] & 0x08 != 0, head[3] & 0x04 == 0 else { return nil }
         return String(bytes: head[10...].prefix { $0 != 0 }, encoding: .utf8)
     }
+}
+
+extension Dictionary where Key == DebugVariable, Value == String {
+    /// The variables under their names, as an environment holds them.
+    var byName: [String: String] { [String: String](uniqueKeysWithValues: map { ($0.key.rawValue, $0.value) }) }
 }

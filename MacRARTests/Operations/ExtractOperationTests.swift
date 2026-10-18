@@ -113,37 +113,37 @@ final class ExtractOperationTests: XCTestCase {
         let changed = Data("changed".utf8)
         try changed.write(to: workspace.url("out/a.txt"))
 
-        try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "cancel"]) { XCTAssertFalse(try extract(info, into: "out")) }
-        try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "skip"]) { XCTAssertTrue(try extract(info, into: "out")) }
+        try withEnvironment([.overwrite: "cancel"]) { XCTAssertFalse(try extract(info, into: "out")) }
+        try withEnvironment([.overwrite: "skip"]) { XCTAssertTrue(try extract(info, into: "out")) }
         XCTAssertEqual(workspace.contents("out/a.txt"), changed)
 
-        try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "rename"]) { XCTAssertTrue(try extract(info, into: "out")) }
+        try withEnvironment([.overwrite: "rename"]) { XCTAssertTrue(try extract(info, into: "out")) }
         XCTAssertEqual(workspace.contents("out/a.txt"), changed)
         let names = try FileManager.default.contentsOfDirectory(atPath: workspace.path("out"))
         let renamed = names.filter { $0 != "a.txt" && $0.hasPrefix("a") }
         XCTAssertEqual(renamed.count, 1, "\(renamed)")
         XCTAssertEqual(renamed.first.flatMap { workspace.contents("out/\($0)") }, original)
 
-        try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "overwrite"]) { XCTAssertTrue(try extract(info, into: "out")) }
+        try withEnvironment([.overwrite: "overwrite"]) { XCTAssertTrue(try extract(info, into: "out")) }
         XCTAssertEqual(workspace.contents("out/a.txt"), original)
     }
 
     func testAWrongPasswordIsAskedAgain() throws {
         let hidden = workspace.path("hidden.7z")
         _ = try makeArchive("hidden.7z", password: "pw", encryptHeaders: true)
-        withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "pw"]) {
+        withEnvironment([.password: "wrong", .passwordRetry: "pw"]) {
             var password: String?
             XCTAssertNotNil(Ops.listInteractive(archive: hidden, password: &password))
             XCTAssertEqual(password, "pw")
         }
-        withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__"]) {
+        withEnvironment([.password: "wrong", .passwordRetry: "__cancel__"]) {
             var password: String?
             XCTAssertNil(Ops.listInteractive(archive: hidden, password: &password))
         }
 
         let info = try makeArchive("data.7z", password: "pw")
         XCTAssertTrue(info.hasEncryptedFiles)
-        try withEnvironment(["MACRAR_DEBUG_PASSWORD": "wrong", "MACRAR_DEBUG_PASSWORD_RETRY": "pw"]) {
+        try withEnvironment([.password: "wrong", .passwordRetry: "pw"]) {
             XCTAssertTrue(try extract(info, into: "out"))
         }
         XCTAssertEqual(workspace.contents("out/sub/b.bin"), workspace.contents("src/sub/b.bin"))

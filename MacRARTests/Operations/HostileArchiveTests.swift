@@ -63,7 +63,7 @@ final class HostileArchiveTests: XCTestCase {
                              ("tar", HostileArchive.tar([.file("../escaped.txt")]))] {
             // Past the question the app asks first (the next test)
             var outcome: Outcome?
-            try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "overwrite"]) { outcome = try extract(data, as: "climb.\(name)") }
+            try withEnvironment([.overwrite: "overwrite"]) { outcome = try extract(data, as: "climb.\(name)") }
             XCTAssertEqual(outcome?.outside, [], name)
             XCTAssertEqual(outcome?.inside, ["escaped.txt"], name)
         }

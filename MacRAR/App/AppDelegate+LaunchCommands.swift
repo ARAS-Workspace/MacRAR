@@ -31,12 +31,12 @@ extension AppDelegate {
             guard !existing.isEmpty else { self.finishCommand(); return }
             var opts = CompressOptions.withDefaults(for: existing)
             // Debugging: MACRAR_DEBUG_FORMAT=zip|7z|tar.gz… and MACRAR_DEBUG_PASSWORD pick the format/password
-            if let f = ProcessInfo.processInfo.environment["MACRAR_DEBUG_FORMAT"],
+            if let f = DebugVariable.format.value(),
                let fmt = ArchiveFormat.allCases.first(where: { $0.ext == f }) {
                 opts.format = fmt
                 opts.archivePath = CompressOptions.defaultArchivePath(for: existing, format: fmt)
-                opts.password = ProcessInfo.processInfo.environment["MACRAR_DEBUG_PASSWORD"]
-                opts.encryptNames = ProcessInfo.processInfo.environment["MACRAR_DEBUG_ENCNAMES"] != nil
+                opts.password = DebugVariable.password.value()
+                opts.encryptNames = DebugVariable.encryptNames.value() != nil
             }
             Ops.compress(items: existing, options: opts, host: nil) { ok, path in
                 if ok, Prefs.revealAfterCompress { Ops.revealInFinder(path) }

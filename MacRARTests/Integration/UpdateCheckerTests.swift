@@ -51,7 +51,7 @@ final class UpdateCheckerTests: XCTestCase {
     /// The update alert names the new version and the one in use, without the release notes, and its first button
     /// opens the new version's release page, where its DMGs are listed first.
     func testTheUpdateAlertOpensTheNewVersionsReleasePage() {
-        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": "download"]) {
+        withEnvironment([.version: "1.0.0+ARAS.Patch.1", .update: "download"]) {
             let output = printed { UpdateChecker.handle(release: release, manual: true) }
             XCTAssertTrue(output.contains(loc.t("update_available_title", "9.9.9+ARAS.Patch.1")), output)
             XCTAssertTrue(output.contains(loc.t("update_available_message", "1.0.0+ARAS.Patch.1")), output)

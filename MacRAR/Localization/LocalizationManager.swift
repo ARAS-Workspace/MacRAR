@@ -71,7 +71,7 @@ final class LocalizationManager: @unchecked Sendable {
     /// MACRAR_LANG, then the saved choice, then the app's preferred localization (which follows the per-app
     /// language in System Settings).
     private static func resolveLanguage(defaults: UserDefaults, environment: [String: String]) -> Language {
-        if let forced = environment["MACRAR_LANG"] {
+        if let forced = DebugVariable.language.value(in: environment) {
             return Language(identifier: forced)
         }
         if let saved = defaults.string(forKey: defaultsKey), !saved.isEmpty {

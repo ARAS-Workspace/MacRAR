@@ -36,7 +36,7 @@ final class UnseenWindowsTests: XCTestCase {
     }
 
     func testTheTestRunKeepsEveryWindowOfTheAppUnseen() throws {
-        XCTAssertTrue(UnseenWindows.isOn, "the scheme's test action does not set MACRAR_DEBUG_UNSEEN")
+        XCTAssertTrue(UnseenWindows.isOn, "the scheme's test action does not set \(DebugVariable.unseen.rawValue)")
         let launched = try XCTUnwrap(AppDelegate.shared).windows
         XCTAssertFalse(launched.isEmpty)
         for controller in launched {
@@ -50,7 +50,7 @@ final class UnseenWindowsTests: XCTestCase {
 
     func testAUserSeesTheWindows() throws {
         try keepingSavedState {
-            withoutEnvironment(["MACRAR_DEBUG_UNSEEN"]) {
+            withoutEnvironment([.unseen]) {
                 XCTAssertFalse(UnseenWindows.isOn)
                 for (name, controller) in builtWindows() {
                     XCTAssertEqual(controller.window?.alphaValue, 1, "the \(name) window")
@@ -67,7 +67,7 @@ final class UnseenWindowsTests: XCTestCase {
     /// A copy started by launchApp opens its empty window unseen, and MACRAR_SNAPSHOT still draws it.
     func testACopyOfTheAppKeepsItsWindowsUnseen() throws {
         let workspace = try Workspace()
-        let exit = try launchApp([], environment: ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "2"])
+        let exit = try launchApp([], environment: [.snapshot: workspace.path("shot"), .snapshotDelay: "2"])
         XCTAssertEqual(exit.status, 0, exit.output)
         XCTAssertTrue(workspace.exists("shot-0.png"), exit.output)
         XCTAssertTrue(exit.output.contains("alpha 0.0"), exit.output)

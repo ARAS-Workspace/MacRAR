@@ -12,13 +12,13 @@ enum UpdateChecker {
     private static let interval: TimeInterval = 24 * 3600
 
     static var currentVersion: String {
-        if let v = ProcessInfo.processInfo.environment["MACRAR_DEBUG_VERSION"] { return v }
+        if let v = DebugVariable.version.value() { return v }
         return AppInfo.version
     }
 
     /// At app launch: at most once a day, silently.
     static func checkAutomatically() {
-        if ProcessInfo.processInfo.environment["MACRAR_NO_UPDATE_CHECK"] != nil { return }
+        if DebugVariable.noUpdateCheck.value() != nil { return }
         let last = UserDefaults.standard.double(forKey: lastCheckKey)
         if Date().timeIntervalSince1970 - last < interval { return }
         check(manual: false)

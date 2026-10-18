@@ -42,14 +42,14 @@ final class DebugAnswersTests: XCTestCase {
     /// The first question and the one after a wrong password each take their own variable, printing nothing; an empty
     /// answer is a password too.
     func testThePasswordQuestionsTakeTheirVariables() {
-        withEnvironment(["MACRAR_DEBUG_PASSWORD": "şifre 1", "MACRAR_DEBUG_PASSWORD_RETRY": "şifre 2"]) {
+        withEnvironment([.password: "şifre 1", .passwordRetry: "şifre 2"]) {
             let output = printed {
                 XCTAssertEqual(Dialogs.askPassword(archiveName: "x.7z"), "şifre 1")
                 XCTAssertEqual(Dialogs.askPassword(archiveName: "x.7z", wrong: true), "şifre 2")
             }
             XCTAssertEqual(output, "")
         }
-        withEnvironment(["MACRAR_DEBUG_PASSWORD": "", "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__"]) {
+        withEnvironment([.password: "", .passwordRetry: "__cancel__"]) {
             XCTAssertEqual(Dialogs.askPassword(archiveName: "x.7z"), "")
             XCTAssertNil(Dialogs.askPassword(archiveName: "x.7z", wrong: true))
         }
@@ -58,7 +58,7 @@ final class DebugAnswersTests: XCTestCase {
     func testTheOverwriteQuestionTakesItsVariable() {
         let answers: [String: Dialogs.OverwriteMode] = ["overwrite": .overwrite, "rename": .rename, "skip": .skip, "cancel": .cancel]
         for (value, mode) in answers {
-            withEnvironment(["MACRAR_DEBUG_OVERWRITE": value]) {
+            withEnvironment([.overwrite: value]) {
                 XCTAssertEqual(Dialogs.askOverwrite(existing: ["a.txt"], dest: "/tmp/out"), mode, value)
             }
         }
@@ -80,7 +80,7 @@ final class DebugAnswersTests: XCTestCase {
         let title = loc.t("quick_actions_need_applications_title", AppInfo.name)
         let message = loc.t("quick_actions_need_applications_message", AppInfo.name, AppInfo.name)
         let delegate = try XCTUnwrap(AppDelegate.shared)
-        withEnvironment(["MACRAR_DEBUG_PLACEMENT": "downloaded"]) {
+        withEnvironment([.placement: "downloaded"]) {
             XCTAssertEqual(printed { delegate.warnAboutPlacementWhenIdle() }, "\(title): \(message)\n")
         }
         XCTAssertFalse(UserDefaults.standard.bool(forKey: key))
@@ -101,7 +101,7 @@ final class DebugAnswersTests: XCTestCase {
         for (way, expected) in ways {
             var reached: [UnseenScreen.Prompt] = []
             let output = printed {
-                withEnvironment(way.map { ["MACRAR_DEBUG_RARTOOL": $0] } ?? [:]) {
+                withEnvironment(way.map { [.rarTool: $0] } ?? [:]) {
                     reached = reachingTheScreen { XCTAssertFalse(RarTools.askForTool(into: "/nonexistent/rar")) }
                 }
             }
@@ -127,7 +127,7 @@ final class DebugAnswersTests: XCTestCase {
 
     /// MACRAR_DEBUG_CHOOSE answers a panel with the path it gives, a folder or a file alike.
     func testAPanelTakesThePathItIsGiven() {
-        withEnvironment(["MACRAR_DEBUG_CHOOSE": "/tmp/çıktı"]) {
+        withEnvironment([.choose: "/tmp/çıktı"]) {
             let output = printed {
                 XCTAssertEqual(Dialogs.chooseFolder(title: "Extract to", prompt: "Extract"), "/tmp/çıktı")
                 XCTAssertEqual(Dialogs.chooseFiles(title: "Add", prompt: "Add", archivesOnly: false), ["/tmp/çıktı"])

@@ -67,7 +67,7 @@ final class CommandRoutingTests: XCTestCase {
         let readme = loc.current == .tr ? "README_TR.md" : "README.md"
         XCTAssertEqual(try send(.openHelp), "open https://github.com/ARAS-Workspace/MacRAR/blob/main/\(readme)\n")
         XCTAssertEqual(try send(.openReleaseNotes), "open https://github.com/ARAS-Workspace/MacRAR/blob/main/CHANGELOG\n")
-        try withEnvironment(["MACRAR_DEBUG_PLACEMENT": "elsewhere"]) {
+        try withEnvironment([.placement: "elsewhere"]) {
             let said = try send(.installQuickActions)
             XCTAssertTrue(said.hasPrefix(loc.t("quick_actions_need_applications_title", AppInfo.name) + ": "), said)
         }

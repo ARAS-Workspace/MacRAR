@@ -113,7 +113,7 @@ final class MenuBarTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
-        let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
+        let manager = LocalizationManager(defaults: defaults, environment: [DebugVariable.language.rawValue: "en"])
         let appMenuBar = NSApp.mainMenu
         let bar = MenuBar(loc: manager, app: nil, appTarget: nil, recent: nil)
         bar.install()

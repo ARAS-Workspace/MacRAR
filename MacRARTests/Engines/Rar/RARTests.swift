@@ -508,7 +508,7 @@ extension RARTests {
 
         var password: String?
         var listed: ArchiveInfo?
-        withEnvironment(["MACRAR_DEBUG_PASSWORD": typed]) { listed = Ops.listInteractive(archive: names, password: &password) }
+        withEnvironment([.password: typed]) { listed = Ops.listInteractive(archive: names, password: &password) }
         XCTAssertEqual(scalars(password), decomposed)
         let namesInfo = try XCTUnwrap(listed)
         XCTAssertTrue(finished { Ops.delete(info: namesInfo, names: ["a.txt"], password: typed, host: nil, completion: $0) })
@@ -530,10 +530,10 @@ extension RARTests {
         let locked = try XCTUnwrap(info(options.archivePath))
 
         let added = [workspace.path("added.txt")], skipped = [workspace.path("skipped.txt")]
-        withEnvironment(["MACRAR_DEBUG_PASSWORD_RETRY": typed]) {
+        withEnvironment([.passwordRetry: typed]) {
             XCTAssertTrue(finished { Ops.add(info: locked, items: added, password: "Şifre", host: nil, completion: $0) })
         }
-        withEnvironment(["MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__"]) {
+        withEnvironment([.passwordRetry: "__cancel__"]) {
             XCTAssertFalse(finished { Ops.add(info: locked, items: skipped, password: "Şifre", host: nil, completion: $0) })
         }
         let names = try XCTUnwrap(info(options.archivePath)).entries.map(\.name)

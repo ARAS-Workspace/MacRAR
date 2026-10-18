@@ -17,7 +17,7 @@ final class PrompterTests: XCTestCase {
         // Unwrapped rather than asserted: without the screen, the question below would come up as a real alert
         let held = try XCTUnwrap(Dialogs.prompter as? DebugPrompter)
         _ = try XCTUnwrap(held.base as? UnseenScreen)
-        withoutEnvironment(["MACRAR_DEBUG_CONFIRM"]) { XCTAssertFalse(Dialogs.confirm("Delete?", "a.txt")) }
+        withoutEnvironment([.confirm]) { XCTAssertFalse(Dialogs.confirm("Delete?", "a.txt")) }
         XCTExpectFailure("the confirmation no variable answered is reported") { clearDebugAnswers() }
         let restored = try XCTUnwrap(Dialogs.prompter as? DebugPrompter)
         XCTAssertTrue(restored.base is AppKitPrompter)
@@ -71,7 +71,7 @@ final class PrompterTests: XCTestCase {
     /// MACRAR_DEBUG_FORMAT, so the scan leaves it out; a window run modally, NSApp.runModal(for:), is not an alert, and a
     /// file opened in its app, NSWorkspace.shared.open(URL(fileURLWithPath:)), is not a page.
     func testTheQuestionsAreAnsweredAndShownInOnePlace() throws {
-        let answer = NSRegularExpression(literal: #""MACRAR_DEBUG_(CONFIRM|PASSWORD_RETRY|OVERWRITE|UPDATE|CHOOSE|RARTOOL)""#)
+        let answer = NSRegularExpression(literal: #"DebugVariable\.(confirm|passwordRetry|overwrite|update|choose|rarTool)\b"#)
         let shown = NSRegularExpression(
             literal: #"NSAlert\(|NSOpenPanel\(|NSSavePanel\(|\.runModal\(\)|NSWorkspace\.shared\.open\((?!URL\(fileURLWithPath:)"#)
         var answering = Set<String>(), showing = Set<String>()

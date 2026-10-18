@@ -155,7 +155,7 @@ final class LaunchQuestionsTests: XCTestCase {
     /// here, so that it shows when the alert came.
     func testTheUpdateAlertWaitsForAnOpenSheet() {
         UserDefaults.standard.removeObject(forKey: UpdateChecker.skipKey)
-        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": "skip"]) {
+        withEnvironment([.version: "1.0.0+ARAS.Patch.1", .update: "skip"]) {
             _ = openSheet()
             UpdateChecker.handle(release: ["tag_name": "mac-v9.9.9+ARAS.Patch.1"], manual: false)
             spin(2)
@@ -167,7 +167,7 @@ final class LaunchQuestionsTests: XCTestCase {
 
     /// Asked for from the menu, the check answers at once, open sheet or not.
     func testAnUpdateCheckFromTheMenuAnswersAtOnce() {
-        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": "skip"]) {
+        withEnvironment([.version: "1.0.0+ARAS.Patch.1", .update: "skip"]) {
             UserDefaults.standard.set("9.9.9+ARAS.Patch.1", forKey: UpdateChecker.skipKey)
             UpdateChecker.handle(release: ["tag_name": "mac-v9.9.9+ARAS.Patch.2"], manual: false)
             XCTAssertTrue(eventually(timeout: 1) { UserDefaults.standard.string(forKey: UpdateChecker.skipKey) == "9.9.9+ARAS.Patch.2" })
@@ -182,7 +182,7 @@ final class LaunchQuestionsTests: XCTestCase {
         let release: [String: Any] = ["tag_name": "mac-v9.9.9+ARAS.Patch.1"]
         let title = loc.t("update_available_title", "9.9.9+ARAS.Patch.1")
         UserDefaults.standard.set("9.9.9+ARAS.Patch.1", forKey: UpdateChecker.skipKey)
-        withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1"]) {
+        withEnvironment([.version: "1.0.0+ARAS.Patch.1"]) {
             XCTAssertFalse(printed { UpdateChecker.handle(release: release, manual: false) }.contains(title), "the daily check showed it")
             XCTAssertTrue(printed { UpdateChecker.handle(release: release, manual: true) }.contains(title), "the menu's check hid it")
         }
@@ -195,7 +195,7 @@ final class LaunchQuestionsTests: XCTestCase {
         for (answer, version) in [("skip", "9.9.9+ARAS.Patch.1"), ("later", "9.9.9+ARAS.Patch.2")] {
             let release: [String: Any] = ["tag_name": "mac-v" + version]
             let title = loc.t("update_available_title", version)
-            withEnvironment(["MACRAR_DEBUG_VERSION": "1.0.0+ARAS.Patch.1", "MACRAR_DEBUG_UPDATE": answer]) {
+            withEnvironment([.version: "1.0.0+ARAS.Patch.1", .update: answer]) {
                 let output = printed {
                     _ = openSheet()
                     UpdateChecker.handle(release: release, manual: false)

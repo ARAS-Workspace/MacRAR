@@ -38,13 +38,13 @@ final class LocalizationManagerTests: XCTestCase {
 
     func testMacrarLangOverridesTheSavedChoice() {
         defaults.set("tr", forKey: LocalizationManager.defaultsKey)
-        XCTAssertEqual(LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"]).current, .en)
+        XCTAssertEqual(LocalizationManager(defaults: defaults, environment: [DebugVariable.language.rawValue: "en"]).current, .en)
     }
 
     /// The menus, the AppKit windows and the Quick Actions apply the language on didChange: it comes once, before
     /// the setter returns, and finds the new strings and the saved choice in place.
     func testChoosingALanguageAppliesSavesAndAnnouncesItOnce() throws {
-        let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
+        let manager = LocalizationManager(defaults: defaults, environment: [DebugVariable.language.rawValue: "en"])
         var announced: [String] = []
         let observer = NotificationCenter.default.addObserver(forName: LocalizationManager.didChange, object: manager,
                                                               queue: nil) { _ in
@@ -57,7 +57,7 @@ final class LocalizationManagerTests: XCTestCase {
     }
 
     func testChoosingTheCurrentLanguageChangesNothing() {
-        let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
+        let manager = LocalizationManager(defaults: defaults, environment: [DebugVariable.language.rawValue: "en"])
         let announced = expectation(forNotification: LocalizationManager.didChange, object: manager)
         announced.isInverted = true
         manager.current = .en
@@ -67,7 +67,7 @@ final class LocalizationManagerTests: XCTestCase {
 
     /// Operations read their texts on their own threads, while the main thread may be changing the language.
     func testTextsCanBeReadOffTheMainThreadWhileTheLanguageChanges() throws {
-        let manager = LocalizationManager(defaults: defaults, environment: ["MACRAR_LANG": "en"])
+        let manager = LocalizationManager(defaults: defaults, environment: [DebugVariable.language.rawValue: "en"])
         let texts = Set(try LocalizationManager.Language.allCases.map { try text("menu_file", in: $0) })
         let readers = 4
         let read = expectation(description: "every text read off the main thread is one of the two")

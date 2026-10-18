@@ -67,7 +67,7 @@ final class CompressDialogTests: XCTestCase {
         let content = try XCTUnwrap(dialog.window?.contentView)
         let path = try XCTUnwrap(views(NSTextField.self, in: content).first { $0.stringValue == "/a/x.zip" })
         let browse = try XCTUnwrap(views(NSButton.self, in: content).first { $0.title == loc.t("compress_browse") })
-        withEnvironment(["MACRAR_DEBUG_CHOOSE": "/b/çıktı.zip"]) {
+        withEnvironment([.choose: "/b/çıktı.zip"]) {
             XCTAssertEqual(printed { browse.performClick(nil) }, "choose \(loc.t("compress_save_panel_title"))\n")
         }
         XCTAssertEqual(path.stringValue, "/b/çıktı.zip")

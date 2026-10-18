@@ -116,7 +116,7 @@ final class PasswordTests: XCTestCase {
         XCTAssertTrue(opensWhole(archive, with: password), context)
 
         // A wrong one is asked again, and the right one then extracts
-        try withEnvironment(["MACRAR_DEBUG_PASSWORD_RETRY": password]) {
+        try withEnvironment([.passwordRetry: password]) {
             XCTAssertTrue(try extract(info, password: password + "!", into: "\(name)-again").ok, context)
         }
         XCTAssertTrue(sameContents(in: "\(name)-again"), context)
@@ -142,7 +142,7 @@ final class PasswordTests: XCTestCase {
                               context)
                 let mistyped = password + "!"
                 info = try listing()
-                withEnvironment(["MACRAR_DEBUG_PASSWORD_RETRY": password]) {
+                withEnvironment([.passwordRetry: password]) {
                     XCTAssertTrue(finished { Ops.add(info: info, items: more("typo.txt"), password: mistyped, host: nil, completion: $0) },
                                   "\(context): a mistyped password")
                 }
@@ -329,29 +329,29 @@ extension PasswordTests {
             let file = "\(folder)/a.txt"
             try FileManager.default.copyItem(atPath: workspace.path("src/a.txt"), toPath: file)
             let tool = lock.format.isRar ? ["-RarPath", try XCTUnwrap(rar).url.path] : []
-            var settings = ["MACRAR_DEBUG_FORMAT": lock.format.ext, "MACRAR_DEBUG_PASSWORD": password]
-            if lock.namesToo { settings["MACRAR_DEBUG_ENCNAMES"] = "1" }
+            var settings: [DebugVariable: String] = [.format: lock.format.ext, .password: password]
+            if lock.namesToo { settings[.encryptNames] = "1" }
             let made = try launchApp(tool + ["--compress", file], environment: settings)
             XCTAssertEqual(made.status, 0, "\(context): \(made.output)")
             let archive = "\(folder)/a.\(lock.format.ext)"
             XCTAssertTrue(opensWhole(archive, with: password), context)
 
-            let typedRight = ["MACRAR_DEBUG_PASSWORD": password]
-            let typedWrongFirst = ["MACRAR_DEBUG_PASSWORD": password + "!", "MACRAR_DEBUG_PASSWORD_RETRY": password]
+            let typedRight: [DebugVariable: String] = [.password: password]
+            let typedWrongFirst: [DebugVariable: String] = [.password: password + "!", .passwordRetry: password]
             for answers in [typedRight, typedWrongFirst] {
                 try FileManager.default.removeItem(atPath: file)
                 let extracted = try launchApp(tool + ["--extract-here", archive], environment: answers)
                 XCTAssertEqual(extracted.status, 0, "\(context): \(extracted.output)")
                 XCTAssertEqual(FileManager.default.contents(atPath: file), workspace.contents("src/a.txt"), "\(context): \(answers.keys)")
             }
-            let tested = try launchApp(tool + ["--test", archive], environment: ["MACRAR_DEBUG_PASSWORD": password])
+            let tested = try launchApp(tool + ["--test", archive], environment: [.password: password])
             XCTAssertTrue(tested.output.contains(try english("test_passed_title")), "\(context): \(tested.output)")
         }
 
         for lock in locks where lock != .zip {
             let archive = try makeTheEarlierWay(lock, Self.turkish, in: "quick-earlier-\(lock)")
             let tool = lock.format.isRar ? ["-RarPath", try XCTUnwrap(rar).url.path] : []
-            let extracted = try launchApp(tool + ["--extract-folder", archive], environment: ["MACRAR_DEBUG_PASSWORD": Self.turkish])
+            let extracted = try launchApp(tool + ["--extract-folder", archive], environment: [.password: Self.turkish])
             XCTAssertEqual(extracted.status, 0, "\(lock): \(extracted.output)")
             XCTAssertTrue(sameContents(in: "quick-earlier-\(lock)/earlier"), "\(lock)")
         }
@@ -412,8 +412,8 @@ extension PasswordTests {
             let file = "\(folder)/a.txt"
             try FileManager.default.copyItem(atPath: workspace.path("src/a.txt"), toPath: file)
             let archive = "\(folder)/a.\(lock.format.ext)"
-            var settings = ["MACRAR_DEBUG_FORMAT": lock.format.ext, "MACRAR_DEBUG_PASSWORD": password]
-            if lock.namesToo { settings["MACRAR_DEBUG_ENCNAMES"] = "1" }
+            var settings: [DebugVariable: String] = [.format: lock.format.ext, .password: password]
+            if lock.namesToo { settings[.encryptNames] = "1" }
             let tool = lock.format.isRar ? ["-RarPath", try XCTUnwrap(rar).url.path] : []
             let made = try launchApp(tool + ["--compress", file], environment: settings)
             XCTAssertEqual(made.status, 0, "\(context): \(made.output)")
@@ -451,7 +451,7 @@ extension PasswordTests {
             let info = try XCTUnwrap(open(archive, typing: "pw").info)
             let destination = try workspace.makeDirectory("kept-\(lock)-out")
             try mine.write(to: URL(fileURLWithPath: "\(destination)/a.txt"))
-            try withEnvironment(["MACRAR_DEBUG_OVERWRITE": "overwrite"]) {
+            try withEnvironment([.overwrite: "overwrite"]) {
                 XCTAssertFalse(try extract(info, password: "wrong", into: "kept-\(lock)-out").ok, "\(lock)")
             }
             XCTAssertEqual(FileManager.default.contents(atPath: "\(destination)/a.txt"), mine, "\(lock)")
@@ -505,7 +505,7 @@ extension PasswordTests {
     func open(_ archive: String, typing password: String) -> (info: ArchiveInfo?, password: String?) {
         var used: String?
         var info: ArchiveInfo?
-        withEnvironment(["MACRAR_DEBUG_PASSWORD": password]) { info = Ops.listInteractive(archive: archive, password: &used) }
+        withEnvironment([.password: password]) { info = Ops.listInteractive(archive: archive, password: &used) }
         return (info, used)
     }
 

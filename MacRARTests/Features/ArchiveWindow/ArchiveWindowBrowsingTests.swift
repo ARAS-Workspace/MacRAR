@@ -295,7 +295,7 @@ final class ArchiveWindowBrowsingTests: XCTestCase {
             ]
             for (archive, flags) in expected {
                 var controller: ArchiveWindowController?
-                try withEnvironment(["MACRAR_DEBUG_PASSWORD": "pw"]) { controller = try opened(archive) }
+                try withEnvironment([.password: "pw"]) { controller = try opened(archive) }
                 defer { controller?.close() }
                 let shown = try status(try XCTUnwrap(controller))
                 XCTAssertTrue(shown.hasSuffix("   •   " + flags), "\(language): \(shown)")

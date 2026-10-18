@@ -66,7 +66,7 @@ final class RarInstallTests: XCTestCase {
         let tarball = try download()
         setDebugAnswers()
         defer { clearDebugAnswers() }
-        withEnvironment(["MACRAR_DEBUG_RARTOOL": "choose", "MACRAR_DEBUG_CHOOSE": tarball.path]) {
+        withEnvironment([.rarTool: "choose", .choose: tarball.path]) {
             _ = printed { XCTAssertTrue(RarTools.askForTool(into: target)) }
         }
         XCTAssertEqual(RarTools.reportedVersion(of: installed), RarTools.reportedVersion(of: rar.url))

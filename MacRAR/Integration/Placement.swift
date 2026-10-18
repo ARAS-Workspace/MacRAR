@@ -27,7 +27,7 @@ extension QuickActions {
     /// This copy's placement. MACRAR_DEBUG_PLACEMENT=downloaded or elsewhere stands in for a copy run from there; it
     /// cannot make a copy pass for the one in Applications.
     static var placement: Placement {
-        switch ProcessInfo.processInfo.environment["MACRAR_DEBUG_PLACEMENT"] {
+        switch DebugVariable.placement.value() {
         case "downloaded": return .downloaded
         case "elsewhere": return .elsewhere
         default: return placement(bundlePath: Bundle.main.bundlePath, home: AppInfo.realHome)

@@ -15,19 +15,20 @@ extension XCTestCase {
     /// `arguments` set further defaults for that copy only. The copy is started with posix_spawn rather than Process,
     /// which hands arguments and the environment over decomposed (NFD): what reaches the copy is byte for byte what the
     /// test gives, such as a password typed with letters like ü or ş.
-    func launchApp(_ arguments: [String], environment: [String: String] = [:], timeout: TimeInterval = 60,
+    func launchApp(_ arguments: [String], environment: [DebugVariable: String] = [:], timeout: TimeInterval = 60,
                    file: StaticString = #filePath, line: UInt = #line) throws -> AppExit {
         let executable = try XCTUnwrap(Bundle.main.executablePath)
         let argv = [executable, "-RevealAfterExtract", "NO", "-RevealAfterCompress", "NO"] + arguments
         // A fresh environment: the test host's XCTest variables would load the tests into the copy as well
-        let variables = [
-            "HOME": NSHomeDirectory(), "TMPDIR": NSTemporaryDirectory(), "PATH": "/usr/bin:/bin",
-            "MACRAR_LANG": "en", "MACRAR_NO_UPDATE_CHECK": "1", "MACRAR_DEBUG_CONFIRM": "1", "MACRAR_DEBUG_UNSEEN": "1",
-            // Questions the test leaves unanswered are cancelled rather than shown in the copy. With MACRAR_DEBUG_FORMAT,
-            // MACRAR_DEBUG_PASSWORD is the password the archive is made with instead, so it is left to the test.
-            "MACRAR_DEBUG_PASSWORD_RETRY": "__cancel__", "MACRAR_DEBUG_OVERWRITE": "cancel",
-        ].merging(environment["MACRAR_DEBUG_FORMAT"] == nil ? ["MACRAR_DEBUG_PASSWORD": "__cancel__"] : [:]) { $1 }
-            .merging(environment) { $1 }.map { "\($0.key)=\($0.value)" }
+        let debug: [DebugVariable: String] = [
+            .language: "en", .noUpdateCheck: "1", .confirm: "1", .unseen: "1",
+            // Questions the test leaves unanswered are cancelled rather than shown in the copy. With .format,
+            // .password is the password the archive is made with instead, so it is left to the test.
+            .passwordRetry: "__cancel__", .overwrite: "cancel",
+        ]
+        let variables = ["HOME": NSHomeDirectory(), "TMPDIR": NSTemporaryDirectory(), "PATH": "/usr/bin:/bin"]
+            .merging(debug.merging(environment[.format] == nil ? [.password: "__cancel__"] : [:]) { $1 }.byName) { $1 }
+            .merging(environment.byName) { $1 }.map { "\($0.key)=\($0.value)" }
 
         let started = Date()
         let (pid, output) = try spawn(argv, variables)

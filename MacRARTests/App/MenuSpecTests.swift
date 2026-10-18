@@ -11,7 +11,7 @@ final class MenuSpecTests: XCTestCase {
     /// A manager in `language` over a suite nothing is saved to.
     private func manager(_ language: LocalizationManager.Language) throws -> LocalizationManager {
         LocalizationManager(defaults: try XCTUnwrap(UserDefaults(suiteName: "MacRARTests-MenuSpec")),
-                            environment: ["MACRAR_LANG": language.rawValue])
+                            environment: [DebugVariable.language.rawValue: language.rawValue])
     }
 
     private func strings(_ language: LocalizationManager.Language) throws -> [String: String] {

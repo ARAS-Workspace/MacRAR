@@ -20,7 +20,7 @@ struct DebugPrompter: Prompter {
 
     func ask(_ question: Question) -> Answer {
         let variables = environment()
-        guard variables["MACRAR_DEBUG_CONFIRM"] != nil else { return base.ask(question) }
+        guard DebugVariable.confirm.value(in: variables) != nil else { return base.ask(question) }
         switch question.topic {
         case .confirmation:
             return Answer(button: 0)
@@ -33,14 +33,14 @@ struct DebugPrompter: Prompter {
             return Answer(button: 1)
         case .update:
             print("\(question.title): \(question.message)")
-            switch variables["MACRAR_DEBUG_UPDATE"] {
+            switch DebugVariable.update.value(in: variables) {
             case "download": return Answer(button: 0)
             case "skip": return Answer(button: 2)
             default: return Answer(button: 1)
             }
         case .rarToolMissing:
             print("\(question.title): \(question.message)")
-            switch variables["MACRAR_DEBUG_RARTOOL"] {
+            switch DebugVariable.rarTool.value(in: variables) {
             case "choose": return Answer(button: 0)
             case "download": return Answer(button: 1)
             default: return Answer(button: 2)
@@ -52,19 +52,19 @@ struct DebugPrompter: Prompter {
     }
 
     func report(_ report: Report) {
-        guard environment()["MACRAR_DEBUG_CONFIRM"] != nil else { return base.report(report) }
+        guard DebugVariable.confirm.value(in: environment()) != nil else { return base.report(report) }
         print("\(report.title): \(report.detail)")
     }
 
     func askPassword(archiveName: String, wrong: Bool) -> String? {
-        if let answer = environment()[wrong ? "MACRAR_DEBUG_PASSWORD_RETRY" : "MACRAR_DEBUG_PASSWORD"] {
+        if let answer = (wrong ? DebugVariable.passwordRetry : DebugVariable.password).value(in: environment()) {
             return answer == "__cancel__" ? nil : answer
         }
         return base.askPassword(archiveName: archiveName, wrong: wrong)
     }
 
     func askOverwrite(existing: [String], dest: String) -> Dialogs.OverwriteMode {
-        switch environment()["MACRAR_DEBUG_OVERWRITE"] {
+        switch DebugVariable.overwrite.value(in: environment()) {
         case "overwrite": return .overwrite
         case "rename": return .rename
         case "skip": return .skip
@@ -75,13 +75,13 @@ struct DebugPrompter: Prompter {
 
     func choose(_ panel: Panel) -> [URL] {
         let variables = environment()
-        guard variables["MACRAR_DEBUG_CONFIRM"] != nil else { return base.choose(panel) }
+        guard DebugVariable.confirm.value(in: variables) != nil else { return base.choose(panel) }
         print("choose \(panel.title)")
-        return variables["MACRAR_DEBUG_CHOOSE"].map { [URL(fileURLWithPath: $0)] } ?? []
+        return DebugVariable.choose.value(in: variables).map { [URL(fileURLWithPath: $0)] } ?? []
     }
 
     func openInBrowser(_ page: URL) {
-        guard environment()["MACRAR_DEBUG_CONFIRM"] != nil else { return base.openInBrowser(page) }
+        guard DebugVariable.confirm.value(in: environment()) != nil else { return base.openInBrowser(page) }
         print("open \(page.absoluteString)")
     }
 }

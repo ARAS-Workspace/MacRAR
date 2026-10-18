@@ -64,7 +64,7 @@ final class CommandLineModeTests: XCTestCase {
     func testTheCompressDialogWaitsForTheUser() throws {
         let before = try FileManager.default.contentsOfDirectory(atPath: workspace.path("src")).sorted()
         let exit = try launchApp(["--compress-dialog", workspace.path("src/a.txt")],
-                                 environment: ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "3"])
+                                 environment: [.snapshot: workspace.path("shot"), .snapshotDelay: "3"])
         XCTAssertEqual(exit.status, 0, exit.output)
         XCTAssertGreaterThanOrEqual(exit.seconds, 3)
         XCTAssertTrue(workspace.exists("shot-0.png"), "--compress-dialog showed no window")
@@ -77,7 +77,7 @@ final class CommandLineModeTests: XCTestCase {
         let archive = makeZip()
         let asked = "choose \(try english("panel_extract_destination"))"
         try FileManager.default.createDirectory(atPath: workspace.path("out"), withIntermediateDirectories: true)
-        let chosen = try launchApp(["--extract-to", archive], environment: ["MACRAR_DEBUG_CHOOSE": workspace.path("out")])
+        let chosen = try launchApp(["--extract-to", archive], environment: [.choose: workspace.path("out")])
         XCTAssertEqual(chosen.status, 0, chosen.output)
         XCTAssertTrue(chosen.output.contains(asked), chosen.output)
         XCTAssertEqual(workspace.contents("out/a.txt"), workspace.contents("src/a.txt"))
@@ -94,11 +94,11 @@ final class CommandLineModeTests: XCTestCase {
     /// anything is written, where 7-Zip stopped with "E_INVALIDARG"; an ASCII one with spaces and symbols is taken.
     func testAZipPasswordBeyondAsciiIsExplained() throws {
         let file = workspace.path("src/a.txt")
-        let refused = try launchApp(["--compress", file], environment: ["MACRAR_DEBUG_FORMAT": "zip", "MACRAR_DEBUG_PASSWORD": "şifre"])
+        let refused = try launchApp(["--compress", file], environment: [.format: "zip", .password: "şifre"])
         XCTAssertTrue(refused.output.contains(try english("zip_password_not_ascii")), refused.output)
         XCTAssertFalse(workspace.exists("src/a.zip"))
 
-        let taken = try launchApp(["--compress", file], environment: ["MACRAR_DEBUG_FORMAT": "zip", "MACRAR_DEBUG_PASSWORD": "pass ~!@"])
+        let taken = try launchApp(["--compress", file], environment: [.format: "zip", .password: "pass ~!@"])
         XCTAssertEqual(taken.status, 0, taken.output)
         XCTAssertEqual(run(.test(archive: workspace.path("src/a.zip"), password: "pass ~!@")).code, .ok)
     }

@@ -45,7 +45,7 @@ final class PlacementTests: XCTestCase {
         let directory = try workspace.makeDirectory("Services")
         try XCTUnwrap(AppDelegate.shared).installQuickActions(in: directory, registerWithFinder: false)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory), [])
-        withEnvironment(["MACRAR_DEBUG_PLACEMENT": "downloaded"]) {
+        withEnvironment([.placement: "downloaded"]) {
             AppDelegate.shared.installQuickActions(in: directory, registerWithFinder: false)
         }
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory), [])
@@ -55,8 +55,8 @@ final class PlacementTests: XCTestCase {
     /// reads the user's own settings, so "Don't show this again" goes to it as off unless a test passes it on.
     private func launch(_ arguments: [String] = ["-\(QuickActions.placementWarningOffKey)", "NO"],
                         placement: String? = nil) throws -> AppExit {
-        var environment = ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "2"]
-        environment["MACRAR_DEBUG_PLACEMENT"] = placement
+        var environment: [DebugVariable: String] = [.snapshot: workspace.path("shot"), .snapshotDelay: "2"]
+        environment[.placement] = placement
         let exit = try launchApp(arguments, environment: environment)
         XCTAssertEqual(exit.status, 0, exit.output)
         return exit

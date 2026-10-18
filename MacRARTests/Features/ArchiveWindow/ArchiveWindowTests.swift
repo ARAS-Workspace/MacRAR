@@ -282,7 +282,7 @@ final class ArchiveWindowTests: XCTestCase {
     func testAFileThatDoesNotOpenAtLaunchLeavesAWindow() throws {
         let broken = workspace.path("broken.rar")
         try Data(repeating: 0x41, count: 4096).write(to: URL(fileURLWithPath: broken))
-        let exit = try launchApp([broken], environment: ["MACRAR_SNAPSHOT": workspace.path("shot"), "MACRAR_SNAPSHOT_DELAY": "2"])
+        let exit = try launchApp([broken], environment: [.snapshot: workspace.path("shot"), .snapshotDelay: "2"])
         XCTAssertEqual(exit.status, 0, exit.output)
         XCTAssertTrue(workspace.exists("shot-0.png"), "the copy had no window left: \(exit.output)")
     }
