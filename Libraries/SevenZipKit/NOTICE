@@ -13,10 +13,11 @@ by the fork it is built from.
                 LGPL with the unRAR licence restriction; some files under
                 BSD 3-clause, BSD 2-clause or in the public domain
 
-The full licence text is in LICENSE, in this directory, reproduced
-unchanged from the 7-Zip source distribution (DOC/License.txt). It is kept
-here because the library in this directory is a binary distribution of
-LGPL-covered code.
+The licence text is in LICENSE, in this directory, reproduced unchanged
+from the 7-Zip source distribution (DOC/License.txt), and the full GNU LGPL
+2.1 it refers to is in copying.txt (DOC/copying.txt of the same release).
+They are kept here because the library in this directory is a binary
+distribution of LGPL-covered code.
 
 The unRAR licence restriction means the RAR decoding code may not be used
 to develop a RAR (WinRAR) compatible archiver. This library only decodes
@@ -29,8 +30,12 @@ MacRAR's own source is public, so the application can be rebuilt and
 relinked against a modified build of this library, as the LGPL asks.
 
 This build comes from a fork that adds the C interface and its build and
-release scripts in a directory of its own and leaves 7-Zip's sources
-unmodified. The fork adds no copyright line of its own to 7-Zip's files.
+release scripts in a directory of its own. Its one change to 7-Zip's
+sources, on Apple systems only, reads ZIP names stored in a Windows code
+page with the code pages the application gives it
+(CPP/7zip/Archive/Zip/ZipItem.cpp, CPP/Common/StringConvert.cpp and
+StringConvert.h); each of those files says so, with the date of the
+change. The fork adds no copyright line of its own to 7-Zip's files.
 
 MacRAR is not affiliated with the 7-Zip project. Its name appears here only
 to identify the software this library was built from, not to endorse or

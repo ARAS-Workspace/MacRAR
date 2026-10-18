@@ -1,3 +1,5 @@
-Release:     https://github.com/ARAS-Workspace/7zip/releases/tag/mac-v26.04%2BMacRAR.Patch.1
+Release:     https://github.com/ARAS-Workspace/7zip/releases/tag/mac-v26.04%2BMacRAR.Patch.5
 Branch:      apple
-CI Workflow: https://github.com/ARAS-Workspace/7zip/actions/runs/37993198742
+CI Workflow: https://github.com/ARAS-Workspace/7zip/actions/runs/39084717672
+LICENSE:     DOC/License.txt of 7-Zip 26.04 (tag 26.04 of ip7z/7zip), as in the release archive
+LGPL text:   copying.txt is DOC/copying.txt of 7-Zip 26.04 (tag 26.04), as in the release archive

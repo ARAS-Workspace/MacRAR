@@ -16,7 +16,12 @@
  * password never appears in any process's argument list.
  *
  * Every call is synchronous; run it off the main thread. Strings are UTF-8,
- * paths are absolute.
+ * paths are absolute. Names and paths are taken as they are written: "*"
+ * and "?" are characters of a name, never wildcards (7zz -spd); a name
+ * inside an archive is its whole path, "./a.txt" is not "a.txt" (-spf); a
+ * "*" in a destination stays (-spod); an archive is the file named, with or
+ * without an extension (-sae). A NULL among the names is refused with
+ * SEVENZIP_ERR_INVALID_PARAM.
  */
 
 #ifdef __cplusplus
@@ -37,6 +42,8 @@ extern "C" {
 #define SEVENZIP_ERR_DATA                -7   /* CRC, data or headers error in the archive */
 #define SEVENZIP_ERR_NO_MEMORY           -8
 #define SEVENZIP_ERR_FAILED              -9   /* anything else; see sevenzip_last_error() */
+#define SEVENZIP_ERR_NOT_FOUND          -10   /* sevenzip_rename: a name matches no item */
+#define SEVENZIP_ERR_EXISTS             -11   /* sevenzip_rename: a new path is taken */
 
 /* ═══════════════════════════════════════════════════════════════
  * Extraction overwrite policy (7zz -aoa / -aou / -aos)
@@ -113,7 +120,7 @@ int32_t sevenzip_extract(
 int32_t sevenzip_test(const char *archive, const char *password, const SevenZipCallbacks *callbacks);
 
 /* ═══════════════════════════════════════════════════════════════
- * Create, add and delete (7zz a / d)
+ * Create, add, delete and rename (7zz a / d / rn)
  * ═══════════════════════════════════════════════════════════════ */
 typedef struct {
     const char *format;          /* -t: "7z", "zip", "tar", "gzip", "xz", "bzip2" */
@@ -144,6 +151,40 @@ int32_t sevenzip_delete(
     bool                     encrypt_headers,
     const SevenZipCallbacks *callbacks
 );
+
+/* Renames items (7zz rn): pairs holds pair_count pairs, each the path of an
+   item inside the archive and its new path, "a.txt", "docs/a.txt". A folder
+   is renamed with everything under it, so a new path in another folder moves
+   the item there. The archive is listed first and nothing is written when
+   a name matches no item (SEVENZIP_ERR_NOT_FOUND), a new path is taken by an
+   item that stays or is a file's path inside another file
+   (SEVENZIP_ERR_EXISTS), a path is not one inside an archive (empty, "/" at
+   either end, a "." or ".." part), a folder would go inside itself, two
+   items would get one path or two pairs name one item
+   (SEVENZIP_ERR_INVALID_PARAM), or the archive is a compressed tar or in
+   volumes (SEVENZIP_ERR_UNSUPPORTED); sevenzip_last_error() names the item.
+   Like every change, the archive is written anew next to the old one; one
+   whose names are encrypted keeps them encrypted. */
+int32_t sevenzip_rename(
+    const char              *archive,
+    const char *const       *pairs,
+    size_t                   pair_count,
+    const char              *password,
+    const SevenZipCallbacks *callbacks
+);
+
+/* ═══════════════════════════════════════════════════════════════
+ * Names in a Windows code page
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* ZIP archives made on Windows may store names in the system's code page
+   instead of UTF-8: the OEM one (857 on Turkish Windows) for names that FAT,
+   NTFS and Unix hosts wrote, the ANSI one (1254) for the others. macOS has
+   no such code page, so the caller says which ones to read them with. 0, the
+   default, reads them as 7zz on macOS does: bytes that are not UTF-8 become
+   U+EF80…U+EFFF. A name that is valid UTF-8 stays UTF-8. Applies to the calls
+   that start after it; never call it while one runs. */
+void sevenzip_set_code_pages(uint32_t oem, uint32_t ansi);
 
 /* ═══════════════════════════════════════════════════════════════
  * Diagnostics
